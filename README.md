@@ -1,6 +1,6 @@
 # Kitty
 
-Kitty is library designed to ease make use of and extend functionality
+Kitty is a library designed to ease both making use of and extending functionality
 Modules that add dependencies don't build by default
 
 ### Module err:
