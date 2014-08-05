@@ -473,9 +473,3 @@ make
 ```shell
 make install
 ```
-
-###### Viking installation:
-1. Create config file to /root/
-2. Copy tracker to /root/
-3. Copy tracker.service to /usr/lib/systemd/system/
-4. systemctl enable tracker
