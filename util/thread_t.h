@@ -18,7 +18,7 @@ typedef std::thread thread_t;
 #include <pthread.h>
 #include <memory>
 #include <system_error>
-#include "err.h"
+#include "err/err.h"
 
 namespace util {
 class _ImplBase {
