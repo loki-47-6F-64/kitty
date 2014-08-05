@@ -1,6 +1,6 @@
 #include "ssl_client.h"
-#include "_ssl.h"
-#include "utility.h"
+#include "ssl.h"
+#include "util/utility.h"
 
 namespace server {
 template<>

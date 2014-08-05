@@ -7,11 +7,11 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
-#include "_bluetooth.h"
+#include "blueth.h"
 #include "ble.h"
 
-#include "utility.h"
-#include "err.h"
+#include "util/utility.h"
+#include "err/err.h"
 
 namespace bt {
 

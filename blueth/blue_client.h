@@ -4,10 +4,10 @@
 #include <memory>
 #include <bluetooth/l2cap.h>
 
-#include "_bluetooth.h"
+#include "blueth.h"
 #include "ble.h"
-#include "server.h"
-#include "io_stream.h"
+#include "server/server.h"
+#include "file/io_stream.h"
 
 namespace server {
 

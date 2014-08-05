@@ -106,7 +106,7 @@ endif()
 
 if(BUILD_BLUETOOTH)  
   set(KITTY_TARGETS ${KITTY_TARGETS} kitty-bluetooth)
-  add_subdirectory(bluetooth)
+  add_subdirectory(blueth)
   
   set(INCLUDE_DIR ${INCLUDE_DIR} ${Kitty-Bluetooth_SOURCE_DIR}/include)
 endif()

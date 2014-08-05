@@ -1,6 +1,6 @@
-#include "utility.h"
+#include "util/utility.h"
 #include "ble.h"
-#include "log.h"
+#include "log/log.h"
 #include "blue_client.h"
 namespace bt {
 

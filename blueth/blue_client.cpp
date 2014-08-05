@@ -3,7 +3,7 @@
 #include <bluetooth/hci_lib.h>
 
 #include "blue_client.h"
-#include "utility.h"
+#include "util/utility.h"
 namespace server {
 template<>
 int bluetooth::_accept(Client& client) {

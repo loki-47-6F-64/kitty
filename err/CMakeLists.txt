@@ -17,7 +17,7 @@ include_directories(
 add_library(kitty-err STATIC ${C_SOURCES} ${CPP_SOURCES})
 
 set_target_properties(kitty-err PROPERTIES
-  PUBLIC_HEADER "include/err.h"
+  PUBLIC_HEADER "err/err.h"
 )
  
 install(TARGETS kitty-err

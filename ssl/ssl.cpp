@@ -5,8 +5,8 @@
 
 #include <netdb.h>
 
-#include "err.h"
-#include "_ssl.h"
+#include "err/err.h"
+#include "ssl.h"
 
 // Special exception for gai_strerror
 namespace err {

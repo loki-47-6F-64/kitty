@@ -2,8 +2,8 @@
 #include <unistd.h>
 
 #include "ble.h"
-#include "log.h"
-#include "server.h"
+#include "log/log.h"
+#include "server/server.h"
 namespace bt {
 Uuid::Uuid(const char *uuid) {
   bt_string_to_uuid(this, uuid);

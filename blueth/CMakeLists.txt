@@ -18,7 +18,7 @@ include_directories(
 add_library(kitty-bluetooth STATIC ${C_SOURCES} ${CPP_SOURCES})
 
 set_target_properties(kitty-bluetooth PROPERTIES
-  PUBLIC_HEADER "include/_bluetooth.h;include/blue_client.h;include/ble.h;include/uuid.h"
+  PUBLIC_HEADER "blueth/blueth.h;blueth/blue_client.h;blueth/ble.h;blueth/uuid.h"
 )
 
 install(TARGETS kitty-bluetooth

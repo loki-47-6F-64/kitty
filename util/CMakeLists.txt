@@ -18,7 +18,7 @@ include_directories(
 add_library(kitty-utils STATIC ${C_SOURCES} ${CPP_SOURCES})
 
 set_target_properties(kitty-utils PROPERTIES
-  PUBLIC_HEADER "include/move_by_copy.h;include/optional.h;include/thread_pool.h;include/thread_t.h;include/utility.h"
+  PUBLIC_HEADER "util/move_by_copy.h;util/optional.h;util/thread_pool.h;util/thread_t.h;util/utility.h"
 )
  
 install(TARGETS kitty-utils

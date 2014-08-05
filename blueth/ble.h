@@ -12,7 +12,7 @@
 #include <functional>
 
 #include "uuid.h"
-#include "optional.h"
+#include "util/optional.h"
 namespace server {
   struct BlueClient;
 }

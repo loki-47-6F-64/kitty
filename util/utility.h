@@ -5,7 +5,7 @@
 #include <memory>
 
 #include "optional.h"
-#include "err.h"
+#include "err/err.h"
 
 namespace util {
 template<class T>

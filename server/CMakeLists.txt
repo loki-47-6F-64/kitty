@@ -18,7 +18,7 @@ include_directories(
 add_library(kitty-server STATIC ${C_SOURCES} ${CPP_SOURCES})
 
 set_target_properties(kitty-server PROPERTIES
-  PUBLIC_HEADER "include/server.h;include/proxy.h;include/tcp_client.h"
+  PUBLIC_HEADER "server/server.h;server/proxy.h;server/tcp_client.h"
 )
 
 install(TARGETS kitty-server
