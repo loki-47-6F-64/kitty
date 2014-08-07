@@ -116,7 +116,7 @@ std::vector<uint8_t> slice_data(std::vector<uint8_t> && data, uint16_t mtu, uint
 }
 
 std::vector<uint8_t> Profile::_readByGroup(server::BlueClient &client) const {
-  print(info, "Executing ReadByGroup request.");
+  DEBUG_LOG("Executing ReadByGroup request.");
 
   std::vector<uint8_t> response;
 
@@ -175,7 +175,7 @@ found_service:
 }
 
 std::vector<uint8_t> Profile::_findByType(server::BlueClient &client) const {
-  print(info, "Executing FindByType request.");
+  DEBUG_LOG("Executing FindByType request.");
 
   std::vector<uint8_t> response;
   auto request = util::read_struct<FindByTypeReq>(*client.socket);
@@ -275,7 +275,7 @@ found_service:
 }
 
 std::vector<uint8_t> Profile::_readByType(server::BlueClient &client) const {
-  print(info, "Executing ReadByType request.");
+  DEBUG_LOG("Executing ReadByType request.");
 
   std::vector<uint8_t> response;
   auto request = util::read_struct<ReadByTypeReq>(*client.socket);
@@ -356,7 +356,7 @@ std::vector<uint8_t> Profile::_readByType(server::BlueClient &client) const {
 }
 
 std::vector<uint8_t> Profile::_findInfo(server::BlueClient &client) const {
-  print(info, "Executing FindInfo request.");
+  DEBUG_LOG("Executing FindInfo request.");
 
   std::vector<uint8_t> response;
   auto request = util::read_struct<FindInfoReq>(*client.socket);
@@ -423,7 +423,7 @@ std::vector<uint8_t> Profile::_findInfo(server::BlueClient &client) const {
 }
 
 std::vector<uint8_t> Profile::_read(server::BlueClient &client, uint8_t requestType) const {
-  print(info, "Executing read request.");
+  DEBUG_LOG("Executing read request.");
 
   std::vector<uint8_t> response;
 
@@ -539,7 +539,7 @@ std::vector<uint8_t> Profile::_read(server::BlueClient &client, uint8_t requestT
 }
 
 std::vector<uint8_t> Profile::_write(server::BlueClient &client, uint8_t requestType) const {
-  print(info, "Executing write request.");
+  DEBUG_LOG("Executing write request.");
 
   std::vector<uint8_t> response;
   auto handle = util::read_struct<uint16_t>(*client.socket);
@@ -618,7 +618,7 @@ std::vector<uint8_t> Profile::_mtu(server::BlueClient &client) const {
 
   client.mtu = mtu;
 
-  print(info, "Exchange mtu: ", client.mtu);
+  DEBUG_LOG("Exchange mtu: ", client.mtu);
 
   response.push_back(ATT_OP_MTU_RESP);
   util::append_struct(response, client.mtu);
@@ -636,7 +636,7 @@ void print_request(uint8_t requestType, std::vector<uint8_t> &request) {
     req_str.push_back(' ');
   }
 
-  print(info, req_str);
+  DEBUG_LOG(req_str);
 }
 
 void print_response(std::vector<uint8_t> &response) {
@@ -648,7 +648,7 @@ void print_response(std::vector<uint8_t> &response) {
     resp_str.push_back(' ');
   }
 
-  print(info, resp_str);
+  DEBUG_LOG(resp_str);
 }
 
 int Profile::main(server::BlueClient &client) const {
