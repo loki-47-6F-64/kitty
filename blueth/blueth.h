@@ -11,6 +11,7 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
+#include "util/optional.h"
 namespace bt {
 class Uuid;
 struct device;
@@ -42,6 +43,8 @@ struct device {
 };
 
 class HCI : public device {
+  typedef util::Optional<uint16_t> optional;
+  
   int _dev_id;
   int _hci_sock;
   
@@ -54,8 +57,6 @@ public:
 
   void operator =(HCI &&dev);
 
-  device_arr scan(uint8_t timeout);
-
   /*
    * Data broadcasted. The receiver doesn't need to create a connection.
    */
@@ -67,7 +68,12 @@ public:
    * name could be a nullptr
    */
   int advertise(bool enable, const char *name);
+  
+  int disconnect(uint16_t handle);
+  optional getConnHandle(device &dev);
+  
 private:
+  
   int _setResponseData(uint8_t *data, uint8_t length);
 };
 }

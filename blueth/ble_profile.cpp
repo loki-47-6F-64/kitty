@@ -658,6 +658,10 @@ int Profile::main(server::BlueClient &client) const {
     util::Optional<uint8_t> requestType = client.socket->next();
 
     if (!requestType) {
+      if(err::code == err::TIMEOUT) {
+	client.socket->seal();
+      }
+      
       break;
     }
 

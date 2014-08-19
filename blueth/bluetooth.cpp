@@ -2,6 +2,7 @@
 
 #include <unistd.h>
 #include <sys/poll.h>
+#include <sys/ioctl.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -12,7 +13,6 @@
 
 #include "util/utility.h"
 #include "err/err.h"
-
 namespace bt {
 
 constexpr uint8_t MAX_BROADCAST_DATA = 31;
@@ -44,6 +44,39 @@ HCI::HCI(HCI && dev) {
   this->operator =(std::move(dev));
 }
 
+struct conn_info {
+  hci_conn_list_req req;
+  
+  // FIXME: Account for multiple connections
+  hci_conn_info info[1];
+};
+
+HCI::optional HCI::getConnHandle(device &dev) {
+  conn_info info;
+  
+  info.req.conn_num = 1;
+  info.req.dev_id = _dev_id;
+  
+
+  if(ioctl(_hci_sock, HCIGETCONNLIST, &info) < 0) {
+    err::code = err::LIB_SYS;
+    
+    return optional();
+  }
+  
+  uint16_t handle;
+  
+  for(hci_conn_info &x: info.info) {
+    if(bacmp(&x.bdaddr, &dev.bdaddr) == 0) {
+      handle = x.handle;
+      
+      return optional(handle);
+    }
+  }
+  
+  return optional();  
+}
+
 void HCI::operator =(HCI && dev) {
   this->bdaddr = dev.bdaddr;
   this->_dev_id = dev._dev_id;
@@ -62,7 +95,7 @@ HCI::~HCI() {
   }
 }
 
-int HCI::advertise(bool enable, const char *name) {
+int HCI::advertise(bool enable, const char* name) {
   if (hci_le_set_advertise_enable(_hci_sock, enable, 1000)) {
     err::code = err::LIB_SYS;
 
@@ -192,5 +225,18 @@ int HCI::_setResponseData(uint8_t *data, uint8_t length) {
   return 0;
 }
 
+int HCI::disconnect(uint16_t handle) {
+  if(hci_disconnect(_hci_sock, handle, 0, 1000)) {
+    err::code = err::LIB_SYS;
+    
+    return -1;
+  }
+  
+  return 0;
 }
+
+}
+
+
+
 

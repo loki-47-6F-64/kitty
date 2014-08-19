@@ -17,7 +17,7 @@ int bluetooth::_accept(Client& client) {
   }
 
   client = Client {
-    util::mk_uniq<file::io>(3000 * 1000, client_fd),
+    util::mk_uniq<file::blueth>(3000 * 1000, client_fd, *_member, client.dev),
       { client_addr.l2_bdaddr, 0 },
       23,
       nullptr,
