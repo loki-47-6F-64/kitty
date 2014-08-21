@@ -15,6 +15,8 @@ void blueth::seal() {
   if(handle) {
     _hci->disconnect(handle);
   }
+
+  io::seal();
 }
 
 }
