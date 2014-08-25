@@ -1,7 +1,7 @@
 #ifndef IO_STREAM_H
 #define IO_STREAM_H
 
-#include "file.h"
+#include <kitty/file/file.h>
 
 namespace file {
 namespace stream {

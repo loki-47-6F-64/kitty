@@ -1,6 +1,7 @@
 #ifndef DOSSIER_MOVE_BY_COPY_H
 #define DOSSIER_MOVE_BY_COPY_H
 
+#include <utility>
 namespace util {
 /*
  * When a copy is made, it moves the object

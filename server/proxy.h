@@ -6,10 +6,10 @@
 
 #include <memory>
 
-#include "err/err.h"
-#include "file/file.h"
-#include "server.h"
-#include "util/utility.h"
+#include <kitty/err/err.h>
+#include <kitty/file/file.h>
+#include <kitty/server/server.h>
+#include <kitty/util/utility.h>
 
 namespace server {
 namespace proxy {

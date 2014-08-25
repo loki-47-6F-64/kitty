@@ -4,9 +4,9 @@
 #include <memory>
 
 #include <arpa/inet.h>
-#include "ssl_stream.h"
-#include "ssl.h"
-#include "server/server.h"
+#include <kitty/ssl/ssl_stream.h>
+#include <kitty/ssl/ssl.h>
+#include <kitty/server/server.h>
 namespace server {
 struct SslClient {
   typedef sockaddr_in6 _sockaddr;

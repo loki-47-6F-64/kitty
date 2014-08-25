@@ -1,7 +1,7 @@
 #include <unistd.h>
 
 #include <openssl/ssl.h>
-#include "ssl_stream.h"
+#include <kitty/ssl/ssl_stream.h>
 
 namespace file {
 namespace stream {

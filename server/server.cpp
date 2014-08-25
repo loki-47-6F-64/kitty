@@ -1,6 +1,6 @@
-#include "server.h"
-#include "tcp_client.h"
-#include "util/utility.h"
+#include <kitty/server/server.h>
+#include <kitty/server/tcp_client.h>
+#include <kitty/util/utility.h>
 namespace server {
 template<>
 int tcp::_accept(Client& client) {

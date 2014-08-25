@@ -1,7 +1,8 @@
-#include "util/utility.h"
-#include "ble.h"
-#include "log/log.h"
-#include "blue_client.h"
+#include <kitty/blueth/ble.h>
+#include <kitty/blueth/blue_client.h>
+#include <kitty/util/utility.h>
+#include <kitty/log/log.h>
+
 namespace bt {
 
 constexpr int ATT_OP_ERROR                    = 0x01;

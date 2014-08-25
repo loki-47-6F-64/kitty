@@ -4,8 +4,8 @@
 #include <vector>
 #include <memory>
 
-#include "optional.h"
-#include "err/err.h"
+#include <kitty/util/optional.h>
+#include <kitty/err/err.h>
 
 namespace util {
 template<class T>
@@ -22,7 +22,7 @@ void append_struct(std::vector<uint8_t> &buf, T &_struct) {
 template<class T, class File>
 Optional<T> read_struct(File &io) {
   constexpr size_t data_len = sizeof(T);
-  uint8_t buf[sizeof(T)];
+  uint8_t buf[data_len];
 
   int x = 0;
   int err = io.eachByte([&](uint8_t ch) {
@@ -31,7 +31,8 @@ Optional<T> read_struct(File &io) {
     return x < data_len ? err::OK : err::BREAK;
   });
 
-  return err ? Optional<T>() : Optional<T>(*reinterpret_cast<T *>(buf));
+  T *val = (T*)buf;
+  return err ? Optional<T>() : Optional<T>(*val);
 }
 
 template<class T>

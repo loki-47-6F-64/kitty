@@ -1,10 +1,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include "io_stream.h"
-#include "err/err.h"
-
-#include "file.h"
+#include <kitty/file/io_stream.h>
+#include <kitty/file/file.h>
+#include <kitty/err/err.h>
 
 namespace file {
 namespace stream {

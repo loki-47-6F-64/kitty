@@ -1,9 +1,9 @@
 #include <tuple>
 #include <unistd.h>
 
-#include "ble.h"
-#include "log/log.h"
-#include "server/server.h"
+#include "kitty/blueth/ble.h"
+#include "kitty/log/log.h"
+#include "kitty/server/server.h"
 namespace bt {
 Uuid::Uuid(const char *uuid) {
   bt_string_to_uuid(this, uuid);

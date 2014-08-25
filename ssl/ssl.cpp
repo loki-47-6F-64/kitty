@@ -5,8 +5,8 @@
 
 #include <netdb.h>
 
-#include "err/err.h"
-#include "ssl.h"
+#include <kitty/err/err.h>
+#include <kitty/ssl/ssl.h>
 
 // Special exception for gai_strerror
 namespace err {
@@ -56,7 +56,7 @@ std::string getCN(const SSL *ssl) {
     return cn;
   }
 
-  char *pos, *ch = cert->name;
+  char *pos = nullptr, *ch = cert->name;
 
   while(*ch) {
     if(*ch == '/')
@@ -127,7 +127,7 @@ file::ssl connect(Context &ctx, const char *hostname, const char* port) {
   if(connect(serverFd, server->ai_addr, server->ai_addrlen)) {
     freeaddrinfo(server);
 
-    err::code = err::LIB_SSL;
+    err::code = err::LIB_SYS;
     return sslFd;
   }
 

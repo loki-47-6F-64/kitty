@@ -30,7 +30,7 @@
 #include <stdlib.h>
 #include <errno.h>
 
-#include "uuid.h"
+#include <kitty/blueth/uuid.h>
 
 static uint128_t bluetooth_base_uuid = {
   .data = {	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00,

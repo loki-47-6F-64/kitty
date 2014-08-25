@@ -3,7 +3,6 @@
 
 #include <thread>
 
-
 #ifndef __ARM_ARCH
 namespace util {
 typedef std::thread thread_t;
@@ -18,7 +17,7 @@ typedef std::thread thread_t;
 #include <pthread.h>
 #include <memory>
 #include <system_error>
-#include "err/err.h"
+#include <kitty/err/err.h>
 
 namespace util {
 class _ImplBase {

@@ -20,9 +20,9 @@ set(INSTALL_LIB_DIR lib CACHE PATH "Installation directory for libraries")
 set(INSTALL_BIN_DIR bin CACHE PATH "Installation directory for executables")
 set(INSTALL_INCLUDE_DIR include CACHE PATH "Installation directory for header files")
 if(WIN32 AND NOT CYGWIN)
-  set(DEF_INSTALL_CMAKE_DIR CMake)
+  set(DEF_INSTALL_CMAKE_DIR cmake)
 else()
-  set(DEF_INSTALL_CMAKE_DIR lib/CMake/Kitty)
+  set(DEF_INSTALL_CMAKE_DIR lib/cmake/Kitty)
 endif()
 
 set(INSTALL_CMAKE_DIR ${DEF_INSTALL_CMAKE_DIR} CACHE PATH "Installation directory for CMake files")
@@ -39,6 +39,7 @@ endforeach()
 include_directories(
   "${PROJECT_SOURCE_DIR}"
   "${PROJECT_BINARY_DIR}"
+  "../"
 )
 
 # Any builds that add dependencies should not be added automatically
@@ -84,35 +85,23 @@ endif()
 set(INCLUDE_DIR include)
 
 add_subdirectory(err)
-set(INCLUDE_DIR ${INCLUDE_DIR} ${Kitty-Err_SOURCE_DIR}/include)
-
 add_subdirectory(util)
-set(INCLUDE_DIR ${INCLUDE_DIR} ${Kitty-Utils_SOURCE_DIR}/include)
-
 add_subdirectory(file)
-set(INCLUDE_DIR ${INCLUDE_DIR} ${Kitty-File_SOURCE_DIR}/include)
-
 add_subdirectory(log)
 set(INCLUDE_DIR ${INCLUDE_DIR} ${Kitty-Log_SOURCE_DIR}/include)
 if(BUILD_SERVER)
   set(KITTY_TARGETS ${KITTY_TARGETS} kitty-server)
   add_subdirectory(server)
-  
-  set(INCLUDE_DIR ${INCLUDE_DIR} ${Kitty-Server_SOURCE_DIR}/include)
 endif()
 
 if(BUILD_SSL)
   set(KITTY_TARGETS ${KITTY_TARGETS} kitty-ssl)
   add_subdirectory(ssl)
-  
-  set(INCLUDE_DIR ${INCLUDE_DIR} ${Kitty-Ssl_SOURCE_DIR}/include)
 endif()
 
 if(BUILD_BLUETOOTH)  
   set(KITTY_TARGETS ${KITTY_TARGETS} kitty-bluetooth)
   add_subdirectory(blueth)
-  
-  set(INCLUDE_DIR ${INCLUDE_DIR} ${Kitty-Bluetooth_SOURCE_DIR}/include)
 endif()
 
 # The interesting stuff goes here

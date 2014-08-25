@@ -1,6 +1,6 @@
 #include <unistd.h>
 
-#include "log.h"
+#include <kitty/log/log.h>
 
 file::Log error  (-1, " Error: "  , dup(STDERR_FILENO));
 file::Log warning(-1, " Warning: ", dup(STDOUT_FILENO));

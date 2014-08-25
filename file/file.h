@@ -8,8 +8,8 @@
 
 #include <type_traits>
 
-#include "err/err.h"
-#include "util/optional.h"
+#include <kitty/err/err.h>
+#include <kitty/util/optional.h>
 
 namespace file {
 /* Represents file in memory, storage or socket */
@@ -78,7 +78,7 @@ public:
   inline int out() {
 
     if ((_select(WRITE))) {
-      return err::code;
+      return -1;
     }
 
     // On success clear
@@ -182,8 +182,8 @@ public:
     while (!eof() && max) {
       if (end_of_buffer()) {
 
-        if ((err::code = load(_cacheSize))) {
-          return err::code; // STREAM_ERR or TIMEOUT
+        if ((load(_cacheSize))) {
+          return -1;
         }
       }
 
@@ -242,7 +242,7 @@ private:
   };
 
   template<class T>
-  struct AppendFunc<T, typename std::enable_if<std::is_integral<T>::value>::type> {
+  struct AppendFunc<T, typename std::enable_if<std::is_integral<typename std::remove_reference<T>::type>::value>::type> {
     static void run(std::vector<uint8_t> &cache, T integral) {
       if(sizeof(T) == 1) {
 	cache.push_back(integral);

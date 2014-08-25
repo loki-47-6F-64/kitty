@@ -8,11 +8,11 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
-#include "blueth.h"
-#include "ble.h"
+#include <kitty/blueth/blueth.h>
+#include <kitty/blueth/ble.h>
 
-#include "util/utility.h"
-#include "err/err.h"
+#include <kitty/util/utility.h>
+#include <kitty/err/err.h>
 namespace bt {
 
 constexpr uint8_t MAX_BROADCAST_DATA = 31;

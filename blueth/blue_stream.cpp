@@ -1,4 +1,4 @@
-#include "blue_stream.h"
+#include <kitty/blueth/blue_stream.h>
 
 namespace file {
 namespace stream {

@@ -11,7 +11,7 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
-#include "util/optional.h"
+#include <kitty/util/optional.h>
 namespace bt {
 class Uuid;
 struct device;

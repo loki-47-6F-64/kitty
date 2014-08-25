@@ -11,8 +11,8 @@
 #include <vector>
 #include <functional>
 
-#include "uuid.h"
-#include "util/optional.h"
+#include <kitty/blueth/uuid.h>
+#include <kitty/util/optional.h>
 namespace server {
   struct BlueClient;
 }

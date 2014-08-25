@@ -12,8 +12,8 @@
 
 #include <arpa/inet.h>
 
-#include "file/io_stream.h"
-#include "server.h"
+#include <kitty/file/io_stream.h>
+#include <kitty/server/server.h>
 
 namespace server {
 

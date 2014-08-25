@@ -10,15 +10,10 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 FILE (GLOB_RECURSE C_SOURCES "./*.c")
 FILE (GLOB_RECURSE CPP_SOURCES "./*.cpp")
 
-include_directories(
-  ${INCLUDE_DIR}
-)
-
-
 add_library(kitty-file STATIC ${C_SOURCES} ${CPP_SOURCES})
 
 set_target_properties(kitty-file PROPERTIES
-  PUBLIC_HEADER "file.h;io_stream.h"
+  PUBLIC_HEADER "file.h;io_stream.h;tcp.h"
 )
  
 install(TARGETS kitty-file
@@ -27,6 +22,6 @@ install(TARGETS kitty-file
   RUNTIME DESTINATION "${INSTALL_BIN_DIR}" COMPONENT bin
   LIBRARY DESTINATION "${INSTALL_LIB_DIR}" COMPONENT shlib
   ARCHIVE DESTINATION "${INSTALL_LIB_DIR}" COMPONENT shlib
-  PUBLIC_HEADER DESTINATION "${INSTALL_INCLUDE_DIR}/kitty"
+  PUBLIC_HEADER DESTINATION "${INSTALL_INCLUDE_DIR}/kitty/file"
   COMPONENT dev
 )

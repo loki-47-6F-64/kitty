@@ -3,7 +3,7 @@
 
 #include <openssl/err.h>
 
-#include "err.h"
+#include <kitty/err/err.h>
 
 namespace err {
 

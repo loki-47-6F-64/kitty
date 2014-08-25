@@ -1,8 +1,8 @@
 #ifndef VIKING_BLUE_STREAM_H
 #define VIKING_BLUE_STREAM_H
 
-#include "file/io_stream.h"
-#include "blueth.h"
+#include <kitty/file/io_stream.h>
+#include <kitty/blueth/blueth.h>
 namespace file {
 namespace stream {
 class blueth : public io {

@@ -4,10 +4,10 @@
 #include <memory>
 #include <bluetooth/l2cap.h>
 
-#include "blueth.h"
-#include "ble.h"
-#include "server/server.h"
-#include "blue_stream.h"
+#include <kitty/blueth/blueth.h>
+#include <kitty/blueth/ble.h>
+#include <kitty/blueth/blue_stream.h>
+#include <kitty/server/server.h>
 
 namespace server {
 

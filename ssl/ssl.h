@@ -6,7 +6,7 @@
 
 #include <openssl/ssl.h>
 
-#include "ssl_stream.h"
+#include <kitty/ssl/ssl_stream.h>
 
 namespace ssl {
 // Deallocation functor for std::unique_ptr
