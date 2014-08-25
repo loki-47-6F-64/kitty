@@ -18,7 +18,7 @@ include_directories(
 add_library(kitty-file STATIC ${C_SOURCES} ${CPP_SOURCES})
 
 set_target_properties(kitty-file PROPERTIES
-  PUBLIC_HEADER "file/file.h;file/io_stream.h"
+  PUBLIC_HEADER "file.h;io_stream.h"
 )
  
 install(TARGETS kitty-file

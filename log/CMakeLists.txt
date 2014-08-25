@@ -18,7 +18,7 @@ include_directories(
 add_library(kitty-log STATIC ${C_SOURCES} ${CPP_SOURCES})
 
 set_target_properties(kitty-log PROPERTIES
-  PUBLIC_HEADER "log/log.h"
+  PUBLIC_HEADER "log.h"
 )
 
 install(TARGETS kitty-log

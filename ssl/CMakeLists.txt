@@ -17,7 +17,7 @@ include_directories(
 add_library(kitty-ssl STATIC ${C_SOURCES} ${CPP_SOURCES})
 
 set_target_properties(kitty-ssl PROPERTIES
-  PUBLIC_HEADER "ssl/_ssl.h;ssl/ssl_client.h;ssl/ssl_stream.h"
+  PUBLIC_HEADER "ssl.h;ssl_client.h;ssl_stream.h"
 )
 
 install(TARGETS kitty-ssl
