@@ -17,13 +17,13 @@ template <class Stream>
 class FD { /* File descriptor */
   Stream _stream;
 
-  std::vector<uint8_t> _cache;
-  decltype(_cache.size()) _data_p;
-
-  long _microsec;
-
   // Change of cacheSize only affects next load
   int _cacheSize;
+  
+  long _microsec;
+  
+  std::vector<uint8_t> _cache;
+  decltype(_cache.size()) _data_p;
 
 public:
   static constexpr int READ = 0, WRITE = 1;
@@ -216,7 +216,7 @@ private:
       if (read == READ) {
         result = select(_stream.fd() + 1, &selected, nullptr, nullptr, &tv);
       }
-      else if (read == WRITE) {
+      else /*if (read == WRITE)*/ {
         result = select(_stream.fd() + 1, nullptr, &selected, nullptr, &tv);
       }
 

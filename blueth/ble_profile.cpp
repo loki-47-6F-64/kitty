@@ -17,48 +17,48 @@ constexpr int ATT_OP_READ_REQ                 = 0x0a;
 constexpr int ATT_OP_READ_RESP                = 0x0b;
 constexpr int ATT_OP_READ_BLOB_REQ            = 0x0c;
 constexpr int ATT_OP_READ_BLOB_RESP           = 0x0d;
-constexpr int ATT_OP_READ_MULTI_REQ           = 0x0e;
-constexpr int ATT_OP_READ_MULTI_RESP          = 0x0f;
+// constexpr int ATT_OP_READ_MULTI_REQ           = 0x0e;
+// constexpr int ATT_OP_READ_MULTI_RESP          = 0x0f;
 constexpr int ATT_OP_READ_BY_GROUP_REQ        = 0x10;
 constexpr int ATT_OP_READ_BY_GROUP_RESP       = 0x11;
 constexpr int ATT_OP_WRITE_REQ                = 0x12;
 constexpr int ATT_OP_WRITE_RESP               = 0x13;
 constexpr int ATT_OP_WRITE_CMD                = 0x52;
-constexpr int ATT_OP_PREP_WRITE_REQ           = 0x16;
-constexpr int ATT_OP_PREP_WRITE_RESP          = 0x17;
-constexpr int ATT_OP_EXEC_WRITE_REQ           = 0x18;
-constexpr int ATT_OP_EXEC_WRITE_RESP          = 0x19;
-constexpr int ATT_OP_HANDLE_NOTIFY            = 0x1b;
-constexpr int ATT_OP_HANDLE_IND               = 0x1d;
-constexpr int ATT_OP_HANDLE_CNF               = 0x1e;
-constexpr int ATT_OP_SIGNED_WRITE_CMD         = 0xd2;
+// constexpr int ATT_OP_PREP_WRITE_REQ           = 0x16;
+// constexpr int ATT_OP_PREP_WRITE_RESP          = 0x17;
+// constexpr int ATT_OP_EXEC_WRITE_REQ           = 0x18;
+// constexpr int ATT_OP_EXEC_WRITE_RESP          = 0x19;
+// constexpr int ATT_OP_HANDLE_NOTIFY            = 0x1b;
+// constexpr int ATT_OP_HANDLE_IND               = 0x1d;
+// constexpr int ATT_OP_HANDLE_CNF               = 0x1e;
+// constexpr int ATT_OP_SIGNED_WRITE_CMD         = 0xd2;
 
 
 constexpr int GATT_PRIM_SVC_UUID              = 0x2800;
-constexpr int GATT_INCLUDE_UUID               = 0x2802;
+// constexpr int GATT_INCLUDE_UUID               = 0x2802;
 constexpr int GATT_CHARAC_UUID                = 0x2803;
 
 
-constexpr int GATT_CLIENT_CHARAC_CFG_UUID     = 0x2902;
-constexpr int GATT_SERVER_CHARAC_CFG_UUID     = 0x2903;
+// constexpr int GATT_CLIENT_CHARAC_CFG_UUID     = 0x2902;
+// constexpr int GATT_SERVER_CHARAC_CFG_UUID     = 0x2903;
 
 
-constexpr int ATT_ECODE_SUCCESS               = 0x00;
+// constexpr int ATT_ECODE_SUCCESS               = 0x00;
 constexpr int ATT_ECODE_INVALID_HANDLE        = 0x01;
 constexpr int ATT_ECODE_READ_NOT_PERM         = 0x02;
 constexpr int ATT_ECODE_WRITE_NOT_PERM        = 0x03;
-constexpr int ATT_ECODE_INVALID_PDU           = 0x04;
+// constexpr int ATT_ECODE_INVALID_PDU           = 0x04;
 constexpr int ATT_ECODE_AUTHENTICATION        = 0x05;
 constexpr int ATT_ECODE_REQ_NOT_SUPP          = 0x06;
 constexpr int ATT_ECODE_INVALID_OFFSET        = 0x07;
-constexpr int ATT_ECODE_AUTHORIZATION         = 0x08;
-constexpr int ATT_ECODE_PREP_QUEUE_FULL       = 0x09;
+// constexpr int ATT_ECODE_AUTHORIZATION         = 0x08;
+// constexpr int ATT_ECODE_PREP_QUEUE_FULL       = 0x09;
 constexpr int ATT_ECODE_ATTR_NOT_FOUND        = 0x0a;
-constexpr int ATT_ECODE_ATTR_NOT_LONG         = 0x0b;
-constexpr int ATT_ECODE_INSUFF_ENCR_KEY_SIZE  = 0x0c;
-constexpr int ATT_ECODE_INVAL_ATTR_VALUE_LEN  = 0x0d;
-constexpr int ATT_ECODE_UNLIKELY              = 0x0e;
-constexpr int ATT_ECODE_INSUFF_ENC            = 0x0f;
+// constexpr int ATT_ECODE_ATTR_NOT_LONG         = 0x0b;
+// constexpr int ATT_ECODE_INSUFF_ENCR_KEY_SIZE  = 0x0c;
+// constexpr int ATT_ECODE_INVAL_ATTR_VALUE_LEN  = 0x0d;
+// constexpr int ATT_ECODE_UNLIKELY              = 0x0e;
+// constexpr int ATT_ECODE_INSUFF_ENC            = 0x0f;
 constexpr int ATT_ECODE_UNSUPP_GRP_TYPE       = 0x10;
 
 struct Error {
@@ -132,7 +132,7 @@ std::vector<uint8_t> Profile::_readByGroup(server::BlueClient &client) const {
     return parseError(ATT_OP_READ_BY_GROUP_REQ, req.startHandle, ATT_ECODE_UNSUPP_GRP_TYPE);
   }
 
-  int x;
+  uint x;
   for (x = req.startHandle - 1; x < req.endHandle && x < _handles.size(); ++x) {
     if (_handles[x].type == Handle::SERVICE) {
       goto found_service;
@@ -201,7 +201,7 @@ std::vector<uint8_t> Profile::_findByType(server::BlueClient &client) const {
   }
 
   std::vector<std::pair<uint16_t, uint16_t>> handles;
-  for (int x = req.startHandle - 1; x < req.endHandle && x < _handles.size(); ++x) {
+  for (uint x = req.startHandle - 1; x < req.endHandle && x < _handles.size(); ++x) {
     Service *const service = _handles[x].service;
     if (_handles[x].type == Handle::SERVICE && !uuid.compare(service->uuid)) {
       handles.emplace_back(service->startHandle, service->endHandle);
@@ -230,7 +230,7 @@ std::vector<uint8_t> Profile::_findByType(server::BlueClient &client) const {
 
 std::vector<uint8_t> Profile::_readByTypeMeta(server::BlueClient &client, bt::ReadByTypeReq &req) const {
   std::vector<uint8_t> response;
-  int x;
+  uint x;
   for (x = req.startHandle - 1; x < req.endHandle && x < _handles.size(); ++x) {
     if (_handles[x].type == Handle::CHARACTERISTIC) {
       goto found_service;
@@ -250,7 +250,7 @@ found_service:
   response.push_back(ATT_OP_READ_BY_TYPE_RESP);
   response.push_back(len_per_data);
 
-  int num_data = 0;
+  uint num_data = 0;
   for (; x < req.endHandle && x < _handles.size(); ++x) {
     if (_handles[x].type == Handle::CHARACTERISTIC) {
       if (++num_data > max_data || _handles[x].characteristic->uuid.type != type) {
@@ -303,7 +303,7 @@ std::vector<uint8_t> Profile::_readByType(server::BlueClient &client) const {
   }
 
   else {
-    int x;
+    uint x;
     for (x = req.startHandle - 1; x < req.endHandle && x < _handles.size(); ++x) {
       if ((_handles[x].type == Handle::CHARACTERISTIC && !uuid.compare(_handles[x].characteristic->uuid))
           ||
@@ -372,7 +372,7 @@ std::vector<uint8_t> Profile::_findInfo(server::BlueClient &client) const {
   }
 
   std::vector<Uuid> uuids;
-  for (int x = req.startHandle - 1; x < req.endHandle && x < _handles.size(); ++x) {
+  for (uint x = req.startHandle - 1; x < req.endHandle && x < _handles.size(); ++x) {
     switch (_handles[x].type) {
     case Handle::SERVICE:
       print(debug, "Found service");
@@ -403,7 +403,7 @@ std::vector<uint8_t> Profile::_findInfo(server::BlueClient &client) const {
   response.push_back(type == Uuid::BT_UUID16 ? 0x01 : 0x02);
 
 
-  for (int x = 0; x < num_data; ++x) {
+  for (uint x = 0; x < num_data; ++x) {
     if (type != uuids[x].type) {
       break;
     }

@@ -14,7 +14,7 @@ Descriptor::Descriptor(
   std::vector<uint8_t> && data,
   props_t properties, props_t secure)
 
-  : uuid(uuid), data(std::move(data)), properties(properties), secure(secure) { }
+  : uuid(uuid), properties(properties), secure(secure), data(std::move(data)) { }
 
 Characteristic::Characteristic(
   const char *uuid,
@@ -24,12 +24,13 @@ Characteristic::Characteristic(
   std::vector<Descriptor> && descriptors,
   props_t properties, props_t secure)
 
-  : uuid(uuid),
-    data(std::move(data)),
-    descriptors(std::move(descriptors)),
+  : properties(properties),
+    secure(secure),
+    uuid(uuid),
     readCallback(std::move(readCallback)),
     writeCallback(std::move(writeCallback)),
-    properties(properties), secure(secure) { }
+    descriptors(std::move(descriptors)),
+    data(std::move(data)) { }
 
 bool Characteristic::secureRead() {
   return secure & READ;

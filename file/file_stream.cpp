@@ -54,7 +54,7 @@ int ioWriteAppend(io& fs, const char *file_path) {
   return 0;
 }
 
-io::io() : _fd(-1), _eof(false) { }
+io::io() : _eof(false), _fd(-1)  { }
 
 void io::open(int fd) {
   _fd = fd;

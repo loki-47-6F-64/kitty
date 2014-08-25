@@ -12,8 +12,8 @@ public:
   T val;
   
   Optional() : _enable(false) {}
-  Optional(T &&val) : val(std::move(val)), _enable(true) {}
-  Optional(T &val) : val(std::move(val)), _enable(true) {}
+  Optional(T &&val) : _enable(true), val(std::move(val)) {}
+  Optional(T &val) : _enable(true), val(std::move(val)) {}
   
   bool isEnabled() const {
     return _enable;
