@@ -47,7 +47,7 @@ private:
   uint8_t _hex[sizeof(elem_type) * 2];
 public:
   Hex(elem_type && elem) {
-    uint8_t *data = reinterpret_cast<uint8_t *>(&elem) + sizeof(elem_type);
+    const uint8_t *data = reinterpret_cast<const uint8_t *>(&elem) + sizeof(elem_type);
     for (elem_type *it = begin(); it < cend();) {
       *it++ = _bits[*--data / 16];
       *it++ = _bits[*data   % 16];
@@ -55,7 +55,7 @@ public:
   }
 
   Hex(elem_type &elem) {
-    uint8_t *data = reinterpret_cast<uint8_t *>(&elem) + sizeof(elem_type);
+    const uint8_t *data = reinterpret_cast<const uint8_t *>(&elem) + sizeof(elem_type);
     for (uint8_t *it = begin(); it < cend();) {
       *it++ = _bits[*--data / 16];
       *it++ = _bits[*data   % 16];
@@ -81,6 +81,25 @@ std::unique_ptr<T> mk_uniq(Args && ... args) {
   return std::unique_ptr<elem_type> {
     new elem_type { std::forward<Args>(args)... }
   };
+}
+
+template<class Container, class It>
+Container concat(It begin, It end) {
+  Container str;
+  
+  for(;begin < end; ++begin) {
+    str.insert(str.end(), begin->cbegin(), begin->cend());
+  }
+  
+  return str;
+}
+
+template<class To, class From>
+To convert(From &from) {
+  To buf;
+  std::copy(from.cbegin(), from.cend(), buf.begin());
+  
+  return buf;
 }
 }
 #endif
