@@ -124,8 +124,8 @@ public:
   }
 
   template<class T>
-  FD &append(T container) {
-    AppendFunc<T>::run(_cache, container);
+  FD &append(T &&container) {
+    AppendFunc<T>::run(_cache, std::forward<T>(container));
 
     return *this;
   }
@@ -236,7 +236,7 @@ private:
 
   template<class T, class S = void>
   struct AppendFunc {
-    static void run(std::vector<uint8_t> &cache, T container) {
+    static void run(std::vector<uint8_t> &cache, T &&container) {
       cache.insert(cache.end(), container.cbegin(), container.cend());
     }
   };
@@ -257,7 +257,7 @@ private:
   };
 
   template<class T>
-  struct AppendFunc<T, typename std::enable_if<std::is_pointer<T>::value>::type> {
+  struct AppendFunc<T, typename std::enable_if<std::is_pointer<typename std::decay<T>::type>::value>::type> {
     static void run(std::vector<uint8_t> &cache, T pointer) {
       static_assert(sizeof(*pointer) == 1, "pointers Must be const char * or const uint8_t *");
 
