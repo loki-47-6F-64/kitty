@@ -88,18 +88,15 @@ Container concat(It begin, It end) {
   Container str;
   
   for(;begin < end; ++begin) {
-    str.insert(str.end(), begin->cbegin(), begin->cend());
+    str.insert(str.end(), std::begin(*begin), std::end(*begin));
   }
   
   return str;
 }
 
 template<class To, class From>
-To convert(From &from) {
-  To buf;
-  std::copy(from.cbegin(), from.cend(), buf.begin());
-  
-  return buf;
+To copy_to(From &&from) {
+  return To(std::begin(from), std::end(from));
 }
 }
 #endif

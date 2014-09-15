@@ -237,7 +237,7 @@ private:
   template<class T, class S = void>
   struct AppendFunc {
     static void run(std::vector<uint8_t> &cache, T &&container) {
-      cache.insert(cache.end(), container.cbegin(), container.cend());
+      cache.insert(std::end(cache), std::begin(container), std::end(container));
     }
   };
 
