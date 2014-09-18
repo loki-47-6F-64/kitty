@@ -50,7 +50,9 @@ const char *current() {
     case OUT_OF_BOUNDS:
       return "Out of bounds";
     case BREAK:
-      return "Break: You shouldn't be seeing this error";
+      return "BREAK";
+    case UNAUTHORIZED:
+      return "unauthorized";
     case LIB_GAI:
       // Special exception: error_code is returned to the caller,
       // the caller must set the error message

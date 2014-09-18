@@ -15,6 +15,7 @@ typedef enum {
   FILE_CLOSED,
   OUT_OF_BOUNDS,
   INPUT_OUTPUT,
+  UNAUTHORIZED,
   LIB_GAI,
   LIB_SYS,
   LIB_SSL

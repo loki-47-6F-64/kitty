@@ -13,7 +13,7 @@ FILE (GLOB_RECURSE CPP_SOURCES "./*.cpp")
 add_library(kitty-utils STATIC ${C_SOURCES} ${CPP_SOURCES})
 
 set_target_properties(kitty-utils PROPERTIES
-  PUBLIC_HEADER "move_by_copy.h;optional.h;thread_pool.h;thread_t.h;utility.h"
+  PUBLIC_HEADER "move_by_copy.h;optional.h;thread_pool.h;thread_t.h;utility.h;set.h"
 )
  
 install(TARGETS kitty-utils

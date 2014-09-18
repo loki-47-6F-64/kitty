@@ -82,21 +82,5 @@ std::unique_ptr<T> mk_uniq(Args && ... args) {
     new elem_type { std::forward<Args>(args)... }
   };
 }
-
-template<class Container, class It>
-Container concat(It begin, It end) {
-  Container str;
-  
-  for(;begin < end; ++begin) {
-    str.insert(str.end(), std::begin(*begin), std::end(*begin));
-  }
-  
-  return str;
-}
-
-template<class To, class From>
-To copy_to(From &&from) {
-  return To(std::begin(from), std::end(from));
-}
 }
 #endif
