@@ -29,10 +29,12 @@ public:
   static constexpr int READ = 0, WRITE = 1;
 
   FD(FD && other) {
-    this->operator =(std::move(other));
+    *this = std::move(other);
   }
 
   void operator=(FD && other) {
+    seal();
+    
     _stream = std::move(other._stream);
     _cache = std::move(other._cache);
 
@@ -136,16 +138,6 @@ public:
 
 
     return *this;
-  }
-
-  int access(const char *path, std::function<int(Stream &, const char *)> open) {
-    seal();
-
-    return open(_stream, path);
-  }
-
-  int access(std::string &path, std::function<int(Stream &, const char *)> open) {
-    return access(path.c_str(), open);
   }
 
   inline std::vector<uint8_t> &getCache() {

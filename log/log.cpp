@@ -1,4 +1,5 @@
 #include <unistd.h>
+#include <fcntl.h>
 
 #include <kitty/log/log.h>
 
@@ -11,15 +12,20 @@ namespace file {
 std::mutex stream::_LogBase::_lock;
 char stream::_LogBase::_date[DATE_BUFFER_SIZE];
 
-int logStreamWrite(stream::Log<stream::io> &ls, const char *path) {
-  return ls.access(path, stream::ioWriteAppend);
+Log logWrite(std::string &&prepend, const char *file_path) {
+  int _fd = ::open(file_path,
+    O_CREAT | O_APPEND | O_WRONLY,
+    S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
+  );
+
+  return Log { -1, std::move(prepend), _fd };
 }
 
 void log_open(const char *logPath) {
-  error  .access(logPath, logStreamWrite);
-  warning.access(logPath, logStreamWrite);
-  info   .access(logPath, logStreamWrite);
-  debug  .access(logPath, logStreamWrite);
+  error   = logWrite(" Error: ",   logPath);
+  warning = logWrite(" Warning: ", logPath);
+  info    = logWrite(" Info: ",    logPath);
+  debug   = logWrite(" Debug: ",   logPath);
 
   info.append("Opened log.\n").out();
 }

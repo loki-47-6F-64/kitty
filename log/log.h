@@ -36,7 +36,7 @@ public:
   Log() { }
 
   void operator =(Log&& stream) {
-    _stream = std::forward(stream);
+    _stream = std::move(stream._stream);
   }
 
   template<class... Args>

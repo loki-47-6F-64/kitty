@@ -25,14 +25,12 @@ public:
 
   int fd();
 };
-
-int ioRead(io& fs, const char *file_path);
-
-int ioWriteAppend(io& fs, const char *file_path);
-int ioWrite(io& fs, const char *file_path);
 }
-
 typedef FD<stream::io> io;
+
+io ioRead (const char *file_path);
+io ioWrite(const char *file_path);
+io ioWriteAppend(const char *file_path);
 }
 
 #endif

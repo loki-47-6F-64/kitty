@@ -6,53 +6,29 @@
 #include <kitty/err/err.h>
 
 namespace file {
+io ioRead(const char *file_path) {
+  return file::io { -1, ::open(file_path, O_RDONLY, 0) };
+}
+
+io ioWrite(const char *file_path) {
+  int _fd = ::open(file_path,
+    O_CREAT | O_WRONLY,
+    S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
+  );
+
+  return file::io { -1, _fd };
+}
+
+io ioWriteAppend(const char *file_path) {
+  int _fd = ::open(file_path,
+    O_CREAT | O_APPEND | O_WRONLY,
+    S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
+  );
+
+  return io { -1, _fd };
+}  
+
 namespace stream {
-
-int ioRead(io& fs, const char *file_path) {
-  int _fd = ::open(file_path, O_RDONLY, 0);
-
-  fs.open(_fd);
-
-  if(fs.is_open() == false) {
-    err::code = err::LIB_SYS;
-    return -1;
-  }
-
-  return 0;
-}
-
-int ioWrite(io& fs, const char *file_path) {
-  int _fd = ::open(file_path,
-  O_CREAT | O_WRONLY,
-  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
-  );
-
-  fs.open(_fd);
-
-  if(fs.is_open() == false) {
-    err::code = err::LIB_SYS;
-    return -1;
-  }
-
-  return 0;
-}
-
-int ioWriteAppend(io& fs, const char *file_path) {
-  int _fd = ::open(file_path,
-  O_CREAT | O_APPEND | O_WRONLY,
-  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
-  );
-
-  fs.open(_fd);
-
-  if(fs.is_open() == false) {
-    err::code = err::LIB_SYS;
-    return -1;
-  }
-
-  return 0;
-}
-
 io::io() : _eof(false), _fd(-1)  { }
 
 void io::open(int fd) {
