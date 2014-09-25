@@ -34,19 +34,29 @@ auto map(From &&from, Function f) {
   return result;
 }
 
-template<class To, class From>
-To copy_to(From &&from) {
-  return To(std::begin(from), std::end(from));
+template<class To, class It>
+To copy_to(It begin, It end) {
+  return To(begin, end);
 }
 
 template<class To, class From>
-To move_to(From &&from) {
+To copy_to(From &&from) {
+  return copy_to<To>(std::begin(from), std::end(from));
+}
+
+template<class To, class It>
+To move_to(It begin, It end) {
   To to;
-  for(auto &&val : from) {
-    to.emplace_back(std::move(val));
+  for(auto it = begin; it != end; ++it) {
+    to.emplace_back(std::move(*it));
   }
   
   return to;
+}
+
+template<class To, class From>
+To move_to(From &&from) {  
+  return move_to<To>(std::begin(from), std::end(from));
 }
 
 template<class Container, class Function>
