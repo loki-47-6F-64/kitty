@@ -1,5 +1,5 @@
-#ifndef DOSSIER_THREAD_POOL_H
-#define DOSSIER_THREAD_POOL_H
+#ifndef KITTY_THREAD_POOL_H
+#define KITTY_THREAD_POOL_H
 
 #include <deque>
 #include <vector>

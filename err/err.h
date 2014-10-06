@@ -1,7 +1,7 @@
 #ifndef DOSSIER_ERR_H
 #define DOSSIER_ERR_H
 
-
+#include <string>
 namespace err {
 /*
  * Thread safe error functions
@@ -23,5 +23,8 @@ typedef enum {
 
 extern thread_local code_t code;
 
+void set(const char *error);
+void set(std::string &error);
+void set(std::string &&error);
 };
 #endif

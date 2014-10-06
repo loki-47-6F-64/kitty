@@ -82,5 +82,8 @@ std::unique_ptr<T> mk_uniq(Args && ... args) {
     new elem_type { std::forward<Args>(args)... }
   };
 }
+
+template<class T>
+using Error = Optional<T>;
 }
 #endif

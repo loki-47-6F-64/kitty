@@ -18,10 +18,10 @@ public:
   MoveByCopy(move_type &&to_move) : _to_move(std::move(to_move)) { }
 
   MoveByCopy(const MoveByCopy &other) {
-    this->operator=(const_cast<MoveByCopy&>(other));
+    this->operator=(other);
   }
 
-  void operator=(MoveByCopy &other) {
+  void operator=(const MoveByCopy &other) {
     this->_to_move = std::move(other._to_move);
   }
 
@@ -29,5 +29,11 @@ public:
     return std::move(_to_move);
   }
 };
+
+template<class T>
+MoveByCopy<T> cmove(T &&movable) {
+  return MoveByCopy<T>(std::move(movable));
+}
+
 }
 #endif

@@ -29,12 +29,25 @@ const char *ssl() {
 #endif
 }
 
-void set(const char *src) {
+void _set(const char *src) {
   int x;
   for(x = 0; src[x] && x < MAX_ERROR_BUFFER - 1; ++x) {
     err_buf[x] = src[x];
   }
   err_buf[x] = '\0';
+}
+
+void set(const char *error) {
+  err::code = LIB_GAI;
+  
+  return _set(error);
+}
+
+void set(std::string &error) {
+  return set(error.c_str());
+}
+void set(std::string &&error) {
+  return set(error);
 }
 
 const char *current() {
