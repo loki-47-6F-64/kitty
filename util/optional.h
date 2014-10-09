@@ -19,11 +19,19 @@ public:
     return _enable;
   }
   
-  explicit operator bool () {
+  explicit operator bool () const {
     return _enable;
   }
   
   operator T&() {
+    return val;
+  }
+  
+  const T* operator->() const {
+    return &val;
+  }
+  
+  const T& operator*() const {
     return val;
   }
 };
