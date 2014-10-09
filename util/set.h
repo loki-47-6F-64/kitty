@@ -1,10 +1,12 @@
 #ifndef KITTY_UTIL_SET_H
 #define KITTY_UTIL_SET_H
 
+#include <algorithm>
 #include <iterator>
 #include <vector>
 #include <utility>
 #include <type_traits>
+#include <kitty/util/optional.h>
 
 namespace util {
 template<class Container, class It>
@@ -12,7 +14,7 @@ Container concat(It begin, It end) {
   Container str;
   
   for(;begin < end; ++begin) {
-    str.insert(str.end(), std::begin(*begin), std::end(*begin));
+    std::copy(std::begin(*begin), std::end(*begin), std::back_inserter(str));
   }
   
   return str;
@@ -25,15 +27,50 @@ Container concat(Array &&container) {
 
 template<class From, class Function>
 inline auto map(From &&from, Function f) -> std::vector<decltype(f(*std::begin(from)))> {
-  typedef decltype(f(*std::begin(from))) return_type;
+  typedef decltype(f(*std::begin(from))) input_type;
+  return map_if(std::forward<From>(from), [&](input_type &input) {
+    return util::Optional<input_type> { f(input) };
+  });
+}
+
+template<class From, class Function>
+inline auto map_if(From &&from, Function f) -> 
+  std::vector<
+    typename std::remove_const<
+      typename std::remove_reference<decltype(*f(*std::begin(from)))>::type
+    >::type
+  > 
+{
+  typedef
+    typename std::remove_const<
+      typename std::remove_reference<decltype(*f(*std::begin(from)))>::type
+    >::type input_type;
   
-  std::vector<return_type> result;
+  std::vector<input_type> result;
+  result.reserve(std::distance(std::begin(from), std::end(from)));
+  
   for(auto &input : from) {
-    result.emplace_back(f(input));
+    auto optional = f(input);
+    
+    if(optional) {
+      result.emplace_back(std::move(*optional));
+    }
   }
   
   return result;
 }
+
+
+template<class Container, class Function>
+typename std::remove_reference<Container>::type
+copy_if(Container &&from, Function f) {  
+  typename std::remove_reference<Container>::type result;
+  
+  std::copy_if(std::begin(from), std::end(from), std::back_inserter(result), f);
+  
+  return result;
+}
+
 
 template<class To, class It>
 To copy_to(It begin, It end) {
@@ -68,8 +105,9 @@ split(Container &&container, const Type &&val) {
   
   auto begin = std::begin(container);
   for(auto end = begin; end < std::end(container); ++end) {
-    if(val == *end) {
+    if(val == *end && begin < end) {
       vecContainer.emplace_back(begin, end);
+      begin = end;
     }
   }
   
