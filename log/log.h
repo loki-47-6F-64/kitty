@@ -8,7 +8,7 @@
 
 #include <kitty/file/io_stream.h>
 
-#ifdef VIKING_DEBUG
+#ifdef KITTY_DEBUG
 #define ON_DEBUG( x ) x                                                                                                                 
 #define DEBUG_LOG( ... ) print(debug, __FILE__, ':', __LINE__,':', __VA_ARGS__)                                                         
 #else                                                                                                                                     
