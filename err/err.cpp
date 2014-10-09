@@ -69,7 +69,7 @@ const char *current() {
     case LIB_GAI:
       // Special exception: error_code is returned to the caller,
       // the caller must set the error message
-      return current();
+      return err_buf;
     case LIB_SSL:
       return ssl();
     case LIB_SYS:
