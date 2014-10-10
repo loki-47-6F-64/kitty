@@ -63,10 +63,25 @@ inline auto map_if(From &&from, Function f) ->
 
 template<class Container, class Function>
 typename std::remove_reference<Container>::type
-copy_if(Container &&from, Function f) {  
+copy_if(Container &&from, Function f) {
   typename std::remove_reference<Container>::type result;
   
   std::copy_if(std::begin(from), std::end(from), std::back_inserter(result), f);
+  
+  return result;
+}
+
+template<class Container, class Function>
+typename std::remove_reference<Container>::type
+move_if(Container &&from, Function f) {
+  typename std::remove_reference<Container>::type result;
+  
+  std::copy_if(
+    std::make_move_iterator(std::begin(from)),
+    std::make_move_iterator(std::end(from)),
+    std::back_inserter(result),
+    f
+  );
   
   return result;
 }
@@ -84,12 +99,10 @@ To copy_to(From &&from) {
 
 template<class To, class It>
 To move_to(It begin, It end) {
-  To to;
-  for(auto it = begin; it != end; ++it) {
-    to.emplace_back(std::move(*it));
-  }
-  
-  return to;
+  return copy_to<To>(
+    std::make_move_iterator(begin),
+    std::make_move_iterator(end)
+  );
 }
 
 template<class To, class From>
