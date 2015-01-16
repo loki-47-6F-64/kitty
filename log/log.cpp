@@ -1,6 +1,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include <sys/stat.h>
+
 #include <kitty/log/log.h>
 
 file::Log error  (-1, " Error: "  , dup(STDERR_FILENO));

@@ -10,6 +10,7 @@
 
 #include <kitty/err/err.h>
 #include <kitty/util/optional.h>
+#include <kitty/util/string.h>
 
 namespace file {
 /* Represents file in memory, storage or socket */
@@ -237,9 +238,9 @@ private:
   struct AppendFunc<T, typename std::enable_if<std::is_integral<typename std::remove_reference<T>::type>::value>::type> {
     static void run(std::vector<uint8_t> &cache, T integral) {
       if(sizeof(T) == 1) {
-	cache.push_back(integral);
+	      cache.push_back(integral);
 	
-	return;
+	      return;
       }
       
       std::string _integral = std::to_string(integral);

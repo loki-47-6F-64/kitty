@@ -1,5 +1,6 @@
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 #include <kitty/file/io_stream.h>
 #include <kitty/file/file.h>

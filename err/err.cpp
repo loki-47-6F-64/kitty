@@ -1,7 +1,9 @@
 #include <errno.h>
 #include <string.h>
 
+#ifdef VIKING_BUILD_SSL
 #include <openssl/err.h>
+#endif
 
 #include <kitty/err/err.h>
 
@@ -11,8 +13,30 @@ constexpr int MAX_ERROR_BUFFER = 120;
 thread_local char err_buf[MAX_ERROR_BUFFER] = {'\0'};
 thread_local code_t code;
 
+// Support int strerr_r and char *strerr_r
+template<class T, class S = void>
+struct _getSysError;
+
+template<class T>
+struct _getSysError<T, typename std::enable_if<std::is_pointer<typename std::decay<T>::type>::value>::type> {
+  static const char *value() {
+    return strerror_r(errno, err_buf, MAX_ERROR_BUFFER);
+  }
+};
+
+template<class T> 
+struct _getSysError<T, typename std::enable_if<std::is_integral<typename std::remove_reference<T>::type>::value>::type> {
+  static const char *value() {
+    strerror_r(errno, err_buf, MAX_ERROR_BUFFER);
+
+    return err_buf;
+  }
+};
+
+typedef _getSysError<decltype(strerror_r(errno, err_buf, MAX_ERROR_BUFFER))> getSysError;
 const char *sys() {
-  return strerror_r(errno, err_buf, MAX_ERROR_BUFFER);
+  
+  return getSysError::value();
 }
 
 const char *ssl() {
