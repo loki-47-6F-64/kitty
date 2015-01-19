@@ -136,14 +136,3 @@ configure_file(KittyConfig.cmake.in
 configure_file(KittyConfigVersion.cmake.in
   "${PROJECT_BINARY_DIR}/KittyConfigVersion.cmake" @ONLY
 )
- 
-# Install the FooBarConfig.cmake and FooBarConfigVersion.cmake
-install(FILES
-  "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/KittyConfig.cmake"
-  "${PROJECT_BINARY_DIR}/KittyConfigVersion.cmake"
-  DESTINATION "${INSTALL_CMAKE_DIR}" COMPONENT dev)
- 
-# Install the export set for use with the install-tree
-install(EXPORT KittyTargets DESTINATION
-  "${INSTALL_CMAKE_DIR}" COMPONENT dev
-)
