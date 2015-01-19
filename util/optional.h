@@ -34,6 +34,14 @@ public:
   const T& operator*() const {
     return val;
   }
+
+  T* operator->() {
+    return &val;
+  }
+
+  T& operator*() {
+    return val;
+  }
 };
 }
 #endif // OPTIONAL_H
