@@ -1,11 +1,13 @@
 #ifndef KITTY_UTIL_SET_H
 #define KITTY_UTIL_SET_H
 
+#include <tuple>
 #include <algorithm>
 #include <iterator>
 #include <vector>
 #include <utility>
 #include <type_traits>
+#include <array>
 #include <kitty/util/optional.h>
 
 namespace util {
@@ -137,5 +139,35 @@ bool any(Container &&container, Function f) {
   
   return false;
 }
+
+template<class T, class... Args>
+struct First {
+  typedef T type;
+};
+
+
+template<std::size_t N, class Array, class Arg>
+Array _make_array(Array &array, Arg arg) {
+  array[std::tuple_size<Array>::value - N] = std::move(arg);
+  
+  return array;
+}
+
+
+template<std::size_t N, class Array, class Arg, class... Args>
+Array _make_array(Array &array, Arg arg, Args&& ... args) {
+  array[std::tuple_size<Array>::value - N] = std::move(arg);
+  
+  return _make_array<N - 1>(array, std::forward<Args>(args)...);
+}
+
+template<class... Args, std::size_t N = sizeof... (Args)>
+std::array<typename First<Args...>::type, N> make_array(Args&& ... args) {
+  typedef std::array<typename First<Args...>::type, N> Array;
+  
+  Array arr;
+  return _make_array<std::tuple_size<Array>::value - 1>(arr, std::forward<Args>(args)...);  
+}
+
 }
 #endif

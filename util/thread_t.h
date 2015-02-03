@@ -3,12 +3,14 @@
 
 #include <thread>
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifndef __ARM_ARCH
 namespace util {
 typedef std::thread thread_t;
 }
 #else
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 /*
  * Calling join() on std::thread causes a pure virtual function call
  * For this reason, I constructed a drop-in replacement for std::thread.
@@ -51,13 +53,11 @@ public:
   thread_t() : _id(0) { }
 
   thread_t(thread_t &&other) {
-    this->_id = other._id;
-    other._id = 0;
+    std::swap(this->_id, other._id);
   }
 
   void operator=(thread_t &&other) {
-    this->_id = other._id;
-    other._id = 0;
+    std::swap(this->_id, other._id);
   }
 
   template<class Function, class... Args>
