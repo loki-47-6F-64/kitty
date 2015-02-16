@@ -1,10 +1,7 @@
 #ifndef KITTY_THREAD_POOL_H
 #define KITTY_THREAD_POOL_H
 
-#include <deque>
-#include <vector>
-#include <future>
-
+#include <kitty/util/task_pool.h>
 #include <kitty/util/thread_t.h>
 
 namespace util {
@@ -13,16 +10,13 @@ namespace util {
  * while keeping full controll over the threads.
  */
 template<class T>
-class ThreadPool {
+class ThreadPool : public TaskPool<T> {
 public:
   typedef T __return;
-  typedef std::packaged_task<__return() > __task;
-  typedef std::future<__return> __future;
+  typedef typename TaskPool<T>::__task __task;
+  
 private:
-  std::deque<__task> _task;
-
   std::vector<thread_t> _thread;
-  std::mutex _task_mutex;
 
   bool _continue;
 public:
@@ -37,15 +31,6 @@ public:
     join();
   }
 
-  __future push(__task && newTask) {
-    __future future = newTask.get_future();
-
-    std::lock_guard<std::mutex> lg(_task_mutex);
-    _task.emplace_back(std::move(newTask));
-
-    return future;
-  }
-
   void join() {
     if (!_continue) return;
 
@@ -54,36 +39,24 @@ public:
       t.join();
     }
   }
-private:
 
-  int _pop(__task &task) {
-    std::lock_guard<std::mutex> lg(_task_mutex);
-
-    if (_task.empty()) {
-      return -1;
-    }
-
-    task = std::move(_task.front());
-    _task.pop_front();
-    return 0;
-  }
 public:
 
   void _main() {
     std::chrono::milliseconds sleeper(10);
 
-    __task task;
+    util::Optional<__task> task;
     while (_continue) {
-      if (_pop(task)) {
+      if (task = this->pop()) {
         std::this_thread::sleep_for(sleeper);
         continue;
       }
-      task();
+      (*task)();
     }
 
     // Execute remaining tasks
-    while (!_pop(task)) {
-      task();
+    while (task = this->pop()) {
+      (*task)();
     }
   }
 };
