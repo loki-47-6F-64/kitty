@@ -61,7 +61,7 @@ public:
   util::Optional<__task> pop() {
     
     std::lock_guard<std::mutex> lg(_task_mutex);
-    if(!_timer_tasks.empty() && std::get<0>(_timer_tasks.back()) >= std::chrono::steady_clock::now()) {
+    if(!_timer_tasks.empty() && std::get<0>(_timer_tasks.back()) <= std::chrono::steady_clock::now()) {
       __task task = std::move(std::get<1>(_timer_tasks.back()));
       _timer_tasks.pop_back();
       
