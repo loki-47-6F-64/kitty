@@ -8,14 +8,37 @@
 #include <utility>
 
 #include <kitty/util/optional.h>
-
+#include <kitty/util/utility.h>
 namespace util {
+  
+
+  
 template<class T>
 class TaskPool {
-public:
-  typedef T __return;
-  typedef std::packaged_task<__return()> __task;
-  typedef std::future<__return> __future;
+  class _ImplBase {
+  public:
+    //_unique_base_type _this_ptr;
+    
+    inline virtual ~_ImplBase() = default;
+    
+    virtual void run() = 0;
+  };
+  
+  template<class Function>
+  class _Impl : public _ImplBase {
+    Function _func;
+    
+  public:
+    
+    _Impl(Function&& f) : _func(std::forward<Function>(f)) { }
+    
+    void run() {
+      _func();
+    }
+  };
+
+public:  
+  typedef std::unique_ptr<_ImplBase> __task;
   
   typedef std::chrono::steady_clock::time_point __time_point;
 private:
@@ -26,24 +49,30 @@ private:
   bool _continue;
 public:
   template<class Function>
-  __future push(Function && newTask) {
-    __task task(std::move(newTask));
+  auto push(Function && newTask) -> std::future<decltype(newTask())> {
+    typedef decltype(newTask()) __return;
+    typedef std::packaged_task<__return()> task_t;
     
-    __future future = task.get_future();
+    task_t task(std::move(newTask));
+    
+    auto future = task.get_future();
     
     std::lock_guard<std::mutex> lg(_task_mutex);
-    _tasks.emplace_back(std::move(task));
+    _tasks.emplace_back(toRunnable(std::move(task)));
     
     return future;
   }
   
   template<class Function>
-  __future push(Function &&newTask, int64_t milli) {
+  auto push(Function &&newTask, int64_t milli) -> std::future<decltype(newTask())> {
+    typedef decltype(newTask()) __return;
+    typedef std::packaged_task<__return()> task_t;
+    
     __time_point time_point = std::chrono::steady_clock::now() + std::chrono::milliseconds(milli);
     
-    __task task(std::move(newTask));
+    task_t task(std::move(newTask));
     
-    __future future = task.get_future();
+    auto future = task.get_future();
     
     std::lock_guard<std::mutex> lg(_task_mutex);
     
@@ -53,21 +82,14 @@ public:
         break;
       }
     }
-    _timer_tasks.emplace(it, time_point, std::move(task));
+    _timer_tasks.emplace(it, time_point, toRunnable(std::move(task)));
     
     return future;
   }
   
   util::Optional<__task> pop() {
     
-    std::lock_guard<std::mutex> lg(_task_mutex);
-    if(!_timer_tasks.empty() && std::get<0>(_timer_tasks.back()) <= std::chrono::steady_clock::now()) {
-      __task task = std::move(std::get<1>(_timer_tasks.back()));
-      _timer_tasks.pop_back();
-      
-      return task;
-    }
-    
+    std::lock_guard<std::mutex> lg(_task_mutex);   
     
     if(!_tasks.empty()) {
       __task task = std::move(_tasks.front());
@@ -75,7 +97,20 @@ public:
       return task;
     }
     
+    if(!_timer_tasks.empty() && std::get<0>(_timer_tasks.back()) <= std::chrono::steady_clock::now()) {
+      __task task = std::move(std::get<1>(_timer_tasks.back()));
+      _timer_tasks.pop_back();
+      
+      return task;
+    }
+    
     return util::Optional<__task>();
+  }
+private:
+  
+  template<class Function>
+  std::unique_ptr<_ImplBase> toRunnable(Function &&f) {
+    return util::mk_uniq<_Impl<Function>>(std::move(f));
   }
 };
 }

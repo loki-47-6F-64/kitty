@@ -51,12 +51,12 @@ public:
         std::this_thread::sleep_for(sleeper);
         continue;
       }
-      (*task)();
+      (*task)->task;
     }
 
     // Execute remaining tasks
     while (task = this->pop()) {
-      (*task)();
+      (*task)->run();
     }
   }
 };
