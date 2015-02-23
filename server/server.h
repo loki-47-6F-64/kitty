@@ -37,10 +37,10 @@ private:
 
   pollfd _listenfd;
 
-  std::function < void(Client &&) > _action;
+  std::function<void(Client &&)> _action;
 
 
-  util::ThreadPool<void> _task;
+  util::ThreadPool _task;
   std::mutex _server_stop_lock;
 
   Member _member;

@@ -9,11 +9,9 @@ namespace util {
  * Allow threads to execute unhindered
  * while keeping full controll over the threads.
  */
-template<class T>
-class ThreadPool : public TaskPool<T> {
+class ThreadPool : public TaskPool {
 public:
-  typedef T __return;
-  typedef typename TaskPool<T>::__task __task;
+  typedef TaskPool::__task __task;
   
 private:
   std::vector<thread_t> _thread;
@@ -51,7 +49,7 @@ public:
         std::this_thread::sleep_for(sleeper);
         continue;
       }
-      (*task)->task;
+      (*task)->run();
     }
 
     // Execute remaining tasks

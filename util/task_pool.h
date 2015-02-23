@@ -10,10 +10,7 @@
 #include <kitty/util/optional.h>
 #include <kitty/util/utility.h>
 namespace util {
-  
 
-  
-template<class T>
 class TaskPool {
   class _ImplBase {
   public:
@@ -25,7 +22,7 @@ class TaskPool {
   };
   
   template<class Function>
-  class _Impl : public _ImplBase {
+  class _Impl : public TaskPool::_ImplBase {
     Function _func;
     
   public:
