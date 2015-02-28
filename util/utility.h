@@ -5,36 +5,8 @@
 #include <memory>
 
 #include <kitty/util/optional.h>
-#include <kitty/err/err.h>
 
 namespace util {
-template<class T>
-void append_struct(std::vector<uint8_t> &buf, T &_struct) {
-  constexpr size_t data_len = sizeof(_struct);
-
-  uint8_t *data = (uint8_t *) & _struct;
-
-  for (int x = 0; x < data_len; ++x) {
-    buf.push_back(data[x]);
-  }
-}
-
-template<class T, class File>
-Optional<T> read_struct(File &io) {
-  constexpr size_t data_len = sizeof(T);
-  uint8_t buf[data_len];
-
-  int x = 0;
-  int err = io.eachByte([&](uint8_t ch) {
-    buf[x++] = ch;
-
-    return x < data_len ? err::OK : err::BREAK;
-  });
-
-  T *val = (T*)buf;
-  return err ? Optional<T>() : Optional<T>(*val);
-}
-
 template<class T>
 class Hex {
 public:

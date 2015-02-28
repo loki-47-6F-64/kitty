@@ -2,6 +2,8 @@
 #define DOSSIER_ERR_H
 
 #include <string>
+#include <kitty/util/thread_local.h>
+
 namespace err {
 /*
  * Thread safe error functions
@@ -16,12 +18,12 @@ typedef enum {
   OUT_OF_BOUNDS,
   INPUT_OUTPUT,
   UNAUTHORIZED,
-  LIB_GAI,
+  LIB_USER,
   LIB_SYS,
   LIB_SSL
 } code_t;
 
-extern thread_local code_t code;
+extern THREAD_LOCAL util::ThreadLocal<code_t>::type code;
 
 void set(const char *error);
 void set(std::string &error);

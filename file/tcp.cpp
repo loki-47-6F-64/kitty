@@ -26,7 +26,6 @@ io connect(const char *hostname, const char *port) {
 
   int err;
   if((err = getaddrinfo(hostname, port, &hints, &server))) {
-    err::code = err::LIB_GAI;
     err::set(gai_strerror(err));
     return ioFd;
   }

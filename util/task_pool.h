@@ -14,8 +14,6 @@ namespace util {
 class TaskPool {
   class _ImplBase {
   public:
-    //_unique_base_type _this_ptr;
-    
     inline virtual ~_ImplBase() = default;
     
     virtual void run() = 0;
@@ -42,8 +40,7 @@ private:
   std::deque<__task> _tasks;
   std::vector<std::pair<__time_point, __task>> _timer_tasks; 
   std::mutex _task_mutex;
-  
-  bool _continue;
+
 public:
   template<class Function>
   auto push(Function && newTask) -> std::future<decltype(newTask())> {

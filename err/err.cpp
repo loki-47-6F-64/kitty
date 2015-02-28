@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <string.h>
+#include <array>
 
 #ifdef VIKING_BUILD_SSL
 #include <openssl/err.h>
@@ -10,8 +11,8 @@
 namespace err {
 
 constexpr int MAX_ERROR_BUFFER = 120;
-thread_local char err_buf[MAX_ERROR_BUFFER] = {'\0'};
-thread_local code_t code;
+THREAD_LOCAL util::ThreadLocal<char[MAX_ERROR_BUFFER]>::type err_buf { '\0' };
+THREAD_LOCAL util::ThreadLocal<code_t>::type code { OK };
 
 // Support int strerr_r and char *strerr_r
 template<class T, class S = void>
@@ -62,7 +63,7 @@ void _set(const char *src) {
 }
 
 void set(const char *error) {
-  err::code = LIB_GAI;
+  err::code = LIB_USER;
   
   return _set(error);
 }
@@ -90,7 +91,7 @@ const char *current() {
       return "BREAK";
     case UNAUTHORIZED:
       return "unauthorized";
-    case LIB_GAI:
+    case LIB_USER:
       // Special exception: error_code is returned to the caller,
       // the caller must set the error message
       return err_buf;

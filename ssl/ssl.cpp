@@ -118,7 +118,7 @@ file::ssl connect(Context &ctx, const char *hostname, const char* port) {
 
   int err;
   if((err = getaddrinfo(hostname, port, &hints, &server))) {
-    err::code = err::LIB_GAI;
+    err::code = err::LIB_USER;
     err::set(gai_strerror(err));
     return sslFd;
   }
