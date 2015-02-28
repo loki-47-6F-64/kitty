@@ -6,20 +6,36 @@ Modules that add dependencies don't build by default
 ### Module err:
 ```c++
 namespace err {
-  const char *current();
+/*
+ * Thread safe error functions
+ */
+const char *current();
 
-  extern thread_local code_t code;
+typedef enum {
+  OK,
+  TIMEOUT,
+  BREAK, // Break from eachByte()
+  FILE_CLOSED,
+  OUT_OF_BOUNDS,
+  INPUT_OUTPUT,
+  UNAUTHORIZED,
+  LIB_GAI,
+  LIB_SYS,
+  LIB_SSL
+} code_t;
+
+extern THREAD_LOCAL util::ThreadLocal<code_t>::type code;
 }
 ```
-LIB_* error codes are for errors that are generated outside Viking
+LIB_* error codes are for errors that are generated outside Kitty
 
 
 ### Module util
 Contains all sorts of nifty features.
 
 ####### MoveByCopy
-`std::bind` can't handle function that takes objects by rvalue reference
-When an instance of `MoveByCopy` is copied, it moves it's member to the copy
+
+Similar to std::ref, but moves instead.
 
 ####### Optional
 
@@ -45,6 +61,27 @@ else {
 }
 ```
 
+###### task_pool
+Push and pop callable objects from a queue.
+Push returns a future based on the return type of the callable object.
+
+Pop returns an optional callable object.
+```c++
+int main {
+    TaskPool pool;
+    
+    std::future<int> x = pool.push([](){
+        int x = 5;
+        return x;
+    });
+    
+    (*pool)->run();
+    
+    print(fout, x.get());
+    return 0;
+}
+```
+
 ###### thread_pool
 Create threads that handle tasks that are put in a queue.
 ```c++
@@ -52,12 +89,17 @@ Create threads that handle tasks that are put in a queue.
 
 int main() {
   // Create a thread pool with 1 worker thread
-  ThreadPool<int> tp(1);
+  ThreadPool pool(1);
 
-  // push a task twice
-  std::future<int> f1 = tp.push(ThreadPool<void>::__task(std::bind(_function, parameter)));
+  // Create a task with a delay of 500 milliseconds
+  std::future<int> x = pool.push([](){
+    int x = 5;
+    return x;
+  }, 500);
 
-  tp.join();
+  // After about half a second, you'll get a result
+  x.get();
+  
   return 0;
 }
 ```
@@ -81,6 +123,47 @@ int main() {
   return 0;
 }
 ```
+
+mk_uniq is identical to std::make_unique
+
+###### string
+
+Compensate for the lack of support for std::to_string on Android
+
+###### thread_t
+
+Contains a custom thread class. It has an identical interface as std::thread.
+
+###### set
+
+concat:
+    concat two containers
+    
+map:
+    Apply an operation to every element in the container and return the result
+    
+map_if:
+    Similar to map, but the operation must return an optional.
+    
+move_if:
+    moves an object if the function returns true
+
+copy_to:
+    Copies the elements to a different type of container
+    
+move_to:
+    Moves the elements to a different type of container
+   
+split:
+    Split an container into multiple containers 
+    
+any:
+    If any element satifies a condition.
+    
+make_array:
+    Create a static array.
+    
+    
 
 ### Module file
 `file::FD` is an extendable class that takes a stream as a template argument.
@@ -125,13 +208,22 @@ The following would output: `I am printing: 5`
 #include "io_stream.h"
 
 int main() {
-  file::io fout(-1, STDOUT_FILENO);
+  file::io io(-1, STDOUT_FILENO);
 
   print(io, "I am printing: ", 5, '\n');
 }
 ```
 
 `print` is one of the few functions present in the global namespace
+
+####### tcp
+
+```c++
+namespace file {
+  io connect(const char *hostname, const char *port);
+}
+```
+
 ### Module log
 * `error`  : "Should only be used when errors are not to be recovered from"
 * `warning`: "Should be used when minor errors occur"
@@ -447,7 +539,7 @@ void handle_ble_server(server::BlueClient && client) {
 * error handling !
 
 Special thanks to [bleno](https://github.com/sandeepmistry/bleno).
-> Bleno made it a lot easier to implement gatt.
+> Bleno made it a lot easier for me to implement gatt.
 
 ### Requirements
 * kitty-server
@@ -465,11 +557,4 @@ Special thanks to [bleno](https://github.com/sandeepmistry/bleno).
 ```Shell
 cmake -DCMAKE_BUILD_TYPE=release -DBUILD_SSL=ON -DBUILD_BLUETOOTH=ON src
 make
-```
-
-### Installation
-
-###### Kitty install:
-```shell
-make install
 ```
