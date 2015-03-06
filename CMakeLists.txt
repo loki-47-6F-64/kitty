@@ -39,13 +39,9 @@ endforeach()
 include_directories(
   "${PROJECT_SOURCE_DIR}"
   "${PROJECT_BINARY_DIR}"
+  "${OPENSSL_INCLUDE_DIR}"
   "../"
 )
-
-# Any builds that add dependencies should not be added automatically
-set(BUILD_SSL OFF CACHE PATH "Build ssl")
-set(BUILD_BLUETOOTH OFF CACHE PATH "Build bluetooth")
-set(BUILD_SERVER OFF CACHE PATH "Build server")
 
 if(BUILD_SSL OR BUILD_BLUETOOTH)
   if(NOT BUILD_SERVER)
@@ -68,17 +64,17 @@ if(${BUILD_TYPE} STREQUAL "DEBUG")
 endif()
 
 if(BUILD_SERVER)
-  find_package(Threads REQUIRED)
+  find_package(Threads)
 endif()
 
 if(BUILD_SSL)
-  find_package(OpenSSL REQUIRED)
+  find_package(OpenSSL)
   
   add_definitions( -DKITTY_BUILD_SSL=1 )
 endif()
 
 if(BUILD_BLUETOOTH)
-  find_package(Bluez REQUIRED)
+  find_package(Bluez)
 endif()
 
 # Add sub-directories

@@ -57,5 +57,22 @@ std::unique_ptr<T> mk_uniq(Args && ... args) {
 
 template<class T>
 using Error = Optional<T>;
+
+template<class ...Args>
+struct Function {
+  typedef void (*type)(Args...);
+};
+
+template<class T, typename Function<T>::type function>
+struct Destroy {
+  typedef T pointer;
+  
+  void operator()(pointer p) {
+    function(p);
+  }
+};
+
+template<class T, typename Function<T*>::type function>
+using safe_ptr = std::unique_ptr<T, Destroy<T*, function>>;
 }
 #endif

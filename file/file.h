@@ -39,9 +39,9 @@ public:
     _stream = std::move(other._stream);
     _cache = std::move(other._cache);
 
-    _data_p = other._data_p;
-    _microsec = other._microsec;
-    _cacheSize = other._cacheSize;
+    std::swap(_data_p, other._data_p);
+    std::swap(_microsec, other._microsec);
+    std::swap(_cacheSize, other._cacheSize);
   }
 
   FD(long microsec = -1)
@@ -57,6 +57,7 @@ public:
     seal();
   }
 
+  Stream &getStream() { return _stream; }
   // Load file into _cache.data(), replaces old _cache.data()
 
   /* Returns -1 on error.
@@ -105,7 +106,8 @@ public:
     return _cache.empty() ? util::Optional<uint8_t>() : util::Optional<uint8_t>(_cache[_data_p++]);
   }
 
-  int eachByte(std::function<int(uint8_t)> f) {
+  template<class Function>
+  int eachByte(Function &&f) {
     while (!eof()) {
       if (end_of_buffer()) {
 
@@ -116,11 +118,10 @@ public:
         continue;
       }
 
-      int err;
-      if ((err = f(_cache[_data_p++])))
-
+      if (int err = f(_cache[_data_p++])) {
         // Return FileErr::OK if err_code != FileErr::BREAK
         return err != err::BREAK ? -1 : 0;
+      }
     }
 
     return err::OK;
@@ -263,25 +264,22 @@ private:
 }
 //TODO: print is not thread_safe
 
-template<class File>
-int _print(File &file) {
+template<class Stream>
+int _print(file::FD<Stream> &file) {
   return file.out();
 }
 
-template<class File, class Out, class... Args>
-int _print(File &file, Out && out, Args && ... params) {
-  file.append(std::forward < Out && > (out));
-  return _print(file, std::forward<Args>(params)...);
+template<class Stream, class Out, class... Args>
+int _print(file::FD<Stream> &file, Out && out, Args && ... params) {
+  return _print(file.append(std::forward<Out&&>(out)), std::forward<Args>(params)...);
 }
 
 /*
  * First clear file, then recursively print all params
  */
-template<class File, class... Args>
-int print(File &file, Args && ... params) {
-  file.clear();
-
-  return _print(file, std::forward<Args>(params)...);
+template<class Stream, class... Args>
+int print(file::FD<Stream> &file, Args && ... params) {
+  return _print(file.clear(), std::forward<Args>(params)...);
 }
 #endif
 

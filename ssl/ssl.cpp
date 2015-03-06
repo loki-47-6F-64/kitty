@@ -7,7 +7,6 @@
 
 #include <kitty/err/err.h>
 #include <kitty/ssl/ssl.h>
-
 // Special exception for gai_strerror
 namespace err {
 extern void set(const char *err);
@@ -106,7 +105,6 @@ void init() {
 file::ssl connect(Context &ctx, const char *hostname, const char* port) {
   constexpr long timeout = -1;
 
-  file::ssl sslFd;
   int serverFd = socket(AF_INET, SOCK_STREAM, 0);
 
   addrinfo hints;
@@ -116,11 +114,10 @@ file::ssl connect(Context &ctx, const char *hostname, const char* port) {
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
 
-  int err;
-  if((err = getaddrinfo(hostname, port, &hints, &server))) {
+  if(int err = getaddrinfo(hostname, port, &hints, &server)) {
     err::code = err::LIB_USER;
     err::set(gai_strerror(err));
-    return sslFd;
+    return file::ssl();
   }
 
 
@@ -128,38 +125,27 @@ file::ssl connect(Context &ctx, const char *hostname, const char* port) {
     freeaddrinfo(server);
 
     err::code = err::LIB_SYS;
-    return sslFd;
+    return file::ssl();
   }
 
   freeaddrinfo(server);
-  SSL *ssl = SSL_new(ctx.get());
 
-  if(ssl == nullptr) {
+  file::ssl ssl_tmp(timeout, ctx, serverFd);
+  
+
+  if(SSL_connect(ssl_tmp.getStream()._ssl.get()) != 1) {
     err::code = err::LIB_SSL;
+    return file::ssl();
   }
 
-  file::ssl ssl_tmp(timeout, ssl);
-  SSL_set_fd(ssl, serverFd);
-
-  if(SSL_connect(ssl) != 1) {
-    err::code = err::LIB_SSL;
-    return sslFd;
-  }
-
-  sslFd = std::move(ssl_tmp);
-
-  return sslFd;
+  return ssl_tmp;
 }
 
 file::ssl accept(ssl::Context &ctx, int fd) {
   constexpr long timeout = 3000 * 1000;
 
-
-  SSL *ssl = SSL_new(ctx.get());
-  SSL_set_fd(ssl, fd);
-
-  file::ssl socket(timeout, ssl);
-  if(SSL_accept(ssl) != 1) {
+  file::ssl socket(timeout, ctx, fd);
+  if(SSL_accept(socket.getStream()._ssl.get()) != 1) {
     socket.seal();
   }
 

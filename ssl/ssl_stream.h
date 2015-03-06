@@ -3,19 +3,24 @@
 
 #include <openssl/ssl.h>
 #include <kitty/file/file.h>
+#include <kitty/util/utility.h>
+
 namespace file {
 namespace stream {
 
+typedef util::safe_ptr<SSL, SSL_free> _SSL;
+typedef util::safe_ptr<SSL_CTX, SSL_CTX_free> Context;
 
 class ssl {
   bool _eof;
 
-  SSL *_ssl;
 public:
+  _SSL _ssl;
+
   ssl();
 
   void operator=(ssl&& stream);
-  void open(SSL *ssl);
+  void open(Context &ctx, int fd);
 
   int operator>>(std::vector<unsigned char>& buf);
   int operator<<(std::vector<unsigned char>& buf);

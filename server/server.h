@@ -52,12 +52,9 @@ public:
 
   Server(Member && member) : _continue(false), _task(5), _member(std::move(member)) { }
 
-  ~Server() {
-    stop();
-  }
+  ~Server() { stop(); }
 
   // Start server
-
   void operator()() {
     if (isRunning())
       return;
