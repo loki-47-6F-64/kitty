@@ -169,9 +169,9 @@ public:
      On failure: return (Error)-1 or (Timeout)1
      On success: return  0
    */
-  template<class Out>
-  int copy(Out &out, int64_t max = -1) {
-    std::vector<uint8_t> &cache = out.getCache();
+  template<class OutStream>
+  int copy(FD<OutStream> &out, int64_t max = -1) {
+    auto &cache = out.getCache();
 
     while (!eof() && max) {
       if (end_of_buffer()) {
@@ -184,15 +184,18 @@ public:
       while (!end_of_buffer()) {
         cache.push_back(_cache[_data_p++]);
 
-        if (!max)
+        if(!max) {
           break;
+        }
 
         --max;
       }
+      
       if (out.out()) {
         return -1;
       }
     }
+    
     return err::OK;
   }
 

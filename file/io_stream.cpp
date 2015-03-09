@@ -11,6 +11,10 @@ io ioRead(const char *file_path) {
   return file::io { -1, ::open(file_path, O_RDONLY, 0) };
 }
 
+io ioRead(std::string &file_path) { return ioRead(file_path.c_str()); }
+io ioRead(std::string &&file_path) { return ioRead(file_path); }
+
+
 io ioWrite(const char *file_path) {
   int _fd = ::open(file_path,
     O_CREAT | O_WRONLY,
@@ -20,6 +24,10 @@ io ioWrite(const char *file_path) {
   return file::io { -1, _fd };
 }
 
+io ioWrite(std::string &file_path) { return ioWrite(file_path.c_str()); }
+io ioWrite(std::string &&file_path) { return ioWrite(file_path); }
+
+
 io ioWriteAppend(const char *file_path) {
   int _fd = ::open(file_path,
     O_CREAT | O_APPEND | O_WRONLY,
@@ -28,6 +36,9 @@ io ioWriteAppend(const char *file_path) {
 
   return io { -1, _fd };
 }  
+
+io ioWriteAppend(std::string &file_path) { return ioWriteAppend(file_path.c_str()); }
+io ioWriteAppend(std::string &&file_path) { return ioWriteAppend(file_path); }
 
 namespace stream {
 io::io() : _eof(false), _fd(-1)  { }
