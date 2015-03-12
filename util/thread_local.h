@@ -11,7 +11,12 @@ namespace util {
 template<class T>
 class ThreadLocal {
   static void destroy(void *ptr) {
-    delete reinterpret_cast<T*>(ptr);
+    if(std::is_array<T>::value) {
+      delete[] reinterpret_cast<T*>(ptr);
+    }
+    else {
+      delete reinterpret_cast<T*>(ptr);
+    }
   }
   
   template<class Z, class X = void>
@@ -76,7 +81,12 @@ namespace util {
 template<class T>
 class ThreadLocal {
   static void destroy(void *ptr) {
-    delete reinterpret_cast<T*>(ptr);
+    if(std::is_array<T>::value) {
+      delete[] reinterpret_cast<T*>(ptr);
+    }
+    else {
+      delete reinterpret_cast<T*>(ptr);
+    }
   }
   
   ThreadLocal() = default;

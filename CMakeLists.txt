@@ -39,7 +39,7 @@ endforeach()
 include_directories(
   "${PROJECT_SOURCE_DIR}"
   "${PROJECT_BINARY_DIR}"
-  "${OPENSSL_INCLUDE_DIR}"
+  ${OPENSSL_INCLUDE_DIR}
   "../"
 )
 

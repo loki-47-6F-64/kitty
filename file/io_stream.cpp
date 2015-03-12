@@ -45,6 +45,10 @@ io::io() : _eof(false), _fd(-1)  { }
 
 void io::open(int fd) {
   _fd = fd;
+    
+  if(fd <= 0) {
+    err::code = err::LIB_SYS;
+  }
 }
 
 void io::operator=(io&& stream) {
@@ -72,7 +76,7 @@ int io::operator>>(std::vector<unsigned char>& buf) {
 }
 
 int io::operator<<(std::vector<unsigned char>&buf) {
-  int bytes_written = write(_fd, buf.data(), buf.size());
+  auto bytes_written = write(_fd, buf.data(), buf.size());
 
   if(bytes_written < 0) {
     err::code = err::LIB_SYS;

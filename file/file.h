@@ -202,8 +202,11 @@ public:
 private:
   int _select(const int read) {
     if (_microsec >= 0) {
-      timeval tv {0, _microsec};
-
+      timeval tv;
+        
+      tv.tv_sec  = 0;
+      tv.tv_usec = _microsec;
+        
       fd_set selected;
 
       FD_ZERO(&selected);
