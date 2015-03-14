@@ -30,7 +30,7 @@ public:
     const uint8_t *data = reinterpret_cast<const uint8_t *>(&elem) + sizeof(elem_type);
     for (uint8_t *it = begin(); it < cend();) {
       *it++ = _bits[*--data / 16];
-      *it++ = _bits[*data   % 16];
+      *it++ = _bits[*data % 16];
     }
   }
 

@@ -18,12 +18,12 @@ public:
   _SSL _ssl;
 
   ssl();
+  ssl(Context &ctx, int fd);
 
   void operator=(ssl&& stream);
-  void open(Context &ctx, int fd);
 
-  int operator>>(std::vector<unsigned char>& buf);
-  int operator<<(std::vector<unsigned char>& buf);
+  int read(std::vector<unsigned char>& buf);
+  int out(std::vector<unsigned char>& buf);
 
   bool is_open();
   bool eof();

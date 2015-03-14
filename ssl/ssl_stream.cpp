@@ -7,10 +7,7 @@
 namespace file {
 namespace stream {
 ssl::ssl() : _eof(false), _ssl(nullptr) { }
-
-void ssl::open(::ssl::Context &ctx, int fd) {
-  _ssl = _SSL { SSL_new(ctx.get()) };
-  
+ssl::ssl(Context &ctx, int fd) : _eof(false), _ssl(SSL_new(ctx.get())) {  
   if(!_ssl) {
     err::code = err::LIB_SSL;
     
@@ -26,7 +23,7 @@ void ssl::operator=(ssl&& stream) {
   _ssl = std::move(stream._ssl);
 }
 
-int ssl::operator>>(std::vector<unsigned char>& buf) {
+int ssl::read(std::vector<unsigned char>& buf) {
   int bytes_read;
 
   if((bytes_read = SSL_read(_ssl.get(), buf.data(), buf.size())) < 0) {
@@ -53,7 +50,7 @@ int ssl::operator>>(std::vector<unsigned char>& buf) {
   return 0;
 }
 
-int ssl::operator<<(std::vector<unsigned char>&buf) {
+int ssl::out(std::vector<unsigned char>&buf) {
   return SSL_write(_ssl.get(), buf.data(), buf.size());
 }
 

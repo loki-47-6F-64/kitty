@@ -30,23 +30,23 @@ class Log {
   std::string _prepend;
 public:
 
-  Log() { }
+  Log() = default;
+  Log(Log &&other) { *this = std::move(other); }
 
-  void operator =(Log&& stream) {
+  Log &operator =(Log&& stream) {
     _stream = std::move(stream._stream);
+    
+    return *this;
   }
 
   template<class... Args>
-  void open(std::string&& prepend, Args&&... params) {
-    _prepend = std::move(prepend);
-    _stream.open(std::forward<Args>(params)...);
+  Log(std::string&& prepend, Args&&... params) : _stream(std::forward<Args>(params)...), _prepend(std::move(prepend)) {}
+
+  int read(std::vector<unsigned char>& buf) {
+    return -1;
   }
 
-  int operator >>(std::vector<unsigned char>& buf) {
-    return 0;
-  }
-
-  int operator <<(std::vector<unsigned char>& buf) {
+  int write(std::vector<unsigned char>& buf) {
     std::time_t t = std::time(NULL);
     strftime(_date, DATE_BUFFER_SIZE, "[%Y:%m:%d:%H:%M:%S]", std::localtime(&t));
 
@@ -59,7 +59,7 @@ public:
     );
 
     buf.push_back('\n');
-    return _stream << buf;
+    return _stream.write(buf);
   }
 
   bool is_open() {

@@ -11,12 +11,12 @@ class io {
 
 public:
   io();
+  io(int fd);
 
   void operator =(io&& stream);
-  void open(int fd);
 
-  int operator>>(std::vector<unsigned char>& buf);
-  int operator<<(std::vector<unsigned char>& buf);
+  int read(std::vector<unsigned char>& buf);
+  int write(std::vector<unsigned char>& buf);
 
   bool is_open();
   bool eof();

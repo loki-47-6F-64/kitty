@@ -42,10 +42,7 @@ io ioWriteAppend(std::string &&file_path) { return ioWriteAppend(file_path); }
 
 namespace stream {
 io::io() : _eof(false), _fd(-1)  { }
-
-void io::open(int fd) {
-  _fd = fd;
-    
+io::io(int fd) : _eof(false), _fd(fd) {
   if(fd <= 0) {
     err::code = err::LIB_SYS;
   }
@@ -59,10 +56,10 @@ void io::operator=(io&& stream) {
   stream._eof = true;
 }
 
-int io::operator>>(std::vector<unsigned char>& buf) {
+int io::read(std::vector<unsigned char>& buf) {
   ssize_t bytes_read;
 
-  if((bytes_read = read(_fd, buf.data(), buf.size())) < 0) {
+  if((bytes_read = ::read(_fd, buf.data(), buf.size())) < 0) {
     err::code = err::LIB_SYS;
     return -1;
   }
@@ -75,8 +72,8 @@ int io::operator>>(std::vector<unsigned char>& buf) {
   return 0;
 }
 
-int io::operator<<(std::vector<unsigned char>&buf) {
-  auto bytes_written = write(_fd, buf.data(), buf.size());
+int io::write(std::vector<unsigned char>&buf) {
+  auto bytes_written = ::write(_fd, buf.data(), buf.size());
 
   if(bytes_written < 0) {
     err::code = err::LIB_SYS;
