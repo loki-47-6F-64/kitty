@@ -3,6 +3,7 @@
 
 #include <iterator>
 
+namespace util {
 template<class V, class T>
 class ItWrap : public std::iterator<std::random_access_iterator_tag, V> {
 public:
@@ -100,6 +101,6 @@ private:
   iterator &_this() { return *static_cast<iterator*>(this); }
   const iterator &_this() const { return *static_cast<const iterator*>(this); }
 };
-
+}
 
 #endif
