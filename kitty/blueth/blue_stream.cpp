@@ -2,12 +2,8 @@
 
 namespace file {
 namespace stream {
-void blueth::open(int fd, bt::HCI& hci, bt::device& dev) {  
-  _hci = &hci;
-  _dev = &dev;
-  
-  io::open(fd);
-}
+blueth::blueth() : io() {}
+blueth::blueth(int fd, bt::HCI& hci, bt::device& dev) : io(fd), _hci(&hci), _dev(&dev) {}
 
 void blueth::seal() {
   auto handle = _hci->getConnHandle(*_dev);

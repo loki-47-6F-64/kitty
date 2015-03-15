@@ -7,6 +7,7 @@
 #include <mutex>
 
 #include <kitty/file/io_stream.h>
+#include <kitty/util/thread_local.h>
 
 #ifdef KITTY_DEBUG
 #define ON_DEBUG( x ) x                                                                                                                 
@@ -20,51 +21,45 @@ namespace file {
 namespace stream {
 constexpr int DATE_BUFFER_SIZE = 21 + 1; // Full string plus '\0'
 
-class _LogBase {
-public:
-  static std::mutex _lock;
-  static char _date[DATE_BUFFER_SIZE];
-};
+extern THREAD_LOCAL util::ThreadLocal<char[DATE_BUFFER_SIZE]>::type _date;
 
 template<class Stream>
-class Log : public _LogBase {
+class Log {
   Stream _stream;
 
   std::string _prepend;
 public:
 
-  Log() { }
+  Log() = default;
+  Log(Log &&other) { *this = std::move(other); }
 
-  void operator =(Log&& stream) {
+  Log &operator =(Log&& stream) {
     _stream = std::move(stream._stream);
+    
+    return *this;
   }
 
   template<class... Args>
-  void open(std::string&& prepend, Args&&... params) {
-    _prepend = std::move(prepend);
-    _stream.open(std::forward<Args>(params)...);
+  Log(std::string&& prepend, Args&&... params) : _stream(std::forward<Args>(params)...), _prepend(std::move(prepend)) {}
+
+  int read(std::vector<unsigned char>& buf) {
+    return -1;
   }
 
-  int operator >>(std::vector<unsigned char>& buf) {
-    return 0;
-  }
-
-  int operator <<(std::vector<unsigned char>& buf) {
-    std::lock_guard<std::mutex> lock(_LogBase::_lock);
-
+  int write(std::vector<unsigned char>& buf) {
     std::time_t t = std::time(NULL);
-    strftime(_LogBase::_date, DATE_BUFFER_SIZE, "[%Y:%m:%d:%H:%M:%S]", std::localtime(&t));
+    strftime(_date, DATE_BUFFER_SIZE, "[%Y:%m:%d:%H:%M:%S]", std::localtime(&t));
 
     buf.insert(buf.begin(), _prepend.cbegin(), _prepend.cend());
 
     buf.insert(
-            buf.begin(),
-            _LogBase::_date,
-            _LogBase::_date + DATE_BUFFER_SIZE - 1 //omit '\0'
-            );
+      buf.begin(),
+      _date.get(),
+      _date.get() + DATE_BUFFER_SIZE - 1 //omit '\0'
+    );
 
     buf.push_back('\n');
-    return _stream << buf;
+    return _stream.write(buf);
   }
 
   bool is_open() {

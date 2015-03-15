@@ -2,7 +2,7 @@
 #include <string.h>
 #include <array>
 
-#ifdef VIKING_BUILD_SSL
+#ifdef KITTY_BUILD_SSL
 #include <openssl/err.h>
 #endif
 
@@ -20,12 +20,16 @@ struct _getSysError;
 
 template<class T>
 struct _getSysError<T, typename std::enable_if<std::is_pointer<typename std::decay<T>::type>::value>::type> {
-  static const char *value() {
+  /* Using 'int' directly causes syntax error on clang in xcode
+   * It tries to convert 'const char*' to 'int'.
+   * This function will be called only if strerror_r returns an integer
+   */
+  static typename std::decay<T>::type value() {
     return strerror_r(errno, err_buf, MAX_ERROR_BUFFER);
   }
 };
 
-template<class T> 
+template<class T>
 struct _getSysError<T, typename std::enable_if<std::is_integral<typename std::remove_reference<T>::type>::value>::type> {
   static const char *value() {
     strerror_r(errno, err_buf, MAX_ERROR_BUFFER);
@@ -41,7 +45,7 @@ const char *sys() {
 }
 
 const char *ssl() {
-#ifdef VIKING_BUILD_SSL
+#ifdef KITTY_BUILD_SSL
   int err = ERR_get_error();
   if(err) {
     ERR_error_string_n(err, err_buf, MAX_ERROR_BUFFER);

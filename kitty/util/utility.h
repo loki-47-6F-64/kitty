@@ -5,8 +5,37 @@
 #include <memory>
 
 #include <kitty/util/optional.h>
+#include <kitty/file/file.h>
 
 namespace util {
+
+template<class T>
+void append_struct(std::vector<uint8_t> &buf, T &_struct) {
+  constexpr size_t data_len = sizeof(_struct);
+
+  uint8_t *data = (uint8_t *) & _struct;
+
+  for (size_t x = 0; x < data_len; ++x) {
+    buf.push_back(data[x]);
+  }
+}
+
+template<class T, class Stream>
+Optional<T> read_struct(file::FD<Stream> &io) {
+  constexpr size_t data_len = sizeof(T);
+  uint8_t buf[data_len];
+
+  size_t x = 0;
+  int err = io.eachByte([&](uint8_t ch) {
+    buf[x++] = ch;
+
+    return x < data_len ? err::OK : err::BREAK;
+  });
+
+  T *val = (T*)buf;
+  return err ? Optional<T>() : Optional<T>(*val);
+}
+  
 template<class T>
 class Hex {
 public:
@@ -30,7 +59,7 @@ public:
     const uint8_t *data = reinterpret_cast<const uint8_t *>(&elem) + sizeof(elem_type);
     for (uint8_t *it = begin(); it < cend();) {
       *it++ = _bits[*--data / 16];
-      *it++ = _bits[*data   % 16];
+      *it++ = _bits[*data % 16];
     }
   }
 
@@ -57,5 +86,22 @@ std::unique_ptr<T> mk_uniq(Args && ... args) {
 
 template<class T>
 using Error = Optional<T>;
+
+template<class ...Args>
+struct Function {
+  typedef void (*type)(Args...);
+};
+
+template<class T, typename Function<T>::type function>
+struct Destroy {
+  typedef T pointer;
+  
+  void operator()(pointer p) {
+    function(p);
+  }
+};
+
+template<class T, typename Function<T*>::type function>
+using safe_ptr = std::unique_ptr<T, Destroy<T*, function>>;
 }
 #endif

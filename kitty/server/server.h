@@ -10,6 +10,7 @@
 #include <tuple>
 
 #include <kitty/util/thread_pool.h>
+#include <kitty/util/optional.h>
 #include <kitty/util/move_by_copy.h>
 #include <kitty/file/file.h>
 
@@ -29,6 +30,7 @@ public:
   typedef std::lock_guard<std::mutex> _RAII_lock;
 
   typedef T Client;
+  typedef typename Client::_sockaddr _sockaddr;
   typedef typename DefaultType<Client>::Type Member;
 
 private:
@@ -37,54 +39,40 @@ private:
 
   pollfd _listenfd;
 
-  std::function<void(Client &&)> _action;
-
-
   util::ThreadPool _task;
   std::mutex _server_stop_lock;
 
   Member _member;
 public:
 
-  Server() : _continue(false), _task(5) {
+  Server() : _continue(true), _task(1) {
     static_assert(sizeof(Member) == 0, "Default constructor cannot be used when DefaultType is overriden");
   }
 
-  Server(Member && member) : _continue(false), _task(5), _member(std::move(member)) { }
+  Server(Member&& member) : _continue(true), _task(1), _member(std::move(member)) { }
 
-  ~Server() {
-    stop();
-  }
-
-  // Start server
-
-  void operator()() {
-    if (isRunning())
-      return;
-
-    _continue = true;
-    _listen();
-  }
-
+  ~Server() { stop(); }
+  
   // Returns -1 on failure
-
-  int setListener(typename Client::_sockaddr &server, std::function < void(Client &&) > f) {
+  int start(_sockaddr &server, std::function<void(Client &&)> f) {
     pollfd pfd {
       _socket(),
       POLLIN,
       0
     };
 
-    if (pfd.fd == -1)
-      return -1;
-
-    // Allow reuse of local addresses
-    if (setsockopt(pfd.fd, SOL_SOCKET, SO_REUSEADDR, &pfd.fd, sizeof(pfd.fd))) {
+    if(pfd.fd == -1) {
       err::code = err::LIB_SYS;
       return -1;
     }
 
-    if (bind(pfd.fd, (sockaddr *) & server, sizeof(server)) < 0) {
+    // Allow reuse of local addresses
+    if(setsockopt(pfd.fd, SOL_SOCKET, SO_REUSEADDR, &pfd.fd, sizeof(pfd.fd))) {
+      err::code = err::LIB_SYS;
+      return -1;
+    }
+
+    if(bind(pfd.fd, (sockaddr *) &server, sizeof(server)) < 0) {
       err::code = err::LIB_SYS;
       return -1;
     }
@@ -92,9 +80,13 @@ public:
     listen(pfd.fd, 1);
 
     _listenfd = pfd;
-    _action = f;
-
-    return pfd.fd;
+    
+    if(pfd.fd == -1) {
+      err::code = err::LIB_SYS;
+      return -1;
+    }
+    
+    return _listen(f);
   }
 
   void stop() {
@@ -108,45 +100,43 @@ public:
 
 private:
 
-  void _listen() {
+  int _listen(std::function<void(Client &&)> _action) {
     int result;
 
     _RAII_lock lg(_server_stop_lock);
-    while (_continue) {
-      if ((result = poll(&_listenfd, 1, 100)) > 0) {
-        if (_listenfd.revents == POLLIN) {
+    while(_continue) {
+      if((result = poll(&_listenfd, 1, 100)) > 0) {
+        if(_listenfd.revents == POLLIN) {
           DEBUG_LOG("Accepting client");
 
-          Client client;
-          if (_accept(client)) {
-            continue;
+          auto client = _accept();
+          if(client) {
+            auto c = util::cmove(*client);
+            _task.push([=]() mutable {
+              _action(c);
+            });
           }
-
-          util::MoveByCopy<Client> me(std::move(client));
-          _task.push(
-            typename decltype(_task)::__task(std::bind(_action, me))
-          );
         }
-
       }
-      else if (result == -1) {
+      else if(result == -1) {
 	err::code = err::LIB_SYS;
         print(error, "Cannot poll socket: ", err::current());
 
-        std::terminate();
+        return -1;
       }
     }
 
     // Cleanup
     close(_listenfd.fd);
+    
+    return 0;
   }
 
   /*
    * User defined methods
    */
 
-  // Accept client
-  int _accept(Client &client);
+  util::Optional<Client> _accept();
 
   // Generate socket
   int _socket();

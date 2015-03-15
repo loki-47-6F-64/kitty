@@ -258,10 +258,10 @@ struct TcpClient {
 typedef Server<TcpClient> tcp;
 
 template<>
-int tcp::_accept(Client& client) {
+util::Optional<tcp::Client> tcp::_accept(Client& client) {
   /* Accept client  */
 
-  return /* Any errors */;
+  return /* client if no errors */;
 }
 
 template<>
@@ -297,13 +297,11 @@ int main() {
   server_addr.sin6_family = AF_INET6;
   server_addr.sin6_port = htons(port);
 
-  if (vikingServer.setListener(server_addr, handle_client) < 0) {
-    print(error, "INET6: Could not set listener: ", err::current(), '\n');
-    std::terminate();
-    return;
+  if (vikingServer.start(server_addr, handle_client) < 0) {
+    print(error, "Error during runtime of server: ", err::current(), '\n');
+    return -1;
   }
 
-  vikingServer();
   return 0;
 }
 ```

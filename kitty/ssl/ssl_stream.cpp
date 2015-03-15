@@ -2,27 +2,31 @@
 
 #include <openssl/ssl.h>
 #include <kitty/ssl/ssl_stream.h>
+#include <kitty/ssl/ssl.h>
 
 namespace file {
 namespace stream {
 ssl::ssl() : _eof(false), _ssl(nullptr) { }
-
-void ssl::open(SSL *ssl) {
-  _ssl = ssl;
+ssl::ssl(Context &ctx, int fd) : _eof(false), _ssl(SSL_new(ctx.get())) {  
+  if(!_ssl) {
+    err::code = err::LIB_SSL;
+    
+    return;
+  }
+  
+  SSL_set_fd(_ssl.get(), fd);
 }
 
 void ssl::operator=(ssl&& stream) {
-  this->_eof =  stream._eof;
-  this->_ssl =  stream._ssl;
-
-  stream._ssl = nullptr;
-  stream._eof = true;
+  std::swap(_eof,stream._eof);
+  
+  _ssl = std::move(stream._ssl);
 }
 
-int ssl::operator>>(std::vector<unsigned char>& buf) {
+int ssl::read(std::vector<unsigned char>& buf) {
   int bytes_read;
 
-  if((bytes_read = SSL_read(_ssl, buf.data(), buf.size())) < 0) {
+  if((bytes_read = SSL_read(_ssl.get(), buf.data(), buf.size())) < 0) {
     return -1;
   }
   else if(!bytes_read) {
@@ -30,12 +34,12 @@ int ssl::operator>>(std::vector<unsigned char>& buf) {
   }
 
   // Make sure all bytes are read
-  int pending = SSL_pending(_ssl);
+  int pending = SSL_pending(_ssl.get());
 
   // Update number of bytes in buf
   buf.resize(bytes_read + pending);
   if(pending) {
-    if((bytes_read = SSL_read(_ssl, &buf.data()[bytes_read], buf.size() - bytes_read)) < 0) {
+    if((bytes_read = SSL_read(_ssl.get(), &buf.data()[bytes_read], buf.size() - bytes_read)) < 0) {
       return -1;
     }
     else if(!bytes_read) {
@@ -46,24 +50,22 @@ int ssl::operator>>(std::vector<unsigned char>& buf) {
   return 0;
 }
 
-int ssl::operator<<(std::vector<unsigned char>&buf) {
-  return SSL_write(_ssl, buf.data(), buf.size());
+int ssl::out(std::vector<unsigned char>&buf) {
+  return SSL_write(_ssl.get(), buf.data(), buf.size());
 }
 
 void ssl::seal() {
   // fd is stored in _ssl
   int _fd = fd();
 
-  if(_ssl)
-    SSL_free(_ssl);
-  _ssl = nullptr;
+  _ssl.reset();
 
   if(_fd != -1)
     ::close(_fd);
 }
 
 int ssl::fd() {
-  return SSL_get_fd(_ssl);
+  return SSL_get_fd(_ssl.get());
 }
 
 bool ssl::is_open() {

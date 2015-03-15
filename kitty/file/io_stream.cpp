@@ -11,6 +11,10 @@ io ioRead(const char *file_path) {
   return file::io { -1, ::open(file_path, O_RDONLY, 0) };
 }
 
+io ioRead(std::string &file_path) { return ioRead(file_path.c_str()); }
+io ioRead(std::string &&file_path) { return ioRead(file_path); }
+
+
 io ioWrite(const char *file_path) {
   int _fd = ::open(file_path,
     O_CREAT | O_WRONLY,
@@ -19,6 +23,10 @@ io ioWrite(const char *file_path) {
 
   return file::io { -1, _fd };
 }
+
+io ioWrite(std::string &file_path) { return ioWrite(file_path.c_str()); }
+io ioWrite(std::string &&file_path) { return ioWrite(file_path); }
+
 
 io ioWriteAppend(const char *file_path) {
   int _fd = ::open(file_path,
@@ -29,11 +37,15 @@ io ioWriteAppend(const char *file_path) {
   return io { -1, _fd };
 }  
 
+io ioWriteAppend(std::string &file_path) { return ioWriteAppend(file_path.c_str()); }
+io ioWriteAppend(std::string &&file_path) { return ioWriteAppend(file_path); }
+
 namespace stream {
 io::io() : _eof(false), _fd(-1)  { }
-
-void io::open(int fd) {
-  _fd = fd;
+io::io(int fd) : _eof(false), _fd(fd) {
+  if(fd <= 0) {
+    err::code = err::LIB_SYS;
+  }
 }
 
 void io::operator=(io&& stream) {
@@ -44,10 +56,10 @@ void io::operator=(io&& stream) {
   stream._eof = true;
 }
 
-int io::operator>>(std::vector<unsigned char>& buf) {
+int io::read(std::vector<unsigned char>& buf) {
   ssize_t bytes_read;
 
-  if((bytes_read = read(_fd, buf.data(), buf.size())) < 0) {
+  if((bytes_read = ::read(_fd, buf.data(), buf.size())) < 0) {
     err::code = err::LIB_SYS;
     return -1;
   }
@@ -60,8 +72,8 @@ int io::operator>>(std::vector<unsigned char>& buf) {
   return 0;
 }
 
-int io::operator<<(std::vector<unsigned char>&buf) {
-  int bytes_written = write(_fd, buf.data(), buf.size());
+int io::write(std::vector<unsigned char>&buf) {
+  auto bytes_written = ::write(_fd, buf.data(), buf.size());
 
   if(bytes_written < 0) {
     err::code = err::LIB_SYS;

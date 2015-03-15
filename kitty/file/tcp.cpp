@@ -13,35 +13,30 @@ extern void set(const char *err);
 namespace file {
 io connect(const char *hostname, const char *port) {
   constexpr long timeout = -1;
-
-  io ioFd;
-  int serverFd = socket(AF_INET, SOCK_STREAM, 0);
-
+  
   addrinfo hints;
   addrinfo *server;
-
+  
   std::memset(&hints, 0, sizeof (hints));
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
-
-  int err;
-  if((err = getaddrinfo(hostname, port, &hints, &server))) {
+  
+  if(int err = getaddrinfo(hostname, port, &hints, &server)) {
     err::set(gai_strerror(err));
-    return ioFd;
+    return {};
   }
-
-
-  if(connect(serverFd, server->ai_addr, server->ai_addrlen)) {
+  
+  io sock { timeout, socket(AF_INET, SOCK_STREAM, 0) };
+  
+  if(connect(sock.getStream().fd(), server->ai_addr, server->ai_addrlen)) {
     freeaddrinfo(server);
-
+    
     err::code = err::LIB_SYS;
-    return ioFd;
+    return {};
   }
-
+  
   freeaddrinfo(server);
   
-  ioFd = io(timeout, serverFd);
-  
-  return ioFd;
+  return sock;
 }
 }

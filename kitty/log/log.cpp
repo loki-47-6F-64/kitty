@@ -11,8 +11,11 @@ file::Log info   (-1, " Info: "   , dup(STDOUT_FILENO));
 file::Log debug  (-1, " Debug: "  , dup(STDOUT_FILENO));
 
 namespace file {
-std::mutex stream::_LogBase::_lock;
-char stream::_LogBase::_date[DATE_BUFFER_SIZE];
+
+namespace stream {
+THREAD_LOCAL util::ThreadLocal<char[DATE_BUFFER_SIZE]>::type _date;
+}
+
 
 Log logWrite(std::string &&prepend, const char *file_path) {
   int _fd = ::open(file_path,
