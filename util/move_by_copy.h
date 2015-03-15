@@ -17,12 +17,16 @@ public:
 
   MoveByCopy(move_type &&to_move) : _to_move(std::move(to_move)) { }
 
+  MoveByCopy(MoveByCopy &&other) = default;
+  
   MoveByCopy(const MoveByCopy &other) {
-    this->operator=(other);
+    *this = other;
   }
 
-  void operator=(const MoveByCopy &other) {
-    this->_to_move = std::move(other._to_move);
+  MoveByCopy& operator=(MoveByCopy &&other) = default;
+  
+  MoveByCopy& operator=(const MoveByCopy &other) {
+    *this = std::move(other);
   }
 
   operator move_type() {

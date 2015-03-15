@@ -110,7 +110,7 @@ private:
           auto client = _accept();
           if(client) {
             auto c = util::cmove(*client);
-            _task.push([=]() {
+            _task.push([=]() mutable {
               _action(c);
             });
           }
