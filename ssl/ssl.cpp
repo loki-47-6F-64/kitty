@@ -24,35 +24,41 @@ void crypto_lock(int mode, int n, const char *file, int line) {
   }
 }
 
-int loadCertificates(Context& ctx, const char *caPath, const char *certPath, const char *keyPath) {
-  if(SSL_CTX_use_certificate_file(ctx.get(), certPath, SSL_FILETYPE_PEM) != 1) {
-    return -1;
+static int loadCertificates(Context& ctx, const char *caPath, const char *certPath, const char *keyPath, bool verify) {
+  
+  if(certPath && keyPath) {
+    if(SSL_CTX_use_certificate_file(ctx.get(), certPath, SSL_FILETYPE_PEM) != 1) {
+      return -1;
+    }
+
+    if(SSL_CTX_use_PrivateKey_file(ctx.get(), keyPath, SSL_FILETYPE_PEM) != 1) {
+      return -1;
+    }
+
+    if(SSL_CTX_check_private_key(ctx.get()) != 1) {
+      return -1;
+    }
   }
 
-  if(SSL_CTX_use_PrivateKey_file(ctx.get(), keyPath, SSL_FILETYPE_PEM) != 1) {
-    return -1;
+  if(verify) {
+    if(SSL_CTX_load_verify_locations(ctx.get(), caPath, nullptr) != 1) {
+      return -1;
+    }
+    
+    SSL_CTX_set_verify(ctx.get(), SSL_VERIFY_PEER, nullptr);
+    SSL_CTX_set_verify_depth(ctx.get(), 1);
   }
-
-  if(SSL_CTX_check_private_key(ctx.get()) != 1) {
-    return -1;
+  else {
+    SSL_CTX_set_verify(ctx.get(), SSL_VERIFY_NONE, nullptr);
   }
-
-  if(SSL_CTX_load_verify_locations(ctx.get(), caPath, nullptr) != 1) {
-    return -1;
-  }
-
-  SSL_CTX_set_verify(ctx.get(), SSL_VERIFY_PEER, nullptr);
-  SSL_CTX_set_verify_depth(ctx.get(), 1);
 
   return 0;
 }
 
 std::string getCN(const SSL *ssl) {
-  std::string cn;
-
   Certificate cert(SSL_get_peer_certificate(ssl));
   if(!cert.get()) {
-    return cn;
+    return {};
   }
 
   char *pos = nullptr, *ch = cert->name;
@@ -64,15 +70,13 @@ std::string getCN(const SSL *ssl) {
   }
 
   // TODO: check if it is legal to use '/' in CN
-  cn = ch - pos > 4 ? pos + 4 : "";
-
-  return cn;
+  return ch - pos > 4 ? pos + 4 : "";
 }
 
-Context init_ctx_server(const char *caPath, const char *certPath, const char *keyPath) {
+Context init_ctx_server(const char *caPath, const char *certPath, const char *keyPath, bool verify) {
   Context ctx(SSL_CTX_new(SSLv3_server_method()));
 
-  if(loadCertificates(ctx, caPath, certPath, keyPath)) {
+  if(loadCertificates(ctx, caPath, certPath, keyPath, verify)) {
     err::code = err::LIB_SSL;
 
     return {};
@@ -81,19 +85,19 @@ Context init_ctx_server(const char *caPath, const char *certPath, const char *ke
   return ctx;
 }
 
-Context init_ctx_server(std::string& caPath, std::string& certPath, std::string& keyPath) {
-  return init_ctx_server(caPath.c_str(), certPath.c_str(), keyPath.c_str());
+Context init_ctx_server(std::string& caPath, std::string& certPath, std::string& keyPath, bool verify) {
+  return init_ctx_server(caPath.c_str(), certPath.c_str(), keyPath.c_str(), verify);
 }
 
-Context init_ctx_server(std::string&& caPath, std::string&& certPath, std::string&& keyPath) {
-  return init_ctx_server(caPath, certPath, keyPath);
+Context init_ctx_server(std::string&& caPath, std::string&& certPath, std::string&& keyPath, bool verify) {
+  return init_ctx_server(caPath, certPath, keyPath, verify);
 }
 
 
 Context init_ctx_client(const char *caPath, const char *certPath, const char *keyPath) {
   Context ctx(SSL_CTX_new(SSLv3_client_method()));
 
-  if(loadCertificates(ctx, caPath, certPath, keyPath)) {
+  if(loadCertificates(ctx, caPath, certPath, keyPath, true)) {
     err::code = err::LIB_SSL;
 
     return {};
@@ -108,6 +112,26 @@ Context init_ctx_client(std::string &caPath, std::string& certPath, std::string&
 
 Context init_ctx_client(std::string &&caPath, std::string&& certPath, std::string&& keyPath) {
   return init_ctx_server(caPath, certPath, keyPath);
+}
+
+Context init_ctx_client(const char *caPath) {
+  Context ctx(SSL_CTX_new(SSLv3_client_method()));
+  
+  if(loadCertificates(ctx, caPath, nullptr, nullptr, true)) {
+    err::code = err::LIB_SSL;
+    
+    return {};
+  }
+  
+  return ctx;
+}
+
+Context init_ctx_client(std::string& caPath) {
+  return init_ctx_client(caPath.c_str());
+}
+
+Context init_ctx_client(std::string&& caPath) {
+  return init_ctx_client(caPath);
 }
 
 void init() {
