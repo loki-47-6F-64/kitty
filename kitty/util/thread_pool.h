@@ -45,7 +45,7 @@ public:
 
     util::Optional<__task> task;
     while (_continue) {
-      if((task = this->pop())) {
+      if((!task = this->pop())) {
         std::this_thread::sleep_for(sleeper);
         continue;
       }
