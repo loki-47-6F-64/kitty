@@ -22,7 +22,7 @@ include_directories(
 
 if(KITTY_BUILD_SSL OR KITTY_BUILD_BLUETOOTH)
   if(NOT KITTY_BUILD_SERVER)
-    message("Warning: Implicitly set(BUILD_SERVER ON)")
+    message("Warning: Implicitly set(KITTY_BUILD_SERVER ON)")
   endif()
   
   set(KITTY_BUILD_SERVER ON)
@@ -74,6 +74,7 @@ if(KITTY_BUILD_BLUETOOTH)
   add_subdirectory(kitty/blueth)
 endif()
 
+list(REVERSE KITTY_TARGETS)
 # Add all targets to the build-tree export set
 export(TARGETS ${KITTY_TARGETS}
   FILE "${PROJECT_BINARY_DIR}/KittyTargets.cmake"
