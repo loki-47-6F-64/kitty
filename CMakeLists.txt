@@ -17,8 +17,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # set up include-directories
 include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/..
-  #${OPENSSL_INCLUDE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 if(KITTY_BUILD_SSL OR KITTY_BUILD_BLUETOOTH)
@@ -55,24 +54,24 @@ if(KITTY_BUILD_BLUETOOTH)
   find_package(Bluez)
 endif()
 
-add_subdirectory(err)
-add_subdirectory(util)
-add_subdirectory(file)
-add_subdirectory(log)
+add_subdirectory(kitty/err)
+add_subdirectory(kitty/util)
+add_subdirectory(kitty/file)
+add_subdirectory(kitty/log)
 
 if(KITTY_BUILD_SERVER)
   set(KITTY_TARGETS ${KITTY_TARGETS} kitty-server)
-  add_subdirectory(server)
+  add_subdirectory(kitty/server)
 endif()
 
 if(KITTY_BUILD_SSL)
   set(KITTY_TARGETS ${KITTY_TARGETS} kitty-ssl)
-  add_subdirectory(ssl)
+  add_subdirectory(kitty/ssl)
 endif()
 
 if(KITTY_BUILD_BLUETOOTH)  
   set(KITTY_TARGETS ${KITTY_TARGETS} kitty-bluetooth)
-  add_subdirectory(blueth)
+  add_subdirectory(kitty/blueth)
 endif()
 
 # Add all targets to the build-tree export set
