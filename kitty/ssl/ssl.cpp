@@ -69,28 +69,45 @@ std::string getCN(const SSL *ssl) {
   return cn;
 }
 
-Context init_ctx_server(std::string &caPath, std::string& certPath, std::string& keyPath) {
+Context init_ctx_server(const char *caPath, const char *certPath, const char *keyPath) {
   Context ctx(SSL_CTX_new(SSLv3_server_method()));
 
-  if(loadCertificates(ctx, caPath.c_str(), certPath.c_str(), keyPath.c_str())) {
+  if(loadCertificates(ctx, caPath, certPath, keyPath)) {
     err::code = err::LIB_SSL;
 
-    ctx.release();
+    return {};
+  }
+
+  return ctx;
+}
+
+Context init_ctx_server(std::string& caPath, std::string& certPath, std::string& keyPath) {
+  return init_ctx_server(caPath.c_str(), certPath.c_str(), keyPath.c_str());
+}
+
+Context init_ctx_server(std::string&& caPath, std::string&& certPath, std::string&& keyPath) {
+  return init_ctx_server(caPath, certPath, keyPath);
+}
+
+
+Context init_ctx_client(const char *caPath, const char *certPath, const char *keyPath) {
+  Context ctx(SSL_CTX_new(SSLv3_client_method()));
+
+  if(loadCertificates(ctx, caPath, certPath, keyPath)) {
+    err::code = err::LIB_SSL;
+
+    return {};
   }
 
   return ctx;
 }
 
 Context init_ctx_client(std::string &caPath, std::string& certPath, std::string& keyPath) {
-  Context ctx(SSL_CTX_new(SSLv3_client_method()));
+  return init_ctx_server(caPath.c_str(), certPath.c_str(), keyPath.c_str());
+}
 
-  if(loadCertificates(ctx, caPath.c_str(), certPath.c_str(), keyPath.c_str())) {
-    err::code = err::LIB_SSL;
-
-    ctx.release();
-  }
-
-  return ctx;
+Context init_ctx_client(std::string &&caPath, std::string&& certPath, std::string&& keyPath) {
+  return init_ctx_server(caPath, certPath, keyPath);
 }
 
 void init() {

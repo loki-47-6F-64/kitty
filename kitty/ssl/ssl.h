@@ -15,8 +15,13 @@ typedef util::safe_ptr<X509, X509_free> Certificate;
 typedef util::safe_ptr<SSL_CTX, SSL_CTX_free> Context;
 
 // On failure Context.get() returns nullptr
-Context init_ctx_server(std::string &caPath, std::string& certPath, std::string& keyPath);
-Context init_ctx_client(std::string &caPath, std::string& certPath, std::string& keyPath);
+Context init_ctx_server(const char *caPath, const char *certPath, const char *keyPath);
+Context init_ctx_server(std::string& caPath, std::string& certPath, std::string& keyPath);
+Context init_ctx_client(std::string&& caPath, std::string&& certPath, std::string&& keyPath);
+
+Context init_ctx_client(const char *caPath, const char *certPath, const char *keyPath);
+Context init_ctx_client(std::string& caPath, std::string& certPath, std::string& keyPath);
+Context init_ctx_client(std::string&& caPath, std::string&& certPath, std::string&& keyPath);
 
 void init();
 // On failure Client.get() returns nullptr
