@@ -6,25 +6,25 @@
 #include <kitty/util/utility.h>
 namespace server {
 template<>
-int bluetooth::_accept(Client& client) {
+util::Optional<bluetooth::Client> bluetooth::_accept() {
   Client::_sockaddr client_addr;
 
-  socklen_t addr_size = sizeof (client_addr);
-  int client_fd = accept(_listenfd.fd, (sockaddr *) & client_addr, &addr_size);
+  socklen_t addr_size = sizeof(client_addr);
+  
+  int client_fd = accept(_listenfd.fd, (sockaddr *) &client_addr, &addr_size);
 
   if (client_fd < 0) {
-    return -1;
+    return {};
   }
 
-  client = Client {
-    util::mk_uniq<file::blueth>(3000 * 1000, client_fd, *_member, client.dev),
-      { client_addr.l2_bdaddr, 0 },
-      23,
-      nullptr,
-      Client::LOW
+  auto dev = bt::device(client_addr.l2_bdaddr, 0);
+  return Client {
+    util::mk_uniq<file::blueth>(3000 * 1000, client_fd, *_member, dev),
+    { client_addr.l2_bdaddr, 0 },
+    23,
+    nullptr,
+    Client::LOW
   };
-
-  return 0;
 }
 
 template<>

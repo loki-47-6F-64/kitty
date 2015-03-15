@@ -35,5 +35,10 @@ MoveByCopy<T> cmove(T &&movable) {
   return MoveByCopy<T>(std::move(movable));
 }
 
+template<class T>
+MoveByCopy<T> cmove(T &movable) {
+  return MoveByCopy<T>(std::move(movable));
+}
+
 }
 #endif
