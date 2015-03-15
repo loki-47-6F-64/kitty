@@ -10,7 +10,8 @@ class blueth : public io {
   bt::device *_dev;
   
 public:
-  void open(int fd, bt::HCI& hci, bt::device& dev);
+  blueth();
+  blueth(int fd, bt::HCI& hci, bt::device& dev);
   
   void seal();
 };
