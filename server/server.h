@@ -62,6 +62,7 @@ public:
     };
 
     if(pfd.fd == -1) {
+      err::code = err::LIB_SYS;
       return -1;
     }
 
@@ -80,7 +81,8 @@ public:
 
     _listenfd = pfd;
     
-    if(pfd.fd) {
+    if(pfd.fd == -1) {
+      err::code = err::LIB_SYS;
       return -1;
     }
     
