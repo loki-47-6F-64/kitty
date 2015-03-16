@@ -26,7 +26,7 @@ void ssl::operator=(ssl&& stream) {
 int ssl::read(std::vector<unsigned char>& buf) {
   int bytes_read;
 
-  if((bytes_read = SSL_read(_ssl.get(), buf.data(), buf.size())) < 0) {
+  if((bytes_read = SSL_read(_ssl.get(), buf.data(), (int)buf.size())) < 0) {
     return -1;
   }
   else if(!bytes_read) {
@@ -39,7 +39,7 @@ int ssl::read(std::vector<unsigned char>& buf) {
   // Update number of bytes in buf
   buf.resize(bytes_read + pending);
   if(pending) {
-    if((bytes_read = SSL_read(_ssl.get(), &buf.data()[bytes_read], buf.size() - bytes_read)) < 0) {
+    if((bytes_read = SSL_read(_ssl.get(), &buf.data()[bytes_read], (int)buf.size() - bytes_read)) < 0) {
       return -1;
     }
     else if(!bytes_read) {
@@ -51,7 +51,7 @@ int ssl::read(std::vector<unsigned char>& buf) {
 }
 
 int ssl::write(std::vector<unsigned char>&buf) {
-  return SSL_write(_ssl.get(), buf.data(), buf.size());
+  return SSL_write(_ssl.get(), buf.data(), (int)buf.size());
 }
 
 void ssl::seal() {
