@@ -23,7 +23,7 @@ public:
   void operator=(ssl&& stream);
 
   int read(std::vector<unsigned char>& buf);
-  int out(std::vector<unsigned char>& buf);
+  int write(std::vector<unsigned char>& buf);
 
   bool is_open();
   bool eof();

@@ -50,7 +50,7 @@ int ssl::read(std::vector<unsigned char>& buf) {
   return 0;
 }
 
-int ssl::out(std::vector<unsigned char>&buf) {
+int ssl::write(std::vector<unsigned char>&buf) {
   return SSL_write(_ssl.get(), buf.data(), buf.size());
 }
 
