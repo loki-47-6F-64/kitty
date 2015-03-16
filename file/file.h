@@ -16,13 +16,15 @@ namespace file {
 /* Represents file in memory, storage or socket */
 template <class Stream>
 class FD { /* File descriptor */
+    typedef decltype(timeval::tv_usec) usec_t;
   Stream _stream;
 
   // Change of cacheSize only affects next load
   int _cacheSize;
   
-  long _microsec;
+  usec_t _microsec;
   
+    
   std::vector<uint8_t> _cache;
   std::vector<uint8_t>::size_type _data_p;
 
@@ -48,7 +50,7 @@ public:
   FD() = default;
 
   template<class... Args>
-  FD(long microsec, Args && ... params)
+  FD(usec_t microsec, Args && ... params)
   : _stream(std::forward<Args>(params)...), _cacheSize(1024), _microsec(microsec), _data_p(0) {}
 
   ~FD() {
@@ -176,10 +178,7 @@ public:
 private:
   int _select(const int read) {
     if (_microsec >= 0) {
-      timeval tv;
-        
-      tv.tv_sec  = 0;
-      tv.tv_usec = _microsec;
+      timeval tv { 0, _microsec };
         
       fd_set selected;
 
