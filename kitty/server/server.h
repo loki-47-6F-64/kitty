@@ -80,12 +80,6 @@ public:
     listen(pfd.fd, 1);
 
     _listenfd = pfd;
-    
-    if(pfd.fd == -1) {
-      err::code = err::LIB_SYS;
-      return -1;
-    }
-    
     return _listen(f);
   }
 
