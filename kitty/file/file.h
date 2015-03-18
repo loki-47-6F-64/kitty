@@ -16,11 +16,11 @@ namespace file {
 /* Represents file in memory, storage or socket */
 template <class Stream>
 class FD { /* File descriptor */
-    typedef decltype(timeval::tv_usec) usec_t;
+  typedef decltype(timeval::tv_usec) usec_t;
   Stream _stream;
 
   // Change of cacheSize only affects next load
-  int _cacheSize;
+  static constexpr std::vector<uint8_t>::size_type _cacheSize = 1024;
   
   usec_t _microsec;
   
@@ -35,14 +35,11 @@ public:
   }
 
   FD& operator=(FD && other) {
-    seal();
-    
     _stream = std::move(other._stream);
     _cache = std::move(other._cache);
 
     std::swap(_data_p, other._data_p);
     std::swap(_microsec, other._microsec);
-    std::swap(_cacheSize, other._cacheSize);
     
     return *this;
   }
@@ -51,11 +48,9 @@ public:
 
   template<class... Args>
   FD(usec_t microsec, Args && ... params)
-  : _stream(std::forward<Args>(params)...), _cacheSize(1024), _microsec(microsec), _data_p(0) {}
+  : _stream(std::forward<Args>(params)...), _microsec(microsec), _data_p(0) {}
 
-  ~FD() {
-    seal();
-  }
+  ~FD() { seal(); }
 
   Stream &getStream() { return _stream; }
 
@@ -91,16 +86,16 @@ public:
     while(!eof()) {
       if(_endOfBuffer()) {
 
-        if((_load(_cacheSize))) {
+        if(_load(_cacheSize)) {
           return -1;
         }
 
         continue;
       }
 
-      if (int err = f(_cache[_data_p++])) {
+      if (err::code_t err = f(_cache[_data_p++])) {
         // Return FileErr::OK if err_code != FileErr::BREAK
-        return err != err::BREAK ? -1 : 0;
+        return err == err::BREAK ? 0 : -1;
       }
     }
 
@@ -177,9 +172,8 @@ public:
 
 private:
   int _select(const int read) {
-    if (_microsec >= 0) {
-      timeval tv { 0, _microsec };
-        
+    if(_microsec > 0) {
+      timeval tv { _microsec / (1000 * 1000), _microsec % (1000*1000) };
       fd_set selected;
 
       FD_ZERO(&selected);
@@ -195,6 +189,8 @@ private:
 
       if (result < 0) {
         err::code = err::LIB_SYS;
+        
+        if(_stream.fd() <= 0) err::set("FUCK THIS SHIT!");
         return -1;
       }
 
@@ -208,14 +204,14 @@ private:
   }
 
   // Load file into _cache.data(), replaces old _cache.data()
-  int _load(size_t max_bytes) {
-    if ((_select(READ))) {
+  int _load(std::vector<uint8_t>::size_type max_bytes) {
+    if(_select(READ)) {
       return -1;
     }
     
     _cache.resize(max_bytes);
     
-    if ((_stream.read(_cache)) < 0)
+    if(_stream.read(_cache) < 0)
       return -1;
     
     _data_p = 0;
