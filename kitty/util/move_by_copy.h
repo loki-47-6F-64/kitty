@@ -27,6 +27,8 @@ public:
   
   MoveByCopy& operator=(const MoveByCopy &other) {
     this->_to_move = std::move(const_cast<MoveByCopy&>(other)._to_move);
+    
+    return *this;
   }
 
   operator move_type() {
