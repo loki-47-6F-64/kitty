@@ -45,11 +45,11 @@ private:
   Member _member;
 public:
 
-  Server() : _continue(true), _task(1) {
+  Server() : _continue(false), _task(1) {
     static_assert(sizeof(Member) == 0, "Default constructor cannot be used when DefaultType is overriden");
   }
 
-  Server(Member&& member) : _continue(true), _task(1), _member(std::move(member)) { }
+  Server(Member&& member) : _continue(false), _task(1), _member(std::move(member)) { }
 
   ~Server() { stop(); }
   
@@ -80,6 +80,7 @@ public:
     listen(pfd.fd, 1);
 
     _listenfd = pfd;
+
     return _listen(f);
   }
 
@@ -98,6 +99,7 @@ private:
     int result;
 
     _RAII_lock lg(_server_stop_lock);
+    _continue = true;
     while(_continue) {
       if((result = poll(&_listenfd, 1, 100)) > 0) {
         if(_listenfd.revents == POLLIN) {

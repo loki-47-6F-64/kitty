@@ -13,7 +13,7 @@ extern void set(const char *err);
 }
 
 namespace ssl {
-std::unique_ptr<std::mutex[] > lock;
+std::unique_ptr<std::mutex[]> lock;
 
 void crypto_lock(int mode, int n, const char *file, int line) {
   if(mode & CRYPTO_LOCK) {
@@ -144,7 +144,7 @@ void init() {
 }
 
 file::ssl connect(Context &ctx, const char *hostname, const char* port) {
-  constexpr long timeout = -1;
+  constexpr long timeout = 0;
 
   int serverFd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -156,7 +156,6 @@ file::ssl connect(Context &ctx, const char *hostname, const char* port) {
   hints.ai_socktype = SOCK_STREAM;
 
   if(int err = getaddrinfo(hostname, port, &hints, &server)) {
-    err::code = err::LIB_USER;
     err::set(gai_strerror(err));
     return file::ssl();
   }
