@@ -15,11 +15,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-# set up include-directories
-include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
 if(KITTY_BUILD_SSL OR KITTY_BUILD_BLUETOOTH)
   if(NOT KITTY_BUILD_SERVER)
     message("Warning: Implicitly set(KITTY_BUILD_SERVER ON)")
@@ -53,6 +48,13 @@ endif()
 if(KITTY_BUILD_BLUETOOTH)
   find_package(Bluez)
 endif()
+
+# set up include-directories
+include_directories(
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${OPENSSL_INCLUDE_DIR}
+  ${BLUEZ_INCLUDE_DIRS}
+)
 
 add_subdirectory(kitty/err)
 add_subdirectory(kitty/util)

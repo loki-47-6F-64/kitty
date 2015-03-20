@@ -46,7 +46,7 @@ const char *sys() {
 
 const char *ssl() {
 #ifdef KITTY_BUILD_SSL
-  int err = ERR_get_error();
+  auto err = ERR_get_error();
   if(err) {
     ERR_error_string_n(err, err_buf, MAX_ERROR_BUFFER);
     return err_buf;
