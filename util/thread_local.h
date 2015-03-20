@@ -80,15 +80,6 @@ public:
 namespace util {
 template<class T>
 class ThreadLocal {
-  static void destroy(void *ptr) {
-    if(std::is_array<T>::value) {
-      delete[] reinterpret_cast<T*>(ptr);
-    }
-    else {
-      delete reinterpret_cast<T*>(ptr);
-    }
-  }
-  
   ThreadLocal() = default;
   
   template<class Z, class X = void>
@@ -96,6 +87,10 @@ class ThreadLocal {
   
   template<class Z>
   struct helper_type<Z, typename std::enable_if<std::is_array<Z>::value>::type> {
+    static void destroy(void *ptr) {
+      delete[] reinterpret_cast<T*>(ptr);
+    }
+      
     typedef Z class_t;
     typedef typename std::remove_all_extents<class_t>::type primitive;
     typedef primitive *pointer;
@@ -104,6 +99,10 @@ class ThreadLocal {
 
   template<class Z>
   struct helper_type<Z, typename std::enable_if<std::is_copy_constructible<Z>::value>::type> {
+    static void destroy(void *ptr) {
+      delete reinterpret_cast<T*>(ptr);
+    }
+      
     typedef Z class_t;
     
     typedef class_t primitive;
@@ -132,7 +131,7 @@ public:
       static std::once_flag once;
       
       std::call_once(once, [&]() {
-        pthread_key_create(&key(), &destroy);
+        pthread_key_create(&key(), &helper_type<T>::destroy);
       });
     }
     
