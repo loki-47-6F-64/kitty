@@ -15,7 +15,7 @@ namespace util {
   Container concat(It begin, It end) {
     Container str;
     
-    for(;begin < end; ++begin) {
+    for(;begin != end; ++begin) {
       std::copy(std::begin(*begin), std::end(*begin), std::back_inserter(str));
     }
     
@@ -43,7 +43,7 @@ namespace util {
     std::vector<output_t> result;
     result.reserve(std::distance(begin, end));
     
-    for(;begin < end; ++begin) {
+    for(;begin != end; ++begin) {
       auto optional = f(*begin);
       
       if(optional) {
@@ -139,7 +139,7 @@ namespace util {
   To move_to(It begin, It end) {
     return copy_to<To>(
       std::make_move_iterator(begin),
-                       std::make_move_iterator(end)
+      std::make_move_iterator(end)
     );
   }
   
