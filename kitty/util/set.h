@@ -15,7 +15,7 @@ namespace util {
   Container concat(It begin, It end) {
     Container str;
     
-    for(;begin < end; ++begin) {
+    for(;begin != end; ++begin) {
       std::copy(std::begin(*begin), std::end(*begin), std::back_inserter(str));
     }
     
@@ -43,7 +43,7 @@ namespace util {
     std::vector<output_t> result;
     result.reserve(std::distance(begin, end));
     
-    for(;begin < end; ++begin) {
+    for(;begin != end; ++begin) {
       auto optional = f(*begin);
       
       if(optional) {
@@ -116,9 +116,9 @@ namespace util {
     
     std::copy_if(
       std::make_move_iterator(std::begin(from)),
-                 std::make_move_iterator(std::end(from)),
-                 std::back_inserter(result),
-                 f
+      std::make_move_iterator(std::end(from)),
+      std::back_inserter(result),
+      f
     );
     
     return result;
@@ -139,7 +139,7 @@ namespace util {
   To move_to(It begin, It end) {
     return copy_to<To>(
       std::make_move_iterator(begin),
-                       std::make_move_iterator(end)
+      std::make_move_iterator(end)
     );
   }
   
@@ -183,16 +183,16 @@ namespace util {
   
   
   template<std::size_t N, class Array, class Arg>
-  Array _make_array(Array &array, Arg arg) {
-    array[std::tuple_size<Array>::value - N] = std::move(arg);
+  Array _make_array(Array &array, Arg&& arg) {
+    array[std::tuple_size<Array>::value - N] = std::forward<Arg>(arg);
     
     return array;
   }
   
   
   template<std::size_t N, class Array, class Arg, class... Args>
-  Array _make_array(Array &array, Arg arg, Args&& ... args) {
-    array[std::tuple_size<Array>::value - N] = std::move(arg);
+  Array _make_array(Array &array, Arg&& arg, Args&& ... args) {
+    array[std::tuple_size<Array>::value - N] = std::forward<Arg>(arg);
     
     return _make_array<N - 1>(array, std::forward<Args>(args)...);
   }
