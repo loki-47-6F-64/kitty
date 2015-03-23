@@ -73,7 +73,7 @@ public:
   }
   
   reference operator*() { return *_this().get(); }
-  const reference operator*() const { return *_this.get(); }
+  const reference operator*() const { return *_this().get(); }
   
   pointer operator->() { return &*_this(); }
   const pointer operator->() const { return &*_this(); }
