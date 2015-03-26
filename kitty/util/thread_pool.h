@@ -16,7 +16,10 @@ public:
 private:
   std::vector<thread_t> _thread;
 
-  bool _continue;
+  std::condition_variable _cv;
+  std::mutex _lock;
+  
+  std::atomic<bool> _continue;
 public:
 
   ThreadPool(int threads) : _thread(threads), _continue(true) {
@@ -29,10 +32,26 @@ public:
     join();
   }
 
+  template<class Function>
+  auto push(Function && newTask) -> std::future<decltype(newTask())> {
+    auto future = TaskPool::push(std::forward<Function>(newTask));
+    
+    _cv.notify_one();
+    return future;
+  }
+  
+  template<class Function>
+  auto push(Function && newTask, int64_t milli) -> std::future<decltype(newTask())> {
+    auto future = TaskPool::push(std::forward<Function>(newTask), milli);
+    
+    _cv.notify_one();
+    return future;
+  }
+  
   void join() {
-    if (!_continue) return;
-
-    _continue = false;
+    if (!_continue.exchange(false)) return;
+    
+    _cv.notify_all();
     for (auto & t : _thread) {
       t.join();
     }
@@ -41,19 +60,18 @@ public:
 public:
 
   void _main() {
-    std::chrono::milliseconds sleeper(10);
-
-    util::Optional<__task> task;
-    while (_continue) {
-      if(!(task = this->pop())) {
-        std::this_thread::sleep_for(sleeper);
-        continue;
+    while (_continue.load()) {
+      if(auto task = this->pop()) {
+        (*task)->run();
       }
-      (*task)->run();
+      else {
+        std::unique_lock<std::mutex> uniq_lock(_lock);
+        _cv.wait(uniq_lock);
+      }
     }
 
     // Execute remaining tasks
-    while((task = this->pop())) {
+    while(auto task = this->pop()) {
       (*task)->run();
     }
   }
