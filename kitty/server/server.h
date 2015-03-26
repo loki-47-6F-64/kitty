@@ -12,6 +12,8 @@
 #include <kitty/util/thread_pool.h>
 #include <kitty/util/optional.h>
 #include <kitty/util/move_by_copy.h>
+#include <kitty/util/auto_run.h>
+
 #include <kitty/file/file.h>
 
 #include <kitty/log/log.h>
@@ -27,29 +29,25 @@ struct DefaultType {
 template<class T>
 class Server {
 public:
-  typedef std::lock_guard<std::mutex> _RAII_lock;
-
   typedef T Client;
   typedef typename Client::_sockaddr _sockaddr;
   typedef typename DefaultType<Client>::Type Member;
 
 private:
-  // Should the server continue?
-  bool _continue;
-
   pollfd _listenfd;
 
   util::ThreadPool _task;
-  std::mutex _server_stop_lock;
+  
+  util::AutoRun<void> _autoRun;
 
   Member _member;
 public:
 
-  Server() : _continue(false), _task(1) {
+  Server() : _task(1) {
     static_assert(sizeof(Member) == 0, "Default constructor cannot be used when DefaultType is overriden");
   }
 
-  Server(Member&& member) : _continue(false), _task(1), _member(std::move(member)) { }
+  Server(Member&& member) : _task(1), _member(std::move(member)) { }
 
   ~Server() { stop(); }
   
@@ -84,23 +82,17 @@ public:
     return _listen(f);
   }
 
-  void stop() {
-    _continue = false;
-    _RAII_lock lg(_server_stop_lock);
-  }
+  void stop() { _autoRun.stop(); }
 
-  inline bool isRunning() {
-    return _continue;
-  }
+  inline bool isRunning() { return _autoRun.isRunning(); }
 
 private:
 
   int _listen(std::function<void(Client &&)> _action) {
     int result;
 
-    _RAII_lock lg(_server_stop_lock);
-    _continue = true;
-    while(_continue) {
+    
+    _autoRun = util::AutoRun<void>([&]() {
       if((result = poll(&_listenfd, 1, 100)) > 0) {
         if(_listenfd.revents == POLLIN) {
           DEBUG_LOG("Accepting client");
@@ -118,12 +110,16 @@ private:
 	err::code = err::LIB_SYS;
         print(error, "Cannot poll socket: ", err::current());
 
-        return -1;
+        _autoRun.unsafeStop();
       }
-    }
+    });
 
     // Cleanup
     close(_listenfd.fd);
+    
+    if(result == -1) {
+      return -1;
+    }
     
     return 0;
   }
@@ -131,7 +127,6 @@ private:
   /*
    * User defined methods
    */
-
   util::Optional<Client> _accept();
 
   // Generate socket

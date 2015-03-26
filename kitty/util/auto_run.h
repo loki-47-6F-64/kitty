@@ -46,6 +46,51 @@ public:
       _thread.join();
     }
   }
+  
+  bool isRunning() { return _is_running->load(); }
+};
+
+template<>
+class AutoRun<void> {
+  std::unique_ptr<std::atomic<bool>> _is_running;
+  
+  std::unique_lock<std::mutex> _lock;
+public:
+  AutoRun() = default;
+  
+  AutoRun(AutoRun &&other) = default;
+  
+  template<class Start, class Middle, class End>
+  AutoRun(Start &&start, Middle &&middle, End &&end) : _is_running(mk_uniq<std::atomic<bool>>(true)) {
+    std::lock_guard<std::unique_lock<std::mutex>> lg(_lock);
+    
+    start();
+    while(_is_running->load()) {
+      middle();
+    }
+    end();
+  }
+  
+  template<class Middle, class End>
+  AutoRun(Middle &&middle, End &&end) : AutoRun([](){}, std::forward<Middle>(middle), std::forward<End>(end)) {}
+  
+  template<class Middle>
+  AutoRun(Middle &&middle) : AutoRun([](){}, std::forward<Middle>(middle), [](){}) {}
+  
+  AutoRun &operator = (AutoRun &&other) = default;
+  
+  ~AutoRun() { stop(); }
+  
+  void stop() {
+    if(_is_running->exchange(false)) {
+      std::lock_guard<std::unique_lock<std::mutex>> lg(_lock);
+    }
+  }
+  
+  // Should only be called from inside autorun
+  void unsafeStop() { _is_running->store(false); }
+  
+  bool isRunning() { return _is_running->load(); }
 };
 
 }
