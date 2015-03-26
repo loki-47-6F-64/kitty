@@ -47,7 +47,7 @@ public:
     typedef decltype(newTask()) __return;
     typedef std::packaged_task<__return()> task_t;
     
-    task_t task(std::move(newTask));
+    task_t task(std::forward<Function>(newTask));
     
     auto future = task.get_future();
     
@@ -64,7 +64,7 @@ public:
     
     __time_point time_point = std::chrono::steady_clock::now() + std::chrono::milliseconds(milli);
     
-    task_t task(std::move(newTask));
+    task_t task(std::forward<Function>(newTask));
     
     auto future = task.get_future();
     
