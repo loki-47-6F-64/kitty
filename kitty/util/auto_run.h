@@ -12,40 +12,87 @@ class AutoRun {
 public:
   typedef T thread;
 private:
-  std::unique_ptr<std::atomic<bool>> _is_running;
+  std::atomic<bool> _is_running;
   thread _thread;
   
 public:
-  AutoRun() = default;
-  
-  AutoRun(AutoRun &&other) = default;
+  AutoRun() : _is_running(false) {}
   
   template<class Start, class Middle, class End>
-  AutoRun(Start &&start, Middle &&middle, End &&end) : _is_running(mk_uniq<std::atomic<bool>>(true)) {
-    _thread = thread([](std::function<void()> start, std::function<void()> middle, std::function<void()> end, std::atomic<bool> *is_running) {
+  void run(Start &&start, Middle &&middle, End &&end) {
+    _thread = thread([this](std::function<void()> start, std::function<void()> middle, std::function<void()> end) {
       start();
-      while(is_running->load()) {
+      
+      _is_running.store(true);
+      while(_is_running.load()) {
         middle();
       }
       end();
-    }, std::forward<Start>(start),  std::forward<Middle>(middle),  std::forward<End>(end), _is_running.get());
+    }, std::forward<Start>(start),  std::forward<Middle>(middle),  std::forward<End>(end));
   }
   
   template<class Middle, class End>
-  AutoRun(Middle &&middle, End &&end) : AutoRun([](){}, std::forward<Middle>(middle), std::forward<End>(end)) {}
+  void run(Middle &&middle, End &&end) { run([](){}, std::forward<Middle>(middle), std::forward<End>(end)); }
   
   template<class Middle>
-  AutoRun(Middle &&middle) : AutoRun([](){}, std::forward<Middle>(middle), [](){}) {}
-  
-  AutoRun &operator = (AutoRun &&other) = default;
+  void run(Middle &&middle) { run([](){}, std::forward<Middle>(middle), [](){}); }
   
   ~AutoRun() { stop(); }
   
   void stop() {
-    if(_is_running && _is_running->exchange(false)) {
+    _is_running.store(false);
+  }
+  
+  void join() {
+    if(_thread.joinable()) {
       _thread.join();
     }
   }
+  
+  bool isRunning() { return _is_running.load(); }
+};
+
+template<>
+class AutoRun<void> {
+  std::atomic<bool> _is_running;
+  
+  std::mutex _lock;
+public:
+  AutoRun() : _is_running(false) {}
+  
+  
+  template<class Start, class Middle, class End>
+  void run(Start &&start, Middle &&middle, End &&end) {
+    std::lock_guard<std::mutex> lg(_lock);
+    
+    start();
+    
+    _is_running.store(true);
+    while(_is_running.load()) {
+      middle();
+    }
+    end();
+  }
+  
+  template<class Middle, class End>
+  void run(Middle &&middle, End &&end) { run([](){}, std::forward<Middle>(middle), std::forward<End>(end)); }
+  
+  template<class Middle>
+  void run(Middle &&middle) { run([](){}, std::forward<Middle>(middle), [](){}); }
+  
+  ~AutoRun() { stop(); }
+  
+  void stop() {
+    _is_running.store(false);
+  }
+  
+  void join() {
+    stop();
+    
+    std::lock_guard<std::mutex> lg(_lock);
+  }
+
+  bool isRunning() { return _is_running.load(); }
 };
 
 }
