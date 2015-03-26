@@ -83,16 +83,17 @@ public:
   }
 
   void stop() { _autoRun.stop(); }
+  void join() { _autoRun.join(); }
 
   inline bool isRunning() { return _autoRun.isRunning(); }
 
 private:
 
   int _listen(std::function<void(Client &&)> _action) {
-    int result;
+    int result = 0;
 
     
-    _autoRun = util::AutoRun<void>([&]() {
+    _autoRun.run([&]() {
       if((result = poll(&_listenfd, 1, 100)) > 0) {
         if(_listenfd.revents == POLLIN) {
           DEBUG_LOG("Accepting client");
@@ -110,7 +111,7 @@ private:
 	err::code = err::LIB_SYS;
         print(error, "Cannot poll socket: ", err::current());
 
-        _autoRun.unsafeStop();
+        _autoRun.stop();
       }
     });
 
