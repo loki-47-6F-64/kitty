@@ -87,12 +87,12 @@ std::unique_ptr<T> mk_uniq(Args && ... args) {
 template<class T>
 using Error = Optional<T>;
 
-template<class ...Args>
+template<class ReturnType, class ...Args>
 struct Function {
-  typedef void (*type)(Args...);
+  typedef ReturnType (*type)(Args...);
 };
 
-template<class T, typename Function<T>::type function>
+template<class T, class ReturnType, typename Function<ReturnType, T>::type function>
 struct Destroy {
   typedef T pointer;
   
@@ -101,7 +101,11 @@ struct Destroy {
   }
 };
 
-template<class T, typename Function<T*>::type function>
-using safe_ptr = std::unique_ptr<T, Destroy<T*, function>>;
+template<class T, typename Function<void, T*>::type function>
+using safe_ptr = std::unique_ptr<T, Destroy<T*, void, function>>;
+
+// You cannot specialize an alias
+template<class T, class ReturnType, typename Function<ReturnType, T*>::type function>
+using safe_ptr_v2 = std::unique_ptr<T, Destroy<T*, ReturnType, function>>;
 }
 #endif

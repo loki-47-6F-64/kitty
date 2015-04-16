@@ -233,9 +233,9 @@ private:
   struct AppendFunc<T, typename std::enable_if<std::is_integral<typename std::remove_reference<T>::type>::value>::type> {
     static void run(std::vector<uint8_t> &cache, T integral) {
       if(sizeof(T) == 1) {
-	      cache.push_back(integral);
-	
-	      return;
+        cache.push_back(integral);
+
+        return;
       }
       
       std::string _integral = std::to_string(integral);

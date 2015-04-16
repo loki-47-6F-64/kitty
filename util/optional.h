@@ -9,6 +9,8 @@ class Optional {
   bool _enable;
   
 public:
+  typedef T elem_t;
+  
   T val;
   
   Optional() : _enable(false) {}
