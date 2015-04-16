@@ -30,8 +30,11 @@ class FD { /* File descriptor */
 
   static constexpr int READ = 0, WRITE = 1;
 public:
-  FD(FD && other) {
-    *this = std::move(other);
+  FD(FD && other) : _cache(std::move(other._cache)) {
+    _stream = std::move(other._stream);
+    
+    _data_p   = other._data_p;
+    _microsec = other._microsec;
   }
 
   FD& operator=(FD && other) {
