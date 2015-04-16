@@ -49,11 +49,8 @@ io::io(int fd) : _eof(false), _fd(fd) {
 }
 
 void io::operator=(io&& stream) {
-  this->_fd = stream._fd;
-  this->_eof = stream._eof;
-
-  stream._fd = -1;
-  stream._eof = true;
+  std::swap(this->_fd, stream._fd);
+  std::swap(this->_eof, stream._eof);
 }
 
 int io::read(std::vector<unsigned char>& buf) {

@@ -31,13 +31,9 @@ class Log {
 public:
 
   Log() = default;
-  Log(Log &&other) { *this = std::move(other); }
+  Log(Log &&other) = default;
 
-  Log &operator =(Log&& stream) {
-    _stream = std::move(stream._stream);
-    
-    return *this;
-  }
+  Log &operator =(Log&& stream) = default;
 
   template<class... Args>
   Log(std::string&& prepend, Args&&... params) : _stream(std::forward<Args>(params)...), _prepend(std::move(prepend)) {}
