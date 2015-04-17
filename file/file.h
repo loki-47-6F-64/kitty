@@ -107,7 +107,8 @@ public:
 
   template<class T>
   FD &append(T &&container) {
-    AppendFunc<T>::run(_cache, std::forward<T>(container));
+    typedef typename std::decay<T>::type container_t;
+    AppendFunc<container_t>::run(_cache, std::forward<T>(container));
 
     return *this;
   }
@@ -233,7 +234,7 @@ private:
   };
 
   template<class T>
-  struct AppendFunc<T, typename std::enable_if<std::is_integral<typename std::remove_reference<T>::type>::value>::type> {
+  struct AppendFunc<T, typename std::enable_if<std::is_integral<T>::value>::type> {
     static void run(std::vector<uint8_t> &cache, T integral) {
       if(sizeof(T) == 1) {
         cache.push_back(integral);
@@ -246,12 +247,22 @@ private:
       cache.insert(cache.end(), _integral.cbegin(), _integral.cend());
     }
   };
+  
+  template<class T>
+  struct AppendFunc<T, typename std::enable_if<std::is_floating_point<T>::value>::type> {
+    static void run(std::vector<uint8_t> &cache, T integral) {
+      std::string _float = std::to_string(integral);
+      
+      cache.insert(cache.end(), _float.cbegin(), _float.cend());
+    }
+  };
 
   template<class T>
-  struct AppendFunc<T, typename std::enable_if<std::is_pointer<typename std::decay<T>::type>::value>::type> {
+  struct AppendFunc<T, typename std::enable_if<std::is_pointer<T>::value>::type> {
     static void run(std::vector<uint8_t> &cache, T pointer) {
-      static_assert(sizeof(*pointer) == 1, "pointers Must be const char * or const uint8_t *");
+      static_assert(sizeof(*pointer) == 1, "pointers must be of type const char *");
 
+      // TODO: Don't allocate a string ;)
       std::string _pointer { pointer };
 
       cache.insert(cache.end(), _pointer.cbegin(), _pointer.cend());
