@@ -194,11 +194,11 @@ std::vector<uint8_t> Profile::_findByType(server::BlueClient &client) const {
   // The rest of the request should already be cached
   if (client.socket->getCache().size() == sizeof(FindByTypeReq) + 2 + 1) {
     uuid.type = Uuid::BT_UUID16;
-    uuid.value.u16 = util::read_struct<decltype(uuid.value.u16)>(*client.socket).val;
+    uuid.value.u16 = util::read_struct<decltype(uuid.value.u16)>(*client.socket);
   }
   else {
     uuid.type = Uuid::BT_UUID128;
-    uuid.value.u128 = util::read_struct<decltype(uuid.value.u128)>(*client.socket).val;
+    uuid.value.u128 = util::read_struct<decltype(uuid.value.u128)>(*client.socket);
   }
 
   std::vector<std::pair<uint16_t, uint16_t>> handles;
@@ -291,11 +291,11 @@ std::vector<uint8_t> Profile::_readByType(server::BlueClient &client) const {
   // The rest of the request should already be cached
   if (client.socket->getCache().size() == sizeof(ReadByTypeReq) + 2 + 1) {
     uuid.type = Uuid::BT_UUID16;
-    uuid.value.u16 = util::read_struct<decltype(uuid.value.u16)>(*client.socket).val;
+    uuid.value.u16 = util::read_struct<decltype(uuid.value.u16)>(*client.socket);
   }
   else {
     uuid.type = Uuid::BT_UUID128;
-    uuid.value.u128 = util::read_struct<decltype(uuid.value.u128)>(*client.socket).val;
+    uuid.value.u128 = util::read_struct<decltype(uuid.value.u128)>(*client.socket);
   }
 
 
@@ -699,7 +699,7 @@ int Profile::main(server::BlueClient &client) const {
       break;
     default:
       response = parseError(requestType, 0x0000, ATT_ECODE_REQ_NOT_SUPP);
-      print(error, "Request: 0x", util::hex(requestType.val), " not supported");
+      print(error, "Request: 0x", util::hex(requestType), " not supported");
       break;
     }
 

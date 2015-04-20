@@ -6,43 +6,113 @@
 namespace util {
 template<class T>
 class Optional {
-  bool _enable;
-  
+  class object {
+  public:
+    typedef T obj_t;
+  private:
+    
+    uint8_t _obj[sizeof(obj_t)];
+    
+    bool _constructed;
+  public:
+    object() : _constructed(false) {}
+    object(obj_t &&obj) {
+      // Call constructor add the address of _obj
+      new (_obj) obj_t(std::move(obj));
+      
+      _constructed = true;
+    }
+    
+    object(object &&other) : _constructed(false) {
+      _construct_with(other);
+    }
+    
+    object & operator = (obj_t &&other) {
+      if(_constructed) {
+        get() = std::move(other.get());
+      }
+      else {
+        new (_obj) obj_t(std::move(other.get()));
+        
+        _constructed = true;
+      }
+    }
+    
+    // Swap objects
+    object & operator = (object &&other) {    
+      if(_constructed) {
+        if(other.constructed()) {
+          get() = std::move(other.get());
+          
+          std::swap(_constructed, other._constructed);
+        }
+        else {
+          other._construct_with(*this);
+        }
+      }
+      else {
+        _construct_with(other);
+      }
+      
+      return *this;
+    }
+    
+    ~object() {
+      if(_constructed) {
+        get().~obj_t();
+      }
+    }
+    
+    const bool constructed() const { return _constructed; }
+    
+    const obj_t &get() const { return *reinterpret_cast<obj_t*>(_obj); }
+    obj_t &get() { return *reinterpret_cast<obj_t*>(_obj); }
+    
+  private:
+    void _construct_with(object &other) {
+      if(other.constructed()) {
+        new (_obj) obj_t(std::move(other.get()));
+        
+        other._constructed = false;
+        _constructed = true;
+      }
+    }
+  };  
 public:
   typedef T elem_t;
   
-  T val;
+  object _obj;
   
-  Optional() : _enable(false) {}
-  Optional(T &&val) : _enable(true), val(std::move(val)) {}
-  Optional(T &val) : _enable(true), val(std::move(val)) {}
+  Optional() = default;
+  Optional(elem_t &&val) : _obj(std::move(val)) {}
+  Optional(elem_t &val) : _obj(std::move(val)) {}
   
   bool isEnabled() const {
-    return _enable;
+    return _obj.constructed();
   }
   
   explicit operator bool () const {
-    return _enable;
+    return _obj.constructed();;
   }
   
-  operator T&() {
-    return val;
+  operator elem_t&() {
+    return _obj.get();
   }
   
-  const T* operator->() const {
-    return &val;
+  const elem_t* operator->() const {
+    return &_obj.get();
   }
   
-  const T& operator*() const {
-    return val;
+  const elem_t& operator*() const {
+    return _obj.get();
   }
 
-  T* operator->() {
-    return &val;
+  elem_t* operator->() {
+    return &_obj.get();
   }
 
-  T& operator*() {
-    return val;
+  elem_t& operator*() {
+    return _obj.get();
   }
 };
 }
