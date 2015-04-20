@@ -2,7 +2,7 @@
 #define OPTIONAL_H
 
 #include <utility>
-
+#include <cstdint>
 namespace util {
 template<class T>
 class Optional {
@@ -65,7 +65,7 @@ class Optional {
     
     const bool constructed() const { return _constructed; }
     
-    const obj_t &get() const { return *reinterpret_cast<obj_t*>(_obj); }
+    const obj_t &get() const { return *reinterpret_cast<const obj_t*>(_obj); }
     obj_t &get() { return *reinterpret_cast<obj_t*>(_obj); }
     
   private:
@@ -84,8 +84,13 @@ public:
   object _obj;
   
   Optional() = default;
+  
+  Optional(Optional&&) = default;
+  
   Optional(elem_t &&val) : _obj(std::move(val)) {}
   Optional(elem_t &val) : _obj(std::move(val)) {}
+  
+  Optional &operator = (Optional&&) = default;
   
   bool isEnabled() const {
     return _obj.constructed();
