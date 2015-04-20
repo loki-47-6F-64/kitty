@@ -1,10 +1,5 @@
 project(Kitty-File)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")
-
 ##################################################################
 #Source kitty-files
 FILE (GLOB_RECURSE C_SOURCES "./*.c")
