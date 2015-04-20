@@ -11,40 +11,35 @@ class Optional {
     typedef T obj_t;
   private:
     
+    obj_t *_obj_p;
     uint8_t _obj[sizeof(obj_t)];
-    
-    bool _constructed;
   public:
-    object() : _constructed(false) {}
+    object() : _obj_p(nullptr) {}
     object(obj_t &&obj) {
       // Call constructor add the address of _obj
-      new (_obj) obj_t(std::move(obj));
-      
-      _constructed = true;
+      _obj_p = new (_obj) obj_t(std::move(obj));
     }
     
-    object(object &&other) : _constructed(false) {
+    object(object &&other) : _obj_p(nullptr) {
       _construct_with(other);
     }
     
     object & operator = (obj_t &&other) {
-      if(_constructed) {
+      if(constructed()) {
         get() = std::move(other.get());
       }
       else {
-        new (_obj) obj_t(std::move(other.get()));
-        
-        _constructed = true;
+        _obj_p = new (_obj) obj_t(std::move(other.get()));
       }
     }
     
     // Swap objects
     object & operator = (object &&other) {    
-      if(_constructed) {
+      if(constructed()) {
         if(other.constructed()) {
           get() = std::move(other.get());
           
-          std::swap(_constructed, other._constructed);
+          std::swap(_obj_p, other._obj_p);
         }
         else {
           other._construct_with(*this);
@@ -58,23 +53,27 @@ class Optional {
     }
     
     ~object() {
-      if(_constructed) {
+      if(constructed()) {
         get().~obj_t();
       }
     }
     
-    const bool constructed() const { return _constructed; }
+    const bool constructed() const { return _obj_p != nullptr; }
     
-    const obj_t &get() const { return *reinterpret_cast<const obj_t*>(_obj); }
-    obj_t &get() { return *reinterpret_cast<obj_t*>(_obj); }
+    const obj_t &get() const {
+      return *_obj_p;
+    }
+    
+    obj_t &get() {
+      return *_obj_p;
+    }
     
   private:
     void _construct_with(object &other) {
       if(other.constructed()) {
-        new (_obj) obj_t(std::move(other.get()));
+        _obj_p = new (_obj) obj_t(std::move(other.get()));
         
-        other._constructed = false;
-        _constructed = true;
+        other._obj_p = nullptr;
       }
     }
   };  
