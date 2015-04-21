@@ -3,10 +3,11 @@
 
 #include <type_traits>
 
+namespace util {
 template<template<typename...> class X, typename T>
 struct instantiation_of : public std::false_type {};
 
 template<template<typename...> class X, typename... Y>
 struct instantiation_of<X, X<Y...>> : public std::true_type {};
-
+}
 #endif
