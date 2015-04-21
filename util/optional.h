@@ -26,11 +26,13 @@ class Optional {
     
     object & operator = (obj_t &&other) {
       if(constructed()) {
-        get() = std::move(other.get());
+        get() = std::move(other);
       }
       else {
-        _obj_p = new (_obj) obj_t(std::move(other.get()));
+        _obj_p = new (_obj) obj_t(std::move(other));
       }
+      
+      return *this;
     }
     
     // Swap objects
@@ -91,12 +93,14 @@ public:
   
   Optional &operator = (Optional&&) = default;
   
+  elem_t &operator = (elem_t &&elem) { _obj = std::move(elem); return _obj.get(); }
+  
   bool isEnabled() const {
     return _obj.constructed();
   }
   
   explicit operator bool () const {
-    return _obj.constructed();;
+    return _obj.constructed();
   }
   
   operator elem_t&() {
