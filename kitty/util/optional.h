@@ -3,6 +3,7 @@
 
 #include <utility>
 #include <cstdint>
+
 namespace util {
 template<class T>
 class Optional {
@@ -11,8 +12,9 @@ class Optional {
     typedef T obj_t;
   private:
     
-    obj_t *_obj_p;
     uint8_t _obj[sizeof(obj_t)];
+    obj_t *_obj_p;
+    
   public:
     object() : _obj_p(nullptr) {}
     object(obj_t &&obj) {
@@ -21,34 +23,22 @@ class Optional {
     }
     
     object(object &&other) : _obj_p(nullptr) {
-      _construct_with(other);
-    }
-    
-    object & operator = (obj_t &&other) {
-      if(constructed()) {
-        get() = std::move(other);
+      if(other.constructed()) {
+        _obj_p = new (_obj) obj_t(std::move(other.get()));
       }
-      else {
-        _obj_p = new (_obj) obj_t(std::move(other));
-      }
-      
-      return *this;
     }
     
     // Swap objects
-    object & operator = (object &&other) {    
-      if(constructed()) {
-        if(other.constructed()) {
+    object & operator = (object &&other) {
+      if(other.constructed()) {
+        if(constructed()) {
           get() = std::move(other.get());
-          
-          std::swap(_obj_p, other._obj_p);
-        }
-        else {
-          other._construct_with(*this);
+        } else {
+          _obj_p = new (_obj) obj_t(std::move(other.get()));
         }
       }
-      else {
-        _construct_with(other);
+      else if(constructed()) {
+        other._obj_p = new (other._obj) obj_t(std::move(get()));
       }
       
       return *this;
@@ -68,15 +58,6 @@ class Optional {
     
     obj_t &get() {
       return *_obj_p;
-    }
-    
-  private:
-    void _construct_with(object &other) {
-      if(other.constructed()) {
-        _obj_p = new (_obj) obj_t(std::move(other.get()));
-        
-        other._obj_p = nullptr;
-      }
     }
   };  
 public:
