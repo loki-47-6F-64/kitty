@@ -21,10 +21,21 @@ class Optional {
       // Call constructor add the address of _obj
       _obj_p = new (_obj) obj_t(std::move(obj));
     }
-    
+
+    object(const obj_t &obj) {
+      // Call constructor add the address of _obj
+      _obj_p = new (_obj) obj_t(obj);
+    }
+
     object(object &&other) : _obj_p(nullptr) {
       if(other.constructed()) {
         _obj_p = new (_obj) obj_t(std::move(other.get()));
+      }
+    }
+
+    object(const object &other) : _obj_p(nullptr) {
+      if(other.constructed()) {
+        _obj_p = new (_obj) obj_t(other.get());
       }
     }
     
@@ -43,7 +54,20 @@ class Optional {
       
       return *this;
     }
-    
+
+    // copy objects
+    object & operator = (const object &other) {
+      if(other.constructed()) {
+        if(constructed()) {
+          get() = other.get();
+        } else {
+          _obj_p = new (_obj) obj_t(other.get());
+        }
+      }
+
+      return *this;
+    }
+
     ~object() {
       if(constructed()) {
         get().~obj_t();
@@ -66,15 +90,18 @@ public:
   object _obj;
   
   Optional() = default;
-  
-  Optional(Optional&&) = default;
+
+//  Optional(const Optional&) = default;
+//  Optional(Optional&&) = default;
   
   Optional(elem_t &&val) : _obj(std::move(val)) {}
-  Optional(elem_t &val) : _obj(std::move(val)) {}
+  Optional(const elem_t &val) : _obj(val) {}
   
-  Optional &operator = (Optional&&) = default;
+//  Optional &operator = (Optional&&) = default;
+//  Optional &operator = (const Optional&) = default;
   
   elem_t &operator = (elem_t &&elem) { _obj = std::move(elem); return _obj.get(); }
+  elem_t &operator = (const elem_t &elem) { _obj = elem; return _obj.get(); }
   
   bool isEnabled() const {
     return _obj.constructed();
