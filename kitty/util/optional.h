@@ -18,12 +18,12 @@ class Optional {
   public:
     object() : _obj_p(nullptr) {}
     object(obj_t &&obj) {
-      // Call constructor add the address of _obj
+      // Call constructor at the address of _obj
       _obj_p = new (_obj) obj_t(std::move(obj));
     }
 
     object(const obj_t &obj) {
-      // Call constructor add the address of _obj
+      // Call constructor at the address of _obj
       _obj_p = new (_obj) obj_t(obj);
     }
 
@@ -90,15 +90,9 @@ public:
   object _obj;
   
   Optional() = default;
-
-//  Optional(const Optional&) = default;
-//  Optional(Optional&&) = default;
   
   Optional(elem_t &&val) : _obj(std::move(val)) {}
   Optional(const elem_t &val) : _obj(val) {}
-  
-//  Optional &operator = (Optional&&) = default;
-//  Optional &operator = (const Optional&) = default;
   
   elem_t &operator = (elem_t &&elem) { _obj = std::move(elem); return _obj.get(); }
   elem_t &operator = (const elem_t &elem) { _obj = elem; return _obj.get(); }
