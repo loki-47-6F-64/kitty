@@ -11,17 +11,20 @@ namespace util {
 template<class T>
 class ThreadLocal {
   template<class Z, class X = void>
-  struct helper_type {
-    typedef Z class_t;
-    typedef class_t default_type;
-  };
-  
+  struct helper_type;
+    
   template<class Z>
   struct helper_type<Z, typename std::enable_if<std::is_array<Z>::value>::type> {
     typedef Z class_t;
     typedef typename std::remove_all_extents<class_t>::type default_type;
   };
-  
+
+  template<class Z>
+  struct helper_type<Z, typename std::enable_if<std::is_copy_constructible<Z>::value>::type> {
+    typedef Z class_t;
+    typedef class_t default_type;
+  };
+
   typedef typename helper_type<T>::class_t class_t;
   typedef typename helper_type<T>::default_type default_type;
 
