@@ -10,15 +10,6 @@
 namespace util {
 template<class T>
 class ThreadLocal {
-  static void destroy(void *ptr) {
-    if(std::is_array<T>::value) {
-      delete[] reinterpret_cast<T*>(ptr);
-    }
-    else {
-      delete reinterpret_cast<T*>(ptr);
-    }
-  }
-  
   template<class Z, class X = void>
   struct helper_type {
     typedef Z class_t;
@@ -33,22 +24,19 @@ class ThreadLocal {
   
   typedef typename helper_type<T>::class_t class_t;
   typedef typename helper_type<T>::default_type default_type;
-  
+
   class_t _default;
 public:
-  ThreadLocal() { ThreadLocal(default_type()); }
+  ThreadLocal() = default;
   ThreadLocal(const default_type &t) : _default { t } {}
   ThreadLocal(default_type &&t) : _default { std::move(t) } {}
-
-  ThreadLocal(const ThreadLocal &) = delete;
-  ThreadLocal(ThreadLocal &&) = delete;
 
   operator class_t & () { return get(); }
     
   class_t &get() {
     return _default;
   }
-  
+
   class_t &operator = (class_t &&val) {
     get() = std::move(val);
     
