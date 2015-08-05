@@ -20,7 +20,7 @@ public:
   
   template<class Start, class Middle, class End>
   void run(Start &&start, Middle &&middle, End &&end) {
-    _thread = thread([this](std::function<void()> start, std::function<void()> middle, std::function<void()> end) {
+    _thread = thread([this](auto &&start, auto &&middle, auto &&end) {
       start();
       
       _is_running.store(true);
