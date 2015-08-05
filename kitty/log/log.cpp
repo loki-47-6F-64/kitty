@@ -13,7 +13,7 @@ file::Log debug  (0, " Debug: "  , dup(STDOUT_FILENO));
 namespace file {
 
 namespace stream {
-THREAD_LOCAL util::ThreadLocal<char[DATE_BUFFER_SIZE]>::type _date;
+THREAD_LOCAL util::ThreadLocal<char[DATE_BUFFER_SIZE]> _date;
 }
 
 

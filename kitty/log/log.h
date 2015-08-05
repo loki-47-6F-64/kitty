@@ -21,7 +21,7 @@ namespace file {
 namespace stream {
 constexpr int DATE_BUFFER_SIZE = 21 + 1; // Full string plus '\0'
 
-extern THREAD_LOCAL util::ThreadLocal<char[DATE_BUFFER_SIZE]>::type _date;
+extern THREAD_LOCAL util::ThreadLocal<char[DATE_BUFFER_SIZE]> _date;
 
 template<class Stream>
 class Log {

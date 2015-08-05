@@ -23,7 +23,7 @@ typedef enum {
   LIB_SSL
 } code_t;
 
-extern THREAD_LOCAL util::ThreadLocal<code_t>::type code;
+extern THREAD_LOCAL util::ThreadLocal<code_t> code;
 
 void set(const char *error);
 void set(std::string &error);

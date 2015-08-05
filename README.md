@@ -24,7 +24,7 @@ typedef enum {
   LIB_SSL
 } code_t;
 
-extern THREAD_LOCAL util::ThreadLocal<code_t>::type code;
+extern THREAD_LOCAL util::ThreadLocal<code_t> code;
 }
 ```
 LIB_* error codes are for errors that are generated outside Kitty

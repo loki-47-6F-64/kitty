@@ -11,8 +11,8 @@
 namespace err {
 
 constexpr int MAX_ERROR_BUFFER = 120;
-THREAD_LOCAL util::ThreadLocal<char[MAX_ERROR_BUFFER]>::type err_buf { '\0' };
-THREAD_LOCAL util::ThreadLocal<code_t>::type code { OK };
+THREAD_LOCAL util::ThreadLocal<char[MAX_ERROR_BUFFER]> err_buf { '\0' };
+THREAD_LOCAL util::ThreadLocal<code_t> code { OK };
 
 // Support int strerr_r and char *strerr_r
 template<class T, class S = void>

@@ -34,42 +34,32 @@ class ThreadLocal {
   typedef typename helper_type<T>::class_t class_t;
   typedef typename helper_type<T>::default_type default_type;
   
-  ThreadLocal() = default;
+  class_t _default;
 public:
-  class type {
-    class_t _default;
-    pthread_key_t &key() {
-      static pthread_key_t k;
-      
-      return k;
-    }
+  ThreadLocal() { ThreadLocal(default_type()); }
+  ThreadLocal(const default_type &t) : _default { t } {}
+  ThreadLocal(default_type &&t) : _default { std::move(t) } {}
+
+  ThreadLocal(const ThreadLocal &) = delete;
+  ThreadLocal(ThreadLocal &&) = delete;
+
+  operator class_t & () { return get(); }
     
-  public:
-    type() { type(default_type()); }
+  class_t &get() {
+    return _default;
+  }
+  
+  class_t &operator = (class_t &&val) {
+    get() = std::move(val);
     
-    type(default_type &&t) : _default { std::move(t) } {}
+    return get();
+  }
+  
+  class_t &operator = (const class_t &val) {
+    get() = val;
     
-    type(type &)  = delete;
-    type(type &&) = delete;
-    
-    operator class_t & () { return get(); }
-    
-    class_t &get() {
-      return _default;
-    }
-    
-    class_t &operator = (class_t &&val) {
-      get() = std::move(val);
-      
-      return get();
-    }
-    
-    class_t &operator = (const class_t &val) {
-      get() = val;
-      
-      return get();
-    }
-  };
+    return get();
+  }
 };
 }
 #else
@@ -80,8 +70,6 @@ public:
 namespace util {
 template<class T>
 class ThreadLocal {
-  ThreadLocal() = default;
-  
   template<class Z, class X = void>
   struct helper_type;
   
@@ -115,46 +103,56 @@ class ThreadLocal {
   typedef typename helper_type<T>::primitive primitive;
   typedef typename helper_type<T>::pointer pointer;
   typedef typename helper_type<T>::default_type default_type;
+
+  pthread_key_t &key() {
+    static pthread_key_t k;
+    
+    return k;
+  }
+
+  default_type _default;
 public:
-  class type {
-    pthread_key_t &key() {
-      static pthread_key_t k;
+  ThreadLocal() { ThreadLocal(default_type()); }
+  ThreadLocal(const default_type &t) : _default { t } {
+    static std::once_flag once;
+    
+    std::call_once(once, [&]() {
+      pthread_key_create(&key(), &helper_type<T>::destroy);
+    });
+  }
+
+  ThreadLocal(default_type &&t) : _default { std::move(t) } {
+    static std::once_flag once;
+    
+    std::call_once(once, [&]() {
+      pthread_key_create(&key(), &helper_type<T>::destroy);
+    });
+  }
+
+  ThreadLocal(const ThreadLocal &) = delete;
+  ThreadLocal(ThreadLocal &&) = delete;
+
+  operator class_t & () { return get(); }
+    
+  class_t &get() {
+    pointer val = reinterpret_cast<pointer>(pthread_getspecific(key()));
       
-      return k;
-    }
-    
-    default_type _default;
-  public:
-    type() { type(default_type()); }
-    
-    type(default_type &&init) : _default { std::move(init) } {
-      static std::once_flag once;
+    if(!val) pthread_setspecific(key(), val = new class_t { _default });
       
-      std::call_once(once, [&]() {
-        pthread_key_create(&key(), &helper_type<T>::destroy);
-      });
-    }
+    return *reinterpret_cast<class_t*>(val);
+  }
+  
+  class_t &operator = (class_t &&val) {
+    get() = std::move(val);
     
+    return get();
+  }
+  
+  class_t &operator = (const class_t &val) {
+    get() = val;
     
-    type(type &)  = delete;
-    type(type &&) = delete;
-    
-    operator class_t & () { return get(); }
-    
-    class_t & get() {
-      pointer val = reinterpret_cast<pointer>(pthread_getspecific(key()));
-      
-      if(!val) pthread_setspecific(key(), val = new class_t { _default });
-      
-      return *reinterpret_cast<class_t*>(val);
-    }
-    
-    class_t &operator = (class_t &&val) {
-      get() = std::move(val);
-      
-      return get();
-    }
-  };
+    return get();
+  }
 };
 }
 #endif
