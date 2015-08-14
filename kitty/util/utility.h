@@ -107,5 +107,47 @@ using safe_ptr = std::unique_ptr<T, Destroy<T*, void, function>>;
 // You cannot specialize an alias
 template<class T, class ReturnType, typename Function<ReturnType, T*>::type function>
 using safe_ptr_v2 = std::unique_ptr<T, Destroy<T*, ReturnType, function>>;
+
+
+template<class T>
+class FakeContainer {
+  typedef T* pointer;
+
+  pointer _begin;
+  pointer _end;
+
+public:
+  FakeContainer(pointer begin, pointer end) : _begin(begin), _end(end) {}
+
+  pointer begin() { return _begin; }
+  pointer end() { return  _end; }
+
+  const pointer begin() const { return _begin; }
+  const pointer end() const { return _end; }
+
+  const pointer cbegin() const { return _begin; }
+  const pointer cend() const { return _end; }
+
+  pointer data() { return begin(); }
+  const pointer data() const { return cbegin(); }
+};
+
+template<class T>
+FakeContainer<T> toContainer(T * const begin, T * const end) {
+  return { begin, end };
+}
+
+template<class T>
+FakeContainer<T> toContainer(T * const begin) {
+  T *end = begin;
+
+  auto default_val = T();
+  while(*end != default_val) {
+    ++end;
+  }
+
+  return toContainer(begin, end);
+}
+
 }
 #endif
