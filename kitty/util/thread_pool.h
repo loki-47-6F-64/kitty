@@ -9,12 +9,13 @@ namespace util {
  * Allow threads to execute unhindered
  * while keeping full controll over the threads.
  */
-class ThreadPool : public TaskPool {
+template<class Thread = thread_t>
+class ThreadPoolWith : public TaskPool {
 public:
   typedef TaskPool::__task __task;
   
 private:
-  std::vector<thread_t> _thread;
+  std::vector<Thread> _thread;
 
   std::condition_variable _cv;
   std::mutex _lock;
@@ -22,29 +23,30 @@ private:
   std::atomic<bool> _continue;
 public:
 
-  ThreadPool(int threads) : _thread(threads), _continue(true) {
+  ThreadPoolWith(int threads) : _thread(threads), _continue(true) {
     for (auto & t : _thread) {
-      t = thread_t(&ThreadPool::_main, this);
+      t = Thread(&ThreadPoolWith::_main, this);
     }
   }
 
-  ~ThreadPool() {
+  ~ThreadPoolWith() {
     join();
   }
 
-  template<class Function>
-  auto push(Function && newTask) -> std::future<decltype(newTask())> {
-    auto future = TaskPool::push(std::forward<Function>(newTask));
+  template<class Function, class... Args>
+  auto push(Function && newTask, Args &&... args) {
+    auto future = TaskPool::push(std::forward<Function>(newTask), std::forward<Args>(args)...);
     
     _cv.notify_one();
     return future;
   }
   
-  template<class Function>
-  auto push(Function && newTask, int64_t milli) -> std::future<decltype(newTask())> {
-    auto future = TaskPool::push(std::forward<Function>(newTask), milli);
-    
-    _cv.notify_one();
+  template<class Function, class... Args>
+  auto pushTimed(Function && newTask, int64_t milli, Args &&... args) {
+    auto future = TaskPool::pushTimed(std::forward<Function>(newTask), milli, std::forward<Args>(args)...);
+
+    // Update all timers for wait_until
+    _cv.notify_all();
     return future;
   }
   
@@ -66,7 +68,7 @@ public:
       }
       else {
         std::unique_lock<std::mutex> uniq_lock(_lock);
-        _cv.wait(uniq_lock);
+        _cv.wait_until(uniq_lock, next());
       }
     }
 
@@ -77,5 +79,6 @@ public:
   }
 };
 
+typedef ThreadPoolWith<thread_t> ThreadPool;
 }
 #endif

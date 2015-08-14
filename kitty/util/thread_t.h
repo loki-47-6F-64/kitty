@@ -3,24 +3,6 @@
 
 #include <thread>
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////
-#ifndef LACKS_FEATURE_THREAD
-namespace util {
-typedef std::thread thread_t;
-}
-#else
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////
-/*
- * Calling join() on std::thread causes a pure virtual function call
- * For this reason, I constructed a drop-in replacement for std::thread.
- * It contains a subset of std::thread
- */
-#include <pthread.h>
-#include <memory>
-#include <system_error>
-#include <kitty/err/err.h>
-
 namespace util {
 class _ImplBase {
 public:
@@ -43,6 +25,24 @@ public:
     _func();
   }
 };
+}
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+#ifndef LACKS_FEATURE_THREAD
+namespace util {
+typedef std::thread thread_t;
+}
+#else
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+/*
+ * Calling join() on std::thread causes a pure virtual function call
+ * For this reason, I constructed a drop-in replacement for std::thread.
+ * It contains a subset of std::thread
+ */
+#include <pthread.h>
+#include <memory>
+#include <system_error>
+#include <kitty/err/err.h>
 
 class thread_t {
   pthread_t _id;
@@ -63,10 +63,10 @@ public:
   template<class Function, class... Args>
   explicit thread_t(Function&& f, Args&&... args) : _id(0) {
     _startThread(std::bind(
-            std::forward<Function>(f),
-            std::forward<Args>(args)...
-            )
-            );
+      std::forward<Function>(f),
+      std::forward<Args>(args)...
+      )
+    );
   }
 
   thread_t(const thread_t&) = delete;

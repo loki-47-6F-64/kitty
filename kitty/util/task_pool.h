@@ -9,30 +9,11 @@
 
 #include <kitty/util/optional.h>
 #include <kitty/util/utility.h>
+#include <kitty/util/thread_t.h>
 namespace util {
 
 class TaskPool {
-  class _ImplBase {
-  public:
-    inline virtual ~_ImplBase() = default;
-    
-    virtual void run() = 0;
-  };
-  
-  template<class Function>
-  class _Impl : public TaskPool::_ImplBase {
-    Function _func;
-    
-  public:
-    
-    _Impl(Function&& f) : _func(std::forward<Function>(f)) { }
-    
-    void run() {
-      _func();
-    }
-  };
-
-public:  
+public:
   typedef std::unique_ptr<_ImplBase> __task;
   
   typedef std::chrono::steady_clock::time_point __time_point;
@@ -42,12 +23,15 @@ private:
   std::mutex _task_mutex;
 
 public:
-  template<class Function>
-  auto push(Function && newTask) -> std::future<decltype(newTask())> {
-    typedef decltype(newTask()) __return;
+  template<class Function, class... Args>
+  auto push(Function && newTask, Args &&... args) {
+    typedef decltype(newTask(std::forward<Args>(args)...)) __return;
     typedef std::packaged_task<__return()> task_t;
     
-    task_t task(std::forward<Function>(newTask));
+    task_t task(std::bind(
+      std::forward<Function>(newTask),
+      std::forward<Args>(args)...
+    ));
     
     auto future = task.get_future();
     
@@ -56,16 +40,19 @@ public:
     
     return future;
   }
-  
-  template<class Function>
-  auto push(Function &&newTask, int64_t milli) -> std::future<decltype(newTask())> {
-    typedef decltype(newTask()) __return;
+
+  template<class Function, class... Args>
+  auto pushTimed(Function &&newTask, int64_t milli, Args &&... args) {
+    typedef decltype(newTask(std::forward<Args>(args)...)) __return;
     typedef std::packaged_task<__return()> task_t;
     
     __time_point time_point = std::chrono::steady_clock::now() + std::chrono::milliseconds(milli);
-    
-    task_t task(std::forward<Function>(newTask));
-    
+
+    task_t task(std::bind(
+      std::forward<Function>(newTask),
+      std::forward<Args>(args)...
+    ));
+
     auto future = task.get_future();
     
     std::lock_guard<std::mutex> lg(_task_mutex);
@@ -82,8 +69,7 @@ public:
   }
   
   util::Optional<__task> pop() {
-    
-    std::lock_guard<std::mutex> lg(_task_mutex);   
+    std::lock_guard<std::mutex> lg(_task_mutex);
     
     if(!_tasks.empty()) {
       __task task = std::move(_tasks.front());
@@ -99,6 +85,16 @@ public:
     }
     
     return {};
+  }
+
+  __time_point next() {
+    std::lock_guard<std::mutex> lg(_task_mutex);
+
+    if(_timer_tasks.empty()) {
+      return std::chrono::time_point<std::chrono::steady_clock>::max();
+    }
+
+    return std::get<0>(_timer_tasks.back());
   }
 private:
   
