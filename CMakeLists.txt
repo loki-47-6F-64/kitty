@@ -12,7 +12,7 @@ set(KITTY_VERSION
 )
 
 # Clang on XCode 6 doesn't support -std=c++14
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-missing-braces -std=c++1y")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-missing-braces -std=c++14")
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
@@ -38,6 +38,9 @@ set(KITTY_TARGETS
 string(TOUPPER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
 if(${BUILD_TYPE} STREQUAL "DEBUG")
   add_definitions( -DKITTY_DEBUG=1 )
+
+  # For std::assert
+  add_definitions( -DNDEBUG )
 endif()
 
 if(KITTY_BUILD_SERVER)
