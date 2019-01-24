@@ -15,9 +15,22 @@ namespace util {
 class TaskPool {
 public:
   typedef std::unique_ptr<_ImplBase> __task;
-  
+  typedef _ImplBase* task_id_t;
+
+
   typedef std::chrono::steady_clock::time_point __time_point;
-private:
+
+  template<class R>
+  class timer_task_t {
+  public:
+    task_id_t task_id;
+    std::future<R> future;
+
+    timer_task_t(task_id_t _task_id, std::future<R> &future) : task_id(_task_id) {
+      this->future.swap(future);
+    }
+  };
+protected:
   std::deque<__task> _tasks;
   std::vector<std::pair<__time_point, __task>> _timer_tasks; 
   std::mutex _task_mutex;
@@ -41,12 +54,15 @@ public:
     return future;
   }
 
-  template<class Function, class... Args>
-  auto pushTimed(Function &&newTask, int64_t milli, Args &&... args) {
+  /**
+   * @return an id to potentially delay the task
+   */
+  template<class Function, class X, class Y, class... Args>
+  auto pushDelayed(Function &&newTask, std::chrono::duration<X, Y> duration, Args &&... args) {
     typedef decltype(newTask(std::forward<Args>(args)...)) __return;
     typedef std::packaged_task<__return()> task_t;
     
-    __time_point time_point = std::chrono::steady_clock::now() + std::chrono::milliseconds(milli);
+    __time_point time_point = std::chrono::steady_clock::now() + duration;
 
     task_t task(std::bind(
       std::forward<Function>(newTask),
@@ -59,15 +75,65 @@ public:
     
     auto it = _timer_tasks.cbegin();
     for(; it < _timer_tasks.cend(); ++it) {
-      if(std::get<0>(*it) >= time_point) {
+      if(std::get<0>(*it) < time_point) {
         break;
       }
     }
-    _timer_tasks.emplace(it, time_point, toRunnable(std::move(task)));
-    
-    return future;
+
+    auto runnable = toRunnable(std::move(task));
+
+    task_id_t task_id = &*runnable;
+    _timer_tasks.emplace(it, time_point, std::move(runnable));
+
+    return timer_task_t<__return> { task_id, future };
   }
-  
+
+  /**
+   * @param duration The delay before executing the task
+   */
+  template<class X, class Y>
+  void delay(task_id_t task_id, std::chrono::duration<X, Y> duration) {
+    std::lock_guard<std::mutex> lg(_task_mutex);
+
+    auto it = _timer_tasks.begin();
+    for(; it < _timer_tasks.cend(); ++it) {
+      const __task &task = std::get<1>(*it);
+
+      if(&*task == task_id) {
+        std::get<0>(*it) = std::chrono::steady_clock::now() + duration;
+
+        break;
+      }
+    }
+
+    if(it == _timer_tasks.cend()) {
+      return;
+    }
+
+    // smaller time goes to the back
+    auto prev = it -1;
+    while(it > _timer_tasks.cbegin()) {
+      if(std::get<0>(*it) > std::get<0>(*prev)) {
+        std::swap(*it, *prev);
+      }
+
+      --prev; --it;
+    }
+  }
+
+  void cancel(task_id_t task_id) {
+    std::lock_guard<std::mutex> lg(_task_mutex);
+
+    auto it = _timer_tasks.begin();
+    for(; it < _timer_tasks.cend(); ++it) {
+      const __task &task = std::get<1>(*it);
+
+      if(&*task == task_id) {
+        _timer_tasks.erase(it);
+      }
+    }
+  }
+    
   util::Optional<__task> pop() {
     std::lock_guard<std::mutex> lg(_task_mutex);
     
@@ -87,6 +153,12 @@ public:
     return {};
   }
 
+  bool ready() {
+    std::lock_guard<std::mutex> lg(_task_mutex);
+
+    return !_tasks.empty() || (!_timer_tasks.empty() && std::get<0>(_timer_tasks.back()) <= std::chrono::steady_clock::now());
+  }
+
   __time_point next() {
     std::lock_guard<std::mutex> lg(_task_mutex);
 
@@ -100,7 +172,7 @@ private:
   
   template<class Function>
   std::unique_ptr<_ImplBase> toRunnable(Function &&f) {
-    return util::mk_uniq<_Impl<Function>>(std::move(f));
+    return util::mk_uniq<_Impl<Function>>(std::forward<Function&&>(f));
   }
 };
 }
