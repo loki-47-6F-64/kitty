@@ -17,12 +17,12 @@ class Optional {
     
   public:
     object() : _obj_p(nullptr) {}
-    object(obj_t &&obj) {
+    explicit object(obj_t &&obj) {
       // Call constructor at the address of _obj
       _obj_p = new (_obj) obj_t(std::move(obj));
     }
 
-    object(const obj_t &obj) {
+    explicit object(const obj_t &obj) {
       // Call constructor at the address of _obj
       _obj_p = new (_obj) obj_t(obj);
     }
@@ -49,9 +49,10 @@ class Optional {
         }
       }
       else if(constructed()) {
-        other._obj_p = new (other._obj) obj_t(std::move(get()));
+        _obj_p->~obj_t();
+        _obj_p = nullptr;
       }
-      
+
       return *this;
     }
 
@@ -63,6 +64,10 @@ class Optional {
         } else {
           _obj_p = new (_obj) obj_t(other.get());
         }
+      }
+      else if(constructed()) {
+        _obj_p->~obj_t();
+        _obj_p = nullptr;
       }
 
       return *this;
@@ -93,16 +98,20 @@ public:
   
   Optional(elem_t &&val) : _obj(std::move(val)) {}
   Optional(const elem_t &val) : _obj(val) {}
-  
-  elem_t &operator = (elem_t &&elem) { _obj = std::move(elem); return _obj.get(); }
-  elem_t &operator = (const elem_t &elem) { _obj = elem; return _obj.get(); }
+
+  Optional &operator = (elem_t &&elem) { _obj = std::move(elem); return *this; }
+  Optional &operator = (const elem_t &elem) { _obj = elem; return *this; }
   
   bool isEnabled() const {
     return _obj.constructed();
   }
-  
+
   explicit operator bool () const {
-    return _obj.constructed();
+    return isEnabled();
+  }
+
+  explicit operator bool () {
+        return isEnabled();
   }
   
   operator elem_t&() {

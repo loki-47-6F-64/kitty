@@ -1,3 +1,4 @@
+#include <cstring>
 #include <mutex>
 
 #include <unistd.h>
@@ -115,7 +116,7 @@ file::ssl connect(Context &ctx, const char *hostname, const char* port) {
   addrinfo hints;
   addrinfo *server;
 
-  memset(&hints, 0, sizeof (hints));
+  std::memset(&hints, 0, sizeof (hints));
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
 
