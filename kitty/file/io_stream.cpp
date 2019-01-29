@@ -48,9 +48,11 @@ io::io(int fd) : _eof(false), _fd(fd) {
   }
 }
 
-void io::operator=(io&& stream) {
+io& io::operator=(io&& stream) noexcept {
   std::swap(this->_fd, stream._fd);
   std::swap(this->_eof, stream._eof);
+
+  return *this;
 }
 
 int io::read(std::vector<unsigned char>& buf) {

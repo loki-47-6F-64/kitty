@@ -5,19 +5,15 @@
 #include <cstring>
 
 #include <kitty/file/tcp.h>
-
-namespace err {
-extern void set(const char *err);
-}
+#include <kitty/err/err.h>
 
 namespace file {
 io connect(const char *hostname, const char *port) {
   constexpr std::chrono::seconds timeout { 0 };
   
-  addrinfo hints;
+  addrinfo hints { 0 };
   addrinfo *server;
-  
-  std::memset(&hints, 0, sizeof (hints));
+
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
   

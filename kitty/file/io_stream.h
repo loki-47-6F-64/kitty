@@ -13,7 +13,7 @@ public:
   io();
   io(int fd);
 
-  void operator =(io&& stream);
+  io& operator =(io&& stream) noexcept;
 
   int read(std::vector<unsigned char>& buf);
   int write(std::vector<unsigned char>& buf);

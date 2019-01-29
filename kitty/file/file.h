@@ -284,7 +284,7 @@ int _print(file::FD<Stream> &file) {
 
 template<class Stream, class Out, class... Args>
 int _print(file::FD<Stream> &file, Out && out, Args && ... params) {
-  return _print(file.append(std::forward<Out&&>(out)), std::forward<Args>(params)...);
+  return _print(file.append(std::forward<Out>(out)), std::forward<Args>(params)...);
 }
 
 /*
