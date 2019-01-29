@@ -52,7 +52,7 @@ public:
   ~Server() { stop(); }
   
   // Returns -1 on failure
-  int start(_sockaddr &server, std::function<void(Client &&)> f) {
+  int start(const _sockaddr &server, std::function<void(Client &&)> f) {
     pollfd pfd {
       _socket(),
       POLLIN,
@@ -70,7 +70,7 @@ public:
       return -1;
     }
 
-    if(bind(pfd.fd, (sockaddr *) &server, sizeof(server)) < 0) {
+    if(bind(pfd.fd, (const sockaddr *) &server, sizeof(server)) < 0) {
       err::code = err::LIB_SYS;
       return -1;
     }
@@ -85,7 +85,7 @@ public:
   void stop() { _autoRun.stop(); }
   void join() { _autoRun.join(); }
 
-  inline bool isRunning() { return _autoRun.isRunning(); }
+  inline bool isRunning() const { return _autoRun.isRunning(); }
 
 private:
 
@@ -108,7 +108,7 @@ private:
         }
       }
       else if(result == -1) {
-	err::code = err::LIB_SYS;
+        err::code = err::LIB_SYS;
         print(error, "Cannot poll socket: ", err::current());
 
         _autoRun.stop();

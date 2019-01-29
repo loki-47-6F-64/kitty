@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <atomic>
+#include <thread>
 #include <chrono>
 
 #include <kitty/util/utility.h>
@@ -105,7 +106,7 @@ public:
     std::lock_guard<std::mutex> lg(_lock);
   }
 
-  bool isRunning() { return _is_running.load(); }
+  bool isRunning() const { return _is_running.load(); }
 };
 
 }
