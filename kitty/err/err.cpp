@@ -10,7 +10,7 @@
 
 namespace err {
 
-constexpr int MAX_ERROR_BUFFER = 120;
+constexpr std::size_t MAX_ERROR_BUFFER = 120;
 THREAD_LOCAL util::ThreadLocal<char[MAX_ERROR_BUFFER]> err_buf { '\0' };
 THREAD_LOCAL util::ThreadLocal<code_t> code { OK };
 
@@ -58,25 +58,20 @@ const char *ssl() {
 #endif
 }
 
-void _set(const char *src) {
-  int x;
-  for(x = 0; src[x] && x < MAX_ERROR_BUFFER - 1; ++x) {
-    err_buf[x] = src[x];
-  }
-  err_buf[x] = '\0';
-}
-
-void set(const char *error) {
+void set(const std::string_view &error) {
   err::code = LIB_USER;
-  
-  return _set(error);
-}
 
-void set(std::string &error) {
-  return set(error.c_str());
-}
-void set(std::string &&error) {
-  return set(error);
+  char *err_p = err_buf;
+
+  for(auto ch : error) {
+    *err_p++ = ch;
+
+    if(err_p - err_buf == MAX_ERROR_BUFFER) {
+      break;
+    }
+  }
+
+  err_buf[std::min(MAX_ERROR_BUFFER -1, (const std::size_t)error.size())] = '\0';
 }
 
 const char *current() {

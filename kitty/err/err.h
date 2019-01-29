@@ -25,8 +25,6 @@ typedef enum {
 
 extern THREAD_LOCAL util::ThreadLocal<code_t> code;
 
-void set(const char *error);
-void set(std::string &error);
-void set(std::string &&error);
+void set(const std::string_view &error);
 };
 #endif
