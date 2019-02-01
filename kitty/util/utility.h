@@ -114,7 +114,7 @@ using safe_ptr_v2 = std::unique_ptr<T, Destroy<T*, ReturnType, function>>;
 
 template<class T>
 class FakeContainer {
-  typedef T* pointer;
+  typedef T pointer;
 
   pointer _begin;
   pointer _end;
@@ -136,12 +136,17 @@ public:
 };
 
 template<class T>
-FakeContainer<T> toContainer(T * const begin, T * const end) {
+FakeContainer<T> toContainer(T begin, T end) {
   return { begin, end };
 }
 
 template<class T>
-FakeContainer<T> toContainer(T * const begin) {
+FakeContainer<T> toContainer(T begin, std::size_t end) {
+  return { begin, begin + end };
+}
+
+template<class T>
+FakeContainer<T*> toContainer(T * const begin) {
   T *end = begin;
 
   auto default_val = T();
