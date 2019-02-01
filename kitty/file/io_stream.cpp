@@ -5,6 +5,8 @@
 #include <kitty/file/io_stream.h>
 #include <kitty/file/file.h>
 #include <kitty/err/err.h>
+#include "io_stream.h"
+
 
 namespace file {
 io ioRead(const char *file_path) {
@@ -98,6 +100,11 @@ bool io::is_open() {
 
 bool io::eof() {
   return _eof;
+}
+
+io::io(io &&other) noexcept {
+  _fd = other._fd;
+  other._fd = -1;
 }
 }
 }

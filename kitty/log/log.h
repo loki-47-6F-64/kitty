@@ -31,9 +31,9 @@ class Log {
 public:
 
   Log() = default;
-  Log(Log &&other) = default;
+  Log(Log &&other) noexcept = default;
 
-  Log &operator =(Log&& stream) = default;
+  Log &operator =(Log&& stream) noexcept = default;
 
   template<class... Args>
   Log(std::string&& prepend, Args&&... params) : _stream(std::forward<Args>(params)...), _prepend(std::move(prepend)) {}

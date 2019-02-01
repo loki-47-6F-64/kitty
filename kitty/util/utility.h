@@ -13,7 +13,7 @@
 namespace util {
 
 template<class T>
-void append_struct(std::vector<uint8_t> &buf, T &_struct) {
+void append_struct(std::vector<uint8_t> &buf, const T &_struct) {
   constexpr size_t data_len = sizeof(_struct);
 
   uint8_t *data = (uint8_t *) & _struct;

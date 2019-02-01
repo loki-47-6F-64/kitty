@@ -13,6 +13,7 @@ public:
   io();
   io(int fd);
 
+  io(io &&) noexcept;
   io& operator =(io&& stream) noexcept;
 
   int read(std::vector<unsigned char>& buf);

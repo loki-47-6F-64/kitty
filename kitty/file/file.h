@@ -14,6 +14,10 @@
 #include <kitty/util/string.h>
 
 namespace file {
+struct buffer_t {
+  std::vector<uint8_t> cache;
+  std::vector<uint8_t>::size_type data_p;
+};
 /* Represents file in memory, storage or socket */
 template <class Stream>
 class FD { /* File descriptor */
@@ -25,24 +29,21 @@ class FD { /* File descriptor */
   
   duration_t _millisec;
   
-    
-  std::vector<uint8_t> _cache;
-  std::vector<uint8_t>::size_type _data_p;
+
+  buffer_t _in;
+  buffer_t _out;
 
   static constexpr int READ = 0, WRITE = 1;
 public:
-  FD(FD && other) : _cache(std::move(other._cache)) {
+  FD(FD && other) noexcept : _in(std::move(other._in)), _out(std::move(other._out)) {
     _stream = std::move(other._stream);
-    
-    _data_p   = other._data_p;
     _millisec = other._millisec;
   }
 
-  FD& operator=(FD && other) {
-    _stream = std::move(other._stream);
-    _cache = std::move(other._cache);
-
-    std::swap(_data_p, other._data_p);
+  FD& operator=(FD && other) noexcept {
+    std::swap(_stream, other._stream);
+    std::swap(_in, other._in);
+    std::swap(_out, other._out);
     std::swap(_millisec, other._millisec);
     
     return *this;
@@ -52,7 +53,7 @@ public:
 
   template<class T1, class T2, class... Args>
   FD(std::chrono::duration<T1,T2> duration, Args && ... params)
-  : _stream(std::forward<Args>(params)...), _millisec(std::chrono::duration_cast<duration_t>(duration)), _data_p(0) {}
+  : _stream(std::forward<Args>(params)...), _millisec(std::chrono::duration_cast<duration_t>(duration)), _in { {}, 0 }, _out { {}, 0 } {}
 
   ~FD() { seal(); }
 
@@ -65,14 +66,13 @@ public:
     }
 
     // On success clear
-    if ((_stream.write(_cache)) >= 0) {
-      clear();
+    if ((_stream.write(_out.cache)) >= 0) {
       return err::OK;
     }
     return -1;
   }
 
-  // Useful when fine control is nessesary
+  // Useful when fine control is necessary
   util::Optional<uint8_t> next() {
     // Load new _cache if end of buffer is reached
     if (_endOfBuffer()) {
@@ -81,13 +81,13 @@ public:
       }
     }
 
-    // If _cache.empty() return '\0'
-    return _cache.empty() ? util::Optional<uint8_t>() : util::Optional<uint8_t>(_cache[_data_p++]);
+    // If cache.empty() return '\0'
+    return _in.cache.empty() ? util::Optional<uint8_t>() : util::Optional<uint8_t>(_in.cache[_in.data_p++]);
   }
 
   template<class Function>
-  int eachByte(Function &&f) {
-    while(!eof()) {
+  int eachByte(Function &&f, std::uint64_t max = std::numeric_limits<std::uint64_t>::max()) {
+    while(!eof() && max) {
       if(_endOfBuffer()) {
 
         if(_load(_cacheSize)) {
@@ -97,7 +97,9 @@ public:
         continue;
       }
 
-      if (err::code_t err = f(_cache[_data_p++])) {
+      --max;
+
+      if (err::code_t err = f(_in.cache[_in.data_p++])) {
         // Return FileErr::OK if err_code != FileErr::BREAK
         return err == err::BREAK ? 0 : -1;
       }
@@ -108,21 +110,30 @@ public:
 
   template<class T>
   FD &append(T &&container) {
-    AppendFunc<T>::run(_cache, std::forward<T>(container));
+    AppendFunc<T>::run(_out.cache, std::forward<T>(container));
 
     return *this;
   }
 
-  FD &clear() {
-    _cache.clear();
-    _data_p = 0;
+  FD &write_clear() {
+    _out.cache.clear();
+    _out.data_p = 0;
 
 
     return *this;
   }
 
-  std::vector<uint8_t> &getCache() {
-    return _cache;
+  FD &read_clear() {
+    _in.cache.clear();
+    _in.data_p = 0;
+  }
+
+  std::vector<uint8_t> &get_read_cache() {
+    return _in.cache;
+  }
+
+  std::vector<uint8_t> &get_write_cache() {
+    return _out.cache;
   }
 
   bool eof() {
@@ -146,18 +157,20 @@ public:
      On success: return  0
    */
   template<class OutStream>
-  int copy(FD<OutStream> &out, uint64_t max = std::numeric_limits<uint64_t>::max()) {
-    auto &cache = out.getCache();
+  int copy(FD<OutStream> &out, std::uint64_t max = std::numeric_limits<std::uint64_t>::max()) {
+    auto &cache = out.get_write_cache();
 
     while (!eof() && max) {
       if(_endOfBuffer()) {
         if(_load(_cacheSize)) {
           return -1;
         }
+
+        continue;
       }
 
       while (!_endOfBuffer()) {
-        cache.push_back(_cache[_data_p++]);
+        cache.push_back(_out.cache[_out.data_p++]);
 
         if(!max) {
           break;
@@ -170,7 +183,7 @@ public:
         return -1;
       }
     }
-    
+
     return err::OK;
   }
 
@@ -212,23 +225,23 @@ private:
     return err::OK;
   }
 
-  // Load file into _cache.data(), replaces old _cache.data()
+  // Load file into cache.data(), replaces old cache.data()
   int _load(std::vector<uint8_t>::size_type max_bytes) {
     if(_select(READ)) {
       return -1;
     }
     
-    _cache.resize(max_bytes);
+    _in.cache.resize(max_bytes);
     
-    if(_stream.read(_cache) < 0)
+    if(_stream.read(_in.cache) < 0)
       return -1;
     
-    _data_p = 0;
+    _in.data_p = 0;
     return err::OK;
   }
   
   bool _endOfBuffer() {
-    return _data_p == _cache.size();
+    return _in.data_p == _in.cache.size();
   }
   
   template<class T, class S = void>
@@ -268,7 +281,7 @@ private:
       static_assert(sizeof(*pointer) == 1, "pointers must be const char *");
 
       // TODO: Don't allocate a string ;)
-      std::string _pointer { pointer };
+      std::string_view _pointer { pointer };
 
       cache.insert(cache.end(), _pointer.cbegin(), _pointer.cend());
     }
@@ -292,7 +305,7 @@ int _print(file::FD<Stream> &file, Out && out, Args && ... params) {
  */
 template<class Stream, class... Args>
 int print(file::FD<Stream> &file, Args && ... params) {
-  return _print(file.clear(), std::forward<Args>(params)...);
+  return _print(file.write_clear(), std::forward<Args>(params)...);
 }
 #endif
 
