@@ -4,6 +4,7 @@
 #include <functional>
 #include <vector>
 #include <chrono>
+#include <string>
 
 #include <sys/select.h>
 
@@ -11,7 +12,6 @@
 
 #include <kitty/err/err.h>
 #include <kitty/util/optional.h>
-#include <kitty/util/string.h>
 
 namespace file {
 struct buffer_t {
@@ -62,13 +62,17 @@ public:
   // Write to file
   int out() {
     if ((_select(WRITE))) {
+      write_clear();
       return -1;
     }
 
     // On success clear
     if ((_stream.write(_out.cache)) >= 0) {
+      write_clear();
       return err::OK;
     }
+
+    write_clear();
     return -1;
   }
 
@@ -170,7 +174,7 @@ public:
       }
 
       while (!_endOfBuffer()) {
-        cache.push_back(_out.cache[_out.data_p++]);
+        cache.push_back(_in.cache[_in.data_p++]);
 
         if(!max) {
           break;
