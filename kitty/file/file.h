@@ -5,6 +5,8 @@
 #include <vector>
 #include <chrono>
 #include <string>
+#include <optional>
+#include <map>
 
 #include <sys/select.h>
 #include <poll.h>
@@ -14,7 +16,6 @@
 #include <kitty/err/err.h>
 #include <kitty/util/optional.h>
 #include <kitty/util/template_helper.h>
-#include <map>
 
 namespace file {
 template<class T>
