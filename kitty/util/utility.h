@@ -5,10 +5,11 @@
 #include <memory>
 #include <type_traits>
 #include <algorithm>
-
+#include <optional>
 
 #include <kitty/util/optional.h>
-#include <kitty/file/file.h>
+#include <kitty/err/err.h>
+#include <kitty/util/template_helper.h>
 
 namespace util {
 
@@ -16,27 +17,13 @@ template<class T>
 void append_struct(std::vector<uint8_t> &buf, const T &_struct) {
   constexpr size_t data_len = sizeof(_struct);
 
-  uint8_t *data = (uint8_t *) & _struct;
+  buf.reserve(data_len);
+
+  auto *data = (uint8_t *) & _struct;
 
   for (size_t x = 0; x < data_len; ++x) {
     buf.push_back(data[x]);
   }
-}
-
-template<class T, class Stream>
-Optional<T> read_struct(file::FD<Stream> &io) {
-  constexpr size_t data_len = sizeof(T);
-  uint8_t buf[data_len];
-
-  size_t x = 0;
-  int err = io.eachByte([&](uint8_t ch) {
-    buf[x++] = ch;
-
-    return x < data_len ? err::OK : err::BREAK;
-  });
-
-  T *val = (T*)buf;
-  return err ? Optional<T>() : Optional<T>(*val);
 }
   
 template<class T>
@@ -48,34 +35,67 @@ private:
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
   };
 
-  uint8_t _hex[sizeof(elem_type) * 2];
+  char _hex[sizeof(elem_type) * 2];
 public:
-  Hex(elem_type && elem) {
+  Hex(const elem_type &elem) {
     const uint8_t *data = reinterpret_cast<const uint8_t *>(&elem) + sizeof(elem_type);
-    for (elem_type *it = begin(); it < cend();) {
-      *it++ = _bits[*--data / 16];
-      *it++ = _bits[*data   % 16];
-    }
-  }
-
-  Hex(elem_type &elem) {
-    const uint8_t *data = reinterpret_cast<const uint8_t *>(&elem) + sizeof(elem_type);
-    for (uint8_t *it = begin(); it < cend();) {
+    for (auto it = begin(); it < cend();) {
       *it++ = _bits[*--data / 16];
       *it++ = _bits[*data % 16];
     }
   }
 
-  uint8_t *begin() { return _hex; }
-  uint8_t *end() { return _hex + sizeof(elem_type) * 2; }
+  char *begin() { return _hex; }
+  char *end() { return _hex + sizeof(elem_type) * 2; }
 
-  const uint8_t *cbegin() { return _hex; }
-  const uint8_t *cend() { return _hex + sizeof(elem_type) * 2; }
+  const char *begin() const { return _hex; }
+  const char *end() const { return _hex + sizeof(elem_type) * 2; }
+
+  const char *cbegin() const { return _hex; }
+  const char *cend() const { return _hex + sizeof(elem_type) * 2; }
+
+  std::string to_string() const {
+    return { begin(), end() };
+  }
+
+  std::string_view to_string_view() const {
+    return { begin(), sizeof(elem_type) * 2 };
+  }
 };
 
 template<class T>
-Hex<T> hex(T &elem) {
+Hex<T> hex(const T &elem) {
   return Hex<T>(elem);
+}
+
+template<class T>
+std::optional<T> from_hex(const std::string_view &hex) {
+  if(hex.size() < sizeof(T)*2) {
+    err::code = err::OUT_OF_BOUNDS;
+
+    return std::nullopt;
+  }
+
+  std::uint8_t buf[sizeof(T)];
+
+  const char *data = hex.data() + hex.size();
+
+  auto convert = [] (char ch) -> std::uint8_t {
+    if(ch >= '0' && ch <= '9') {
+      return (std::uint8_t)ch - '0';
+    }
+
+    return (std::uint8_t)(ch | (char)32) - 'a' + (char)10;
+  };
+
+  for(auto &el : buf) {
+    std::uint8_t ch_r = convert(*--data);
+    std::uint8_t ch_l = convert(*--data);
+
+    el = (ch_l << 4) | ch_r;
+  }
+
+  return *reinterpret_cast<T *>(buf);
 }
 
 template<class T, class... Args>
@@ -188,29 +208,57 @@ template<class T, class S = void>
 struct endian_helper { };
 
 template<class T>
-struct endian_helper<T, std::enable_if_t<endianness<T>::little>> {
+struct endian_helper<T, std::enable_if_t<
+  !(instantiation_of<std::optional, T>::value || instantiation_of<Optional, T>::value)
+>> {
   static inline T big(T x) {
-    uint8_t *data = reinterpret_cast<uint8_t*>(&x);
+    if constexpr (endianness<T>::little) {
+      uint8_t *data = reinterpret_cast<uint8_t*>(&x);
 
-    std::reverse(data, data + sizeof(x));
+      std::reverse(data, data + sizeof(x));
+    }
 
     return x;
   }
 
-  static inline T little(T x) { return x; }
+  static inline T little(T x) {
+    if constexpr (endianness<T>::big) {
+      uint8_t *data = reinterpret_cast<uint8_t*>(&x);
+
+      std::reverse(data, data + sizeof(x));
+    }
+
+    return x;
+  }
 };
 
 template<class T>
-struct endian_helper<T, std::enable_if_t<endianness<T>::big>> {
+struct endian_helper<T, std::enable_if_t<
+  instantiation_of<std::optional, T>::value || instantiation_of<Optional, T>::value
+  >> {
   static inline T little(T x) {
-    uint8_t *data = reinterpret_cast<uint8_t*>(&x);
+    if(!x) return x;
 
-    std::reverse(data, data + sizeof(x));
+    if constexpr (endianness<T>::big) {
+      auto *data = reinterpret_cast<uint8_t*>(&*x);
+
+      std::reverse(data, data + sizeof(*x));
+    }
 
     return x;
   }
 
-  static inline T big(T x) { return x; }
+  static inline T big(T x) {
+    if(!x) return x;
+
+    if constexpr (endianness<T>::big) {
+      auto *data = reinterpret_cast<uint8_t*>(&*x);
+
+      std::reverse(data, data + sizeof(*x));
+    }
+
+    return x;
+  }
 };
 
 template<class T>

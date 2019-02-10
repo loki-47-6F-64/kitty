@@ -13,10 +13,6 @@ io ioRead(const char *file_path) {
   return file::io { std::chrono::seconds(0), ::open(file_path, O_RDONLY, 0) };
 }
 
-io ioRead(std::string &file_path) { return ioRead(file_path.c_str()); }
-io ioRead(std::string &&file_path) { return ioRead(file_path); }
-
-
 io ioWrite(const char *file_path) {
   int _fd = ::open(file_path,
     O_CREAT | O_WRONLY,
@@ -26,10 +22,6 @@ io ioWrite(const char *file_path) {
   return file::io { std::chrono::seconds(0), _fd };
 }
 
-io ioWrite(std::string &file_path) { return ioWrite(file_path.c_str()); }
-io ioWrite(std::string &&file_path) { return ioWrite(file_path); }
-
-
 io ioWriteAppend(const char *file_path) {
   int _fd = ::open(file_path,
     O_CREAT | O_APPEND | O_WRONLY,
@@ -37,10 +29,7 @@ io ioWriteAppend(const char *file_path) {
   );
 
   return io { std::chrono::seconds(0), _fd };
-}  
-
-io ioWriteAppend(std::string &file_path) { return ioWriteAppend(file_path.c_str()); }
-io ioWriteAppend(std::string &&file_path) { return ioWriteAppend(file_path); }
+}
 
 namespace stream {
 io::io() : _eof(false), _fd(-1)  { }
@@ -57,7 +46,7 @@ io& io::operator=(io&& stream) noexcept {
   return *this;
 }
 
-int io::read(std::vector<unsigned char>& buf) {
+int io::read(std::vector<unsigned char> &buf) {
   ssize_t bytes_read;
 
   if((bytes_read = ::read(_fd, buf.data(), buf.size())) < 0) {
@@ -69,12 +58,12 @@ int io::read(std::vector<unsigned char>& buf) {
   }
 
   // Update number of bytes in buf
-  buf.resize(bytes_read);
+  buf.resize((std::size_t)bytes_read);
   return 0;
 }
 
-int io::write(std::vector<unsigned char>&buf) {
-  auto bytes_written = ::write(_fd, buf.data(), buf.size());
+int io::write(const std::vector<unsigned char> &buf) {
+  ssize_t bytes_written = ::write(_fd, buf.data(), buf.size());
 
   if(bytes_written < 0) {
     err::code = err::LIB_SYS;
@@ -82,7 +71,7 @@ int io::write(std::vector<unsigned char>&buf) {
     return -1;
   }
 
-  return 0;
+  return (int)bytes_written;
 }
 
 void io::seal() {
@@ -90,15 +79,15 @@ void io::seal() {
   _fd = -1;
 }
 
-int io::fd() {
+int io::fd() const {
   return _fd;
 };
 
-bool io::is_open() {
+bool io::is_open() const {
   return _fd != -1;
 }
 
-bool io::eof() {
+bool io::eof() const {
   return _eof;
 }
 

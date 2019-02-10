@@ -43,7 +43,7 @@ public:
   }
 
   int write(std::vector<unsigned char>& buf) {
-    std::time_t t = std::time(NULL);
+    std::time_t t = std::time(nullptr);
     strftime(_date, DATE_BUFFER_SIZE, "[%Y:%m:%d:%H:%M:%S]", std::localtime(&t));
 
     buf.insert(buf.begin(), _prepend.cbegin(), _prepend.cend());
@@ -58,11 +58,11 @@ public:
     return _stream.write(buf);
   }
 
-  bool is_open() {
+  bool is_open() const {
     return _stream.is_open();
   }
 
-  bool eof() {
+  bool eof() const {
     return false;
   }
 
@@ -74,7 +74,7 @@ public:
     _stream.seal();
   }
 
-  int fd() {
+  int fd() const {
     return _stream.fd();
   }
 };

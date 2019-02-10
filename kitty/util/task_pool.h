@@ -6,6 +6,8 @@
 #include <future>
 #include <chrono>
 #include <utility>
+#include <functional>
+#include <mutex>
 
 #include <kitty/util/optional.h>
 #include <kitty/util/utility.h>

@@ -11,35 +11,27 @@ class io {
 
 public:
   io();
-  io(int fd);
+  explicit io(int fd);
 
   io(io &&) noexcept;
   io& operator =(io&& stream) noexcept;
 
   int read(std::vector<unsigned char>& buf);
-  int write(std::vector<unsigned char>& buf);
+  int write(const std::vector<unsigned char> &buf);
 
-  bool is_open();
-  bool eof();
+  bool is_open() const;
+  bool eof() const;
 
   void seal();
 
-  int fd();
+  int fd() const;
 };
 }
 typedef FD<stream::io> io;
 
 io ioRead(const char *file_path);
-io ioRead(std::string &file_path);
-io ioRead(std::string &&file_path);
-
 io ioWrite(const char *file_path);
-io ioWrite(std::string &file_path);
-io ioWrite(std::string &&file_path);
-
 io ioWriteAppend(const char *file_path);
-io ioWriteAppend(std::string &file_path);
-io ioWriteAppend(std::string &&file_path);
 }
 
 #endif

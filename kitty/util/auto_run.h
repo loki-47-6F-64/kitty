@@ -5,6 +5,7 @@
 #include <atomic>
 #include <thread>
 #include <chrono>
+#include <mutex>
 
 #include <kitty/util/utility.h>
 
