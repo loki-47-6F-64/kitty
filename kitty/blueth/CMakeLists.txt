@@ -9,7 +9,4 @@ FILE (GLOB_RECURSE HEADERS "./*.h")
 
 add_library(kitty-bluetooth STATIC ${C_SOURCES} ${CPP_SOURCES} ${HEADERS})
 
-target_link_libraries(kitty-bluetooth ${BLUEZ_LIBRARIES})
-set_target_properties(kitty-bluetooth PROPERTIES
-  PUBLIC_HEADER "blueth.h;blue_client.h;ble.h;uuid.h;blue_stream.h"
-)
+target_link_libraries(kitty-bluetooth kitty-server kitty-log ${BLUEZ_LIBRARIES})
