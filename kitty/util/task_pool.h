@@ -161,11 +161,11 @@ public:
     return !_tasks.empty() || (!_timer_tasks.empty() && std::get<0>(_timer_tasks.back()) <= std::chrono::steady_clock::now());
   }
 
-  __time_point next() {
+  std::optional<__time_point> next() {
     std::lock_guard<std::mutex> lg(_task_mutex);
 
     if(_timer_tasks.empty()) {
-      return std::chrono::time_point<std::chrono::steady_clock>::max();
+      return std::nullopt;
     }
 
     return std::get<0>(_timer_tasks.back());

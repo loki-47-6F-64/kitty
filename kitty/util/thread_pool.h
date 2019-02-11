@@ -68,7 +68,12 @@ public:
       }
       else {
         std::unique_lock<std::mutex> uniq_lock(_lock);
-        _cv.wait_until(uniq_lock, next());
+        if(auto tp = next()) {
+          _cv.wait_until(uniq_lock, *tp);
+        }
+        else {
+          _cv.wait(uniq_lock);
+        }
       }
     }
 
