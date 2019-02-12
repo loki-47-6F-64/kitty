@@ -15,6 +15,8 @@
 #include <kitty/p2p/uuid.h>
 #include <kitty/p2p/pack.h>
 #include <kitty/p2p/p2p.h>
+#include "p2p.h"
+
 
 namespace p2p {
 using namespace std::string_literals;
@@ -25,6 +27,8 @@ struct {
   file::io fd;
 
   std::map<uuid_t, std::shared_ptr<pj::ICETrans>> peers;
+  std::vector<uuid_t> vec_peers;
+
   pj::Pool pool;
 
   file::poll_t<file::io, std::monostate> poll { [](file::io &fd, std::monostate) {
@@ -80,10 +84,21 @@ auto peer_create(const uuid_t &uuid, F &&func) {
   return true;
 };
 
-auto peer_remove(const uuid_t &uuid) {
-  return global.peers.erase(uuid);
+bool peer_create(const uuid_t &uuid, pj::Pool::on_data_f &&on_data, pj::Pool::on_ice_create_f &&on_create, pj::Pool::on_connect_f &&on_connect) {
+  auto &peers = global.peers;
+
+  if(peers.size() < config.max_peers && peers.find(uuid) == std::end(peers)) {
+    return !peers.emplace(uuid, std::make_shared<pj::ICETrans>(
+      global.pool.ice_trans(std::move(on_data), std::move(on_create), std::move(on_connect)))).second;
+  }
+
+  err::code = err::code_t::OUT_OF_BOUNDS;
+  return true;
 }
 
+void peer_remove(const uuid_t &uuid) {
+  global.peers.erase(uuid);
+}
 
 void quest_error(file::io &server, const std::string_view &error) {
   nlohmann::json json_error;
@@ -137,6 +152,10 @@ void send_invite(file::io &server, uuid_t uuid) {
   print(server, file::raw(util::endian::little((std::uint16_t) invite_str.size())), invite_str);
 }
 
+void send_invite(uuid_t uuid) {
+  send_invite(global.fd, uuid);
+}
+
 void send_register(file::io &server) {
   nlohmann::json register_;
 
@@ -163,20 +182,15 @@ void send_register(file::io &server) {
 
   print(info, "received a list of ", peers.size(), " peers.");
 
-  if(!peers.empty()) {
-    if(peer_create(peers[0], [&server, peer = peers[0]](pj::ICECall call, pj::status_t status) {
-      if(status != pj::success) {
-        print(error, "failed initialization");
+  global.vec_peers = std::move(peers);
+}
 
-        return;
-      }
-      send_invite(server, peer);
-    })
-      ) {
-      print(error, "Could not allocate a transport for peer[", util::hex(peers[0]), "] :: ", err::current());
-      return;
-    }
+std::optional<uuid_t> peer() {
+  if(global.vec_peers.empty()) {
+    return std::nullopt;
   }
+
+  return global.vec_peers[0];
 }
 
 void quest_accept(file::io &server, nlohmann::json &remote_json) {
@@ -330,9 +344,9 @@ int init() {
   pool.dns_resolv().set_ns(config.dns);
   pool.set_stun(config.stun_addr);
 
-  util::AutoRun<void> auto_run;
+  std::thread worker_thread([]() {
+    util::AutoRun<void> auto_run;
 
-  std::thread worker_thread([&auto_run]() {
     auto thread_ptr = p2p::pj::register_thread();
 
     auto_run.run([]() {
@@ -364,12 +378,12 @@ int init() {
 
   global.poll.read(server, {});
 
-  while(true) {
-    auto s = 50ms;
-    global.poll.poll(s);
-  }
-
+  worker_thread.detach();
   return 0;
+}
+
+void poll() {
+  global.poll.poll(config.poll_tm);
 }
 
 }

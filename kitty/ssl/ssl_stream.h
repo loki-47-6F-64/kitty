@@ -20,17 +20,19 @@ public:
   ssl();
   ssl(Context &ctx, int fd);
 
-  void operator=(ssl&& stream);
+  ssl& operator=(ssl&& stream) noexcept;
 
   int read(std::vector<unsigned char>& buf);
   int write(std::vector<unsigned char>& buf);
 
-  bool is_open();
-  bool eof();
+  bool is_open() const;
+  bool eof() const;
+
+  int select(std::chrono::milliseconds to, int read) const;
 
   void seal();
 
-  int fd();
+  int fd() const;
 };
 }
 

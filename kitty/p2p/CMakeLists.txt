@@ -8,7 +8,7 @@ add_library(kitty-p2p STATIC
         pj/nath.cpp pj/nath.h
         pj/pool.cpp pj/pool.h
         pj/timer_heap.cpp pj/timer_heap.h
-        uuid.h)
+        uuid.h p2p_stream.h p2p_stream.cpp)
 
 target_link_libraries(kitty-p2p
         kitty-server kitty-log

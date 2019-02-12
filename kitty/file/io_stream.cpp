@@ -95,5 +95,45 @@ io::io(io &&other) noexcept {
   _fd = other._fd;
   other._fd = -1;
 }
+
+int io::select(std::chrono::milliseconds to, const int read) const {
+  if(to.count() > 0) {
+    auto dur_micro = (suseconds_t)std::chrono::duration_cast<std::chrono::microseconds>(to).count();
+    timeval tv {
+      0,
+      dur_micro
+    };
+
+    fd_set selected;
+
+    FD_ZERO(&selected);
+    FD_SET(fd(), &selected);
+
+    int result;
+    if (read == file::READ) {
+      result = ::select(fd() + 1, &selected, nullptr, nullptr, &tv);
+    }
+    else /*if (read == WRITE)*/ {
+      result = ::select(fd() + 1, nullptr, &selected, nullptr, &tv);
+    }
+
+    if (result < 0) {
+      err::code = err::LIB_SYS;
+
+      if(fd() <= 0) {
+        err::code = err::code_t::FILE_CLOSED;
+      }
+
+      return -1;
+    }
+
+    else if (result == 0) {
+      err::code = err::TIMEOUT;
+      return -1;
+    }
+  }
+
+  return err::OK;
+}
 }
 }

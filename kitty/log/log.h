@@ -74,6 +74,10 @@ public:
     _stream.seal();
   }
 
+  int select(std::chrono::milliseconds to, const int mode) {
+    return _stream.select(to, mode);
+  }
+
   int fd() const {
     return _stream.fd();
   }

@@ -74,7 +74,7 @@ class AutoRun<void> {
   std::mutex _lock;
 public:
   AutoRun() : _is_running(false) {}
-  
+
   
   template<class Start, class Middle, class End>
   void run(Start &&start, Middle &&middle, End &&end) {

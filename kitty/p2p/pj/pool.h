@@ -16,6 +16,10 @@ namespace p2p::pj {
 // TODO :: Configure [TURN]
 class Pool {
 public:
+  using on_data_f       = ICETrans::on_data_f;
+  using on_ice_create_f = ICETrans::on_ice_create_f;
+  using on_connect_f    = ICETrans::on_connect_f;
+
   Pool() = default;
   Pool(const char *name);
 
@@ -25,9 +29,9 @@ public:
 
   void set_stun(ip_addr_t ip_addr);
 
-  ICETrans ice_trans(std::function<void(ICECall, std::string_view)> &&on_data_recv,
-                     std::function<void(ICECall, status_t)> &&on_ice_init,
-                     std::function<void(ICECall, status_t)> &&on_call_connect);
+  ICETrans ice_trans(on_data_f &&on_data_recv,
+                     on_ice_create_f &&on_ice_init,
+                     on_connect_f &&on_call_connect);
 
 
 private:

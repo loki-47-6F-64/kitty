@@ -98,6 +98,7 @@ private:
 
 class ICECall {
 public:
+  ICECall() = default;
   ICECall(ice_trans_t::pointer ice_trans, ip_addr_t ip_addr);
 
   status_t init_ice(ice_sess_role_t role = ice_sess_role_t::PJ_ICE_SESS_ROLE_CONTROLLED);
@@ -128,11 +129,11 @@ private:
 
 class ICETrans {
 public:
-  using func_t = std::unique_ptr<std::tuple<
-    std::function<void(ICECall, std::string_view)>,
-    std::function<void(ICECall, status_t)>,
-    std::function<void(ICECall, status_t)>>
-  >;
+  using on_data_f       = std::function<void(ICECall, std::string_view)>;
+  using on_ice_create_f = std::function<void(ICECall, status_t)>;
+  using on_connect_f    = std::function<void(ICECall, status_t)>;
+
+  using func_t = std::unique_ptr<std::tuple<on_data_f, on_ice_create_f, on_connect_f>>;
 
   ICETrans() = default;
 

@@ -16,14 +16,15 @@ public:
   io(io &&) noexcept;
   io& operator =(io&& stream) noexcept;
 
-  int read(std::vector<unsigned char>& buf);
-  int write(const std::vector<unsigned char> &buf);
+  int read(std::vector<std::uint8_t>& buf);
+  int write(const std::vector<std::uint8_t> &buf);
 
   bool is_open() const;
   bool eof() const;
 
   void seal();
 
+  int select(std::chrono::milliseconds to, int read) const;
   int fd() const;
 };
 }

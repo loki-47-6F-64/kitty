@@ -18,6 +18,8 @@
 #include <kitty/util/template_helper.h>
 
 namespace file {
+static constexpr int READ = 0, WRITE = 1;
+
 template<class T>
 struct raw_t {
   using value_type = T;
@@ -45,24 +47,23 @@ class FD { /* File descriptor */
   // Change of cacheSize only affects next load
   static constexpr std::vector<uint8_t>::size_type _cacheSize = 1024;
   
-  duration_t _millisec;
+  duration_t _timeout;
   
 
   buffer_t _in;
   buffer_t _out;
 
-  static constexpr int READ = 0, WRITE = 1;
 public:
   FD(FD && other) noexcept : _in(std::move(other._in)), _out(std::move(other._out)) {
     _stream = std::move(other._stream);
-    _millisec = other._millisec;
+    _timeout = other._timeout;
   }
 
   FD& operator=(FD && other) noexcept {
     std::swap(_stream, other._stream);
     std::swap(_in, other._in);
     std::swap(_out, other._out);
-    std::swap(_millisec, other._millisec);
+    std::swap(_timeout, other._timeout);
     
     return *this;
   }
@@ -71,7 +72,7 @@ public:
 
   template<class T1, class T2, class... Args>
   FD(std::chrono::duration<T1,T2> duration, Args && ... params)
-  : _stream(std::forward<Args>(params)...), _millisec(std::chrono::duration_cast<duration_t>(duration)), _in { {}, 0 }, _out { {}, 0 } {}
+  : _stream(std::forward<Args>(params)...), _timeout(std::chrono::duration_cast<duration_t>(duration)), _in { {}, 0 }, _out { {}, 0 } {}
 
   ~FD() noexcept { seal(); }
 
@@ -219,41 +220,8 @@ public:
   }
 
 private:
-  int _select(const int read) {
-    if(_millisec.count() > 0) {
-      auto dur_micro = (suseconds_t)std::chrono::duration_cast<std::chrono::microseconds>(_millisec).count();
-      timeval tv {
-        0,
-        dur_micro
-      };
-
-      fd_set selected;
-
-      FD_ZERO(&selected);
-      FD_SET(_stream.fd(), &selected);
-
-      int result;
-      if (read == READ) {
-        result = select(_stream.fd() + 1, &selected, nullptr, nullptr, &tv);
-      }
-      else /*if (read == WRITE)*/ {
-        result = select(_stream.fd() + 1, nullptr, &selected, nullptr, &tv);
-      }
-
-      if (result < 0) {
-        err::code = err::LIB_SYS;
-        
-        if(_stream.fd() <= 0) err::set("FUCK THIS SHIT!");
-        return -1;
-      }
-
-      else if (result == 0) {
-        err::code = err::TIMEOUT;
-        return -1;
-      }
-    }
-
-    return err::OK;
+  int _select(const int mode) {
+    return _stream.select(_timeout, mode);
   }
 
   // Load file into cache.data(), replaces old cache.data()
