@@ -3,6 +3,7 @@
 
 #include <poll.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 #include <unistd.h>
 
 #include <vector>
@@ -18,66 +19,38 @@
 
 #include <kitty/log/log.h>
 #include <kitty/err/err.h>
+
 namespace server {
-
-
-template<typename>
-struct DefaultType {
-  typedef char Type[0];
-};
+util::ThreadPool &tasks();
 
 template<class T>
 class Server {
 public:
-  typedef T Client;
-  typedef typename Client::_sockaddr _sockaddr;
-  typedef typename DefaultType<Client>::Type Member;
+  using client_t  = T;
+  using member_t = typename client_t::member_t;
 
 private:
-  pollfd _listenfd;
-
-  util::ThreadPool _task;
-  
   util::AutoRun<void> _autoRun;
 
-  Member _member;
+  member_t _member;
 public:
-
-  Server() : _task(1) {
-    static_assert(sizeof(Member) == 0, "Default constructor cannot be used when DefaultType is overriden");
-  }
-
-  Server(Member&& member) : _task(1), _member(std::move(member)) { }
+  template<class... Args>
+  Server(Args&& ...args) : _member { std::forward<Args>(args)... } { }
 
   ~Server() { stop(); }
-  
+
+  /*
+   * 1 -- listen
+   * 2 -- poll
+   * 3 -- accept
+   * 4 -- cleanup
+   */
+
   // Returns -1 on failure
-  int start(const _sockaddr &server, std::function<void(Client &&)> f) {
-    pollfd pfd {
-      _socket(),
-      POLLIN,
-      0
-    };
-
-    if(pfd.fd == -1) {
-      err::code = err::LIB_SYS;
+  int start(std::function<void(client_t &&)> f) {
+    if(_init_listen()) {
       return -1;
     }
-
-    // Allow reuse of local addresses
-    if(setsockopt(pfd.fd, SOL_SOCKET, SO_REUSEADDR, &pfd.fd, sizeof(pfd.fd))) {
-      err::code = err::LIB_SYS;
-      return -1;
-    }
-
-    if(bind(pfd.fd, (const sockaddr *) &server, sizeof(server)) < 0) {
-      err::code = err::LIB_SYS;
-      return -1;
-    }
-
-    listen(pfd.fd, 1);
-
-    _listenfd = pfd;
 
     return _listen(f);
   }
@@ -89,34 +62,30 @@ public:
 
 private:
 
-  int _listen(std::function<void(Client &&)> _action) {
+  int _listen(std::function<void(client_t &&)> _action) {
     int result = 0;
 
     
     _autoRun.run([&]() {
-      if((result = poll(&_listenfd, 1, 100)) > 0) {
-        if(_listenfd.revents == POLLIN) {
-          DEBUG_LOG("Accepting client");
+      result = _poll();
 
-          auto client = _accept();
-          if(client) {
-            auto c = util::cmove(*client);
-            _task.push([_action, c]() mutable {
-              _action(c);
-            });
-          }
+      if(result > 0) {
+        DEBUG_LOG("Accepting client");
+
+        auto client = _accept();
+        if(client) {
+          auto c = util::cmove(*client);
+          tasks().push([_action, c]() mutable {
+            _action(c);
+          });
         }
       }
-      else if(result == -1) {
-        err::code = err::LIB_SYS;
+      else if(result < 0) {
         print(error, "Cannot poll socket: ", err::current());
 
         _autoRun.stop();
       }
     });
-
-    // Cleanup
-    close(_listenfd.fd);
     
     if(result == -1) {
       return -1;
@@ -128,10 +97,46 @@ private:
   /*
    * User defined methods
    */
-  util::Optional<Client> _accept();
 
-  // Generate socket
-  int _socket();
+  /**
+   * Perform necessary instructions to setup listening
+   * @return result < 0 on failure
+   */
+  int _init_listen();
+
+  /**
+   * Poll for incoming client
+   * @return
+   *    result <  0 on failure
+   *    result == 0 on timeout
+   *    result >  0 on success
+   */
+  int _poll();
+  /**
+   * Perform necessary instructions to accept/decline
+   * @return a client on success
+   */
+  std::optional<client_t> _accept();
+
+  /**
+   * Perform instructions to close the server
+   */
+  void _cleanup();
 };
+
+struct tcp_client_t {
+  struct member_t {
+    member_t(const sockaddr_in6 &sockaddr) : sockaddr { sockaddr } {}
+
+    sockaddr_in6 sockaddr;
+
+    pollfd listenfd {};
+  };
+
+  std::unique_ptr<file::io> socket;
+  std::string ip_addr;
+};
+
+typedef Server<tcp_client_t> tcp;
 }
 #endif

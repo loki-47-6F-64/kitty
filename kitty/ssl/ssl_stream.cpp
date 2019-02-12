@@ -17,7 +17,7 @@ ssl::ssl(Context &ctx, int fd) : _eof(false), _ssl(SSL_new(ctx.get())) {
   SSL_set_fd(_ssl.get(), fd);
 }
 
-ssl& ssl::operator=(ssl&& stream) {
+ssl& ssl::operator=(ssl&& stream) noexcept {
   std::swap(_eof,stream._eof);
   
   _ssl = std::move(stream._ssl);
@@ -66,7 +66,7 @@ void ssl::seal() {
     ::close(_fd);
 }
 
-int ssl::fd() {
+int ssl::fd() const {
   return SSL_get_fd(_ssl.get());
 }
 

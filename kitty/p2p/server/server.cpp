@@ -6,8 +6,6 @@
 #include <random>
 
 #include <kitty/server/server.h>
-#include <kitty/server/tcp_client.h>
-
 #include <kitty/log/log.h>
 #include <kitty/p2p/uuid.h>
 #include <kitty/p2p/server/quest.h>
@@ -17,7 +15,7 @@
 using namespace std::chrono_literals;
 namespace p2p::server {
 
-void accept_client(::server::tcp::Client &&client) {
+void accept_client(::server::tcp::client_t &&client) {
   print(debug, "Accepted client :: ", client.ip_addr);
 
   auto uuid = util::endian::little(file::read_struct<uuid_t>(*client.socket));
@@ -43,13 +41,12 @@ int main(int args, char *argv[]) {
     port = (std::uint16_t) std::stoul(argv[1], &_, 10);
   }
 
-  server::tcp server;
-
-  server::tcp::Client::_sockaddr sockaddr { 0 };
+  sockaddr_in6 sockaddr { };
 
   sockaddr.sin6_family = AF_INET6;
   sockaddr.sin6_port = htons(port);
 
+  server::tcp server { sockaddr };
   util::AutoRun<void> auto_run;
 
   std::thread worker_thread([&]() {
@@ -58,5 +55,5 @@ int main(int args, char *argv[]) {
     });
   });
 
-  return server.start(sockaddr, p2p::server::accept_client);
+  return server.start(p2p::server::accept_client);
 }

@@ -116,18 +116,18 @@ std::vector<uint8_t> slice_data(std::vector<uint8_t> && data, uint16_t mtu, uint
   return data;
 }
 
-std::vector<uint8_t> Profile::_readByGroup(server::BlueClient &client) const {
+std::vector<uint8_t> Profile::_readByGroup(server::blue_client_t &client) const {
   DEBUG_LOG("Executing ReadByGroup request.");
 
   std::vector<uint8_t> response;
 
-  auto request = util::read_struct<ReadByGroupReq>(*client.socket);
+  auto request = file::read_struct<ReadByGroupReq>(*client.socket);
 
   if (!request) {
     return response;
   }
 
-  ReadByGroupReq &req = request;
+  ReadByGroupReq &req = *request;
 
   if (req.uuid != GATT_PRIM_SVC_UUID) {
     return parseError(ATT_OP_READ_BY_GROUP_REQ, req.startHandle, ATT_ECODE_UNSUPP_GRP_TYPE);
@@ -175,34 +175,34 @@ found_service:
   return response;
 }
 
-std::vector<uint8_t> Profile::_findByType(server::BlueClient &client) const {
+std::vector<uint8_t> Profile::_findByType(server::blue_client_t &client) const {
   DEBUG_LOG("Executing FindByType request.");
 
   std::vector<uint8_t> response;
-  auto request = util::read_struct<FindByTypeReq>(*client.socket);
+  auto request = file::read_struct<FindByTypeReq>(*client.socket);
 
   if (!request) {
     return response;
   }
 
-  FindByTypeReq &req = request;
+  FindByTypeReq &req = *request;
   if (req.type_uuid != GATT_PRIM_SVC_UUID) {
     return parseError(ATT_OP_FIND_BY_TYPE_REQ, req.startHandle, ATT_ECODE_ATTR_NOT_FOUND);
   }
 
   Uuid uuid;
   // The rest of the request should already be cached
-  if (client.socket->getCache().size() == sizeof(FindByTypeReq) + 2 + 1) {
+  if (client.socket->get_read_cache().size() == sizeof(FindByTypeReq) + 2 + 1) {
     uuid.type = Uuid::BT_UUID16;
-    uuid.value.u16 = util::read_struct<decltype(uuid.value.u16)>(*client.socket);
+    uuid.value.u16 = *file::read_struct<decltype(uuid.value.u16)>(*client.socket);
   }
   else {
     uuid.type = Uuid::BT_UUID128;
-    uuid.value.u128 = util::read_struct<decltype(uuid.value.u128)>(*client.socket);
+    uuid.value.u128 = *file::read_struct<decltype(uuid.value.u128)>(*client.socket);
   }
 
   std::vector<std::pair<uint16_t, uint16_t>> handles;
-  for (uint x = req.startHandle - 1; x < req.endHandle && x < _handles.size(); ++x) {
+  for (int x = req.startHandle - 1; x < req.endHandle && x < _handles.size(); ++x) {
     Service *const service = _handles[x].service;
     if (_handles[x].type == Handle::SERVICE && !uuid.compare(service->uuid)) {
       handles.emplace_back(service->startHandle, service->endHandle);
@@ -229,7 +229,7 @@ std::vector<uint8_t> Profile::_findByType(server::BlueClient &client) const {
   return response;
 }
 
-std::vector<uint8_t> Profile::_readByTypeMeta(server::BlueClient &client, bt::ReadByTypeReq &req) const {
+std::vector<uint8_t> Profile::_readByTypeMeta(server::blue_client_t &client, bt::ReadByTypeReq &req) const {
   std::vector<uint8_t> response;
   uint x;
   for (x = req.startHandle - 1; x < req.endHandle && x < _handles.size(); ++x) {
@@ -275,27 +275,27 @@ found_service:
   return response;
 }
 
-std::vector<uint8_t> Profile::_readByType(server::BlueClient &client) const {
+std::vector<uint8_t> Profile::_readByType(server::blue_client_t &client) const {
   DEBUG_LOG("Executing ReadByType request.");
 
   std::vector<uint8_t> response;
-  auto request = util::read_struct<ReadByTypeReq>(*client.socket);
+  auto request = file::read_struct<ReadByTypeReq>(*client.socket);
 
   if (!request) {
     return response;
   }
 
-  ReadByTypeReq &req = request;
+  ReadByTypeReq &req = *request;
 
   Uuid uuid;
   // The rest of the request should already be cached
-  if (client.socket->getCache().size() == sizeof(ReadByTypeReq) + 2 + 1) {
+  if (client.socket->get_read_cache().size() == sizeof(ReadByTypeReq) + 2 + 1) {
     uuid.type = Uuid::BT_UUID16;
-    uuid.value.u16 = util::read_struct<decltype(uuid.value.u16)>(*client.socket);
+    uuid.value.u16 = *file::read_struct<decltype(uuid.value.u16)>(*client.socket);
   }
   else {
     uuid.type = Uuid::BT_UUID128;
-    uuid.value.u128 = util::read_struct<decltype(uuid.value.u128)>(*client.socket);
+    uuid.value.u128 = *file::read_struct<decltype(uuid.value.u128)>(*client.socket);
   }
 
 
@@ -325,7 +325,7 @@ std::vector<uint8_t> Profile::_readByType(server::BlueClient &client) const {
       Characteristic &characteristic = *_handles[x].characteristic;
 
       if (characteristic.secureRead() &&
-          client.security < server::BlueClient::MEDIUM) {
+          client.security < server::blue_client_t::MEDIUM) {
 
         return parseError(ATT_OP_READ_BY_TYPE_REQ, req.startHandle, ATT_ECODE_AUTHENTICATION);
       }
@@ -356,24 +356,24 @@ std::vector<uint8_t> Profile::_readByType(server::BlueClient &client) const {
   }
 }
 
-std::vector<uint8_t> Profile::_findInfo(server::BlueClient &client) const {
+std::vector<uint8_t> Profile::_findInfo(server::blue_client_t &client) const {
   DEBUG_LOG("Executing FindInfo request.");
 
   std::vector<uint8_t> response;
-  auto request = util::read_struct<FindInfoReq>(*client.socket);
+  auto request = file::read_struct<FindInfoReq>(*client.socket);
 
   if (!request) {
     return response;
   }
 
-  FindInfoReq &req = request;
+  FindInfoReq &req = *request;
 
   if (req.startHandle > _handles.size()) {
     return parseError(ATT_OP_FIND_INFO_REQ, req.startHandle, ATT_ECODE_ATTR_NOT_FOUND);
   }
 
   std::vector<Uuid> uuids;
-  for (uint x = req.startHandle - 1; x < req.endHandle && x < _handles.size(); ++x) {
+  for (int x = req.startHandle - 1; x < req.endHandle && x < _handles.size(); ++x) {
     switch (_handles[x].type) {
     case Handle::SERVICE:
       print(debug, "Found service");
@@ -395,13 +395,13 @@ std::vector<uint8_t> Profile::_findInfo(server::BlueClient &client) const {
   }
 
   const uint16_t type = uuids.front().type;
-  const uint8_t data_len = 2 + type / 8;
+  const uint8_t data_len = (uint8_t)2 + type / 8;
   const size_t max_data = (client.mtu - 2) / data_len;
 
   const size_t num_data = uuids.size() > max_data ? max_data : uuids.size();
 
   response.push_back(ATT_OP_FIND_INFO_RESP);
-  response.push_back(type == Uuid::BT_UUID16 ? 0x01 : 0x02);
+  response.push_back(type == (uint8_t)(Uuid::BT_UUID16 ? 0x01 : 0x02));
 
 
   for (uint x = 0; x < num_data; ++x) {
@@ -409,7 +409,7 @@ std::vector<uint8_t> Profile::_findInfo(server::BlueClient &client) const {
       break;
     }
 
-    const uint16_t handle = x + req.startHandle;
+    const uint16_t handle = (uint16_t)x + req.startHandle;
     util::append_struct(response, handle);
 
     if (type == Uuid::BT_UUID16) {
@@ -423,30 +423,30 @@ std::vector<uint8_t> Profile::_findInfo(server::BlueClient &client) const {
   return response;
 }
 
-std::vector<uint8_t> Profile::_read(server::BlueClient &client, uint8_t requestType) const {
+std::vector<uint8_t> Profile::_read(server::blue_client_t &client, uint8_t requestType) const {
   DEBUG_LOG("Executing read request.");
 
   std::vector<uint8_t> response;
 
-  auto request = util::read_struct<uint16_t>(*client.socket);
+  auto request = file::read_struct<uint16_t>(*client.socket);
   if (!request) {
     return response;
   }
 
 
-  uint16_t handle = request - 1;
+  uint16_t handle = *request - 1;
   if (handle >= _handles.size()) {
     return parseError(requestType, handle + 1, ATT_ECODE_INVALID_HANDLE);
   }
 
   uint16_t offset = 0;
   if (requestType == ATT_OP_READ_BLOB_REQ) {
-    auto optional_offset = util::read_struct<uint16_t>(*client.socket);
+    auto optional_offset = file::read_struct<uint16_t>(*client.socket);
     if (!optional_offset) {
       return response;
     }
 
-    offset = optional_offset;
+    offset = *optional_offset;
   }
 
   response.push_back(requestType == ATT_OP_READ_REQ ? ATT_OP_READ_RESP : ATT_OP_READ_BLOB_RESP);
@@ -510,7 +510,7 @@ std::vector<uint8_t> Profile::_read(server::BlueClient &client, uint8_t requestT
       return parseError(requestType, handle + 1, ATT_ECODE_READ_NOT_PERM);
     }
 
-    if (secure & READ && client.security < server::BlueClient::MEDIUM) {
+    if (secure & READ && client.security < server::blue_client_t::MEDIUM) {
       return parseError(requestType, handle + 1, ATT_ECODE_AUTHENTICATION);
     }
 
@@ -539,17 +539,18 @@ std::vector<uint8_t> Profile::_read(server::BlueClient &client, uint8_t requestT
   return response;
 }
 
-std::vector<uint8_t> Profile::_write(server::BlueClient &client, uint8_t requestType) const {
+std::vector<uint8_t> Profile::_write(server::blue_client_t &client, uint8_t requestType) const {
   DEBUG_LOG("Executing write request.");
 
   std::vector<uint8_t> response;
-  auto handle = util::read_struct<uint16_t>(*client.socket);
+  auto handle_opt = file::read_struct<uint16_t>(*client.socket);
 
   const bool noResponse = requestType == ATT_OP_WRITE_CMD;
-  if (!handle) {
+  if (!handle_opt) {
     return response;
   }
 
+  auto handle = *handle_opt;
   --handle;
   if (handle >= _handles.size()) {
     return parseError(requestType, handle, ATT_ECODE_INVALID_HANDLE);
@@ -582,13 +583,13 @@ std::vector<uint8_t> Profile::_write(server::BlueClient &client, uint8_t request
   }
 
   if (secure & (noResponse ? WRITE_WITHOUT_RESPONSE : WRITE) &&
-      client.security < server::BlueClient::MEDIUM
+      client.security < server::blue_client_t::MEDIUM
      ) {
 
     return parseError(requestType, handle, ATT_ECODE_AUTHENTICATION);
   }
 
-  std::vector<uint8_t> &cache = client.socket->getCache();
+  std::vector<uint8_t> &cache = client.socket->get_write_cache();
   int result = characteristic->writeCallback(
     { cache.cbegin() + sizeof(uint16_t) + 1, cache.cend() },
     client.session
@@ -605,10 +606,10 @@ std::vector<uint8_t> Profile::_write(server::BlueClient &client, uint8_t request
   return response;
 }
 
-std::vector<uint8_t> Profile::_mtu(server::BlueClient &client) const {
+std::vector<uint8_t> Profile::_mtu(server::blue_client_t &client) const {
   std::vector<uint8_t> response;
 
-  auto mtu = util::read_struct<uint16_t>(*client.socket);
+  auto mtu = file::read_struct<uint16_t>(*client.socket);
   if (!mtu) {
     return response;
   }
@@ -617,7 +618,7 @@ std::vector<uint8_t> Profile::_mtu(server::BlueClient &client) const {
     return parseError(ATT_OP_MTU_REQ, 0x0000, ATT_ECODE_REQ_NOT_SUPP);
   }
 
-  client.mtu = mtu;
+  client.mtu = *mtu;
 
   DEBUG_LOG("Exchange mtu: ", client.mtu);
 
@@ -652,7 +653,7 @@ void print_response(std::vector<uint8_t> &response) {
   DEBUG_LOG(resp_str);
 }
 
-int Profile::main(server::BlueClient &client) const {
+int Profile::main(server::blue_client_t &client) const {
   std::vector<uint8_t> response;
 
   while (!client.socket->eof()) {
@@ -666,7 +667,7 @@ int Profile::main(server::BlueClient &client) const {
       break;
     }
 
-    print_request(requestType, client.socket->getCache());
+    print_request(requestType, client.socket->get_read_cache());
     switch (requestType) {
     case ATT_OP_READ_BY_GROUP_REQ:
       response = _readByGroup(client);

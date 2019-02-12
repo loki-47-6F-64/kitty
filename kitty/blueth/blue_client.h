@@ -12,8 +12,13 @@
 
 namespace server {
 
-struct BlueClient {
-  typedef sockaddr_l2 _sockaddr;
+struct blue_client_t {
+  struct member_t {
+    sockaddr_l2 sockaddr;
+    bt::HCI *hci;
+
+    pollfd listenfd {};
+  };
 
   std::unique_ptr<file::blueth> socket;
   bt::device dev;
@@ -27,12 +32,7 @@ struct BlueClient {
   } security;
 };
 
-template<>
-struct DefaultType<BlueClient> {
-  typedef bt::HCI* Type;
-};
-
-typedef Server<BlueClient> bluetooth;
+typedef Server<blue_client_t> bluetooth;
 }
 
 #endif

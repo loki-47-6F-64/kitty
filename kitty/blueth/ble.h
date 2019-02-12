@@ -14,7 +14,7 @@
 #include <kitty/blueth/uuid.h>
 #include <kitty/util/optional.h>
 namespace server {
-  struct BlueClient;
+  struct blue_client_t;
 }
 namespace bt {
 struct Session {};
@@ -123,18 +123,18 @@ class Profile {
 public:
   Profile(std::vector<Service> && services);
 
-  int main(server::BlueClient &client) const;
+  int main(server::blue_client_t &client) const;
 
 private:
-  std::vector<uint8_t> _readByGroup(server::BlueClient &client) const;
-  std::vector<uint8_t> _readByType(server::BlueClient &client) const;
-  std::vector<uint8_t> _findByType(server::BlueClient &client) const;
-  std::vector<uint8_t> _findInfo(server::BlueClient &client) const;
-  std::vector<uint8_t> _read(server::BlueClient &client, uint8_t requestType) const;
-  std::vector<uint8_t> _write(server::BlueClient &client, uint8_t requestType) const;
-  std::vector<uint8_t> _mtu(server::BlueClient &client) const;
+  std::vector<uint8_t> _readByGroup(server::blue_client_t &client) const;
+  std::vector<uint8_t> _readByType(server::blue_client_t &client) const;
+  std::vector<uint8_t> _findByType(server::blue_client_t &client) const;
+  std::vector<uint8_t> _findInfo(server::blue_client_t &client) const;
+  std::vector<uint8_t> _read(server::blue_client_t &client, uint8_t requestType) const;
+  std::vector<uint8_t> _write(server::blue_client_t &client, uint8_t requestType) const;
+  std::vector<uint8_t> _mtu(server::blue_client_t &client) const;
 
-  std::vector<uint8_t> _readByTypeMeta(server::BlueClient &client, bt::ReadByTypeReq &req) const;
+  std::vector<uint8_t> _readByTypeMeta(server::blue_client_t &client, bt::ReadByTypeReq &req) const;
 };
 }
 
