@@ -3,34 +3,40 @@
 //
 
 #include <map>
+#include <thread>
+#include <chrono>
+#include <nlohmann/json.hpp>
+#include <kitty/util/auto_run.h>
 #include <kitty/file/io_stream.h>
 #include <kitty/util/utility.h>
+#include <kitty/file/tcp.h>
 #include <kitty/log/log.h>
-#include <kitty/p2p/quest.h>
+#include <kitty/p2p/p2p.h>
 #include <kitty/p2p/uuid.h>
 #include <kitty/p2p/pack.h>
-
-#include <nlohmann/json.hpp>
+#include <kitty/p2p/p2p.h>
 
 namespace p2p {
 using namespace std::string_literals;
+using namespace std::chrono_literals;
 
 void handle_quest(file::io &);
+struct {
+  file::io fd;
 
-config_t config {
-  { },
-  { },
-  { },
-  { },
-  { [](file::io &fd, std::monostate) {
+  std::map<uuid_t, std::shared_ptr<pj::ICETrans>> peers;
+  pj::Pool pool;
+
+  file::poll_t<file::io, std::monostate> poll { [](file::io &fd, std::monostate) {
     handle_quest(fd);
   }, [](file::io &, std::monostate) { }, [](file::io &fd, std::monostate) {
     print(info, "removing connection to the server");
 
     fd.seal();
-  }},
-  { uuid_t::generate() }
-};
+  }};
+} global;
+
+config_t config { };
 
 auto on_data = [](pj::ICECall call, std::string_view data) {
   print(debug, call.ip_addr.ip, ":", call.ip_addr.port, " [><] ", data);
@@ -49,7 +55,7 @@ auto on_call_connect = [](pj::ICECall call, pj::status_t status) {
 };
 
 std::shared_ptr<pj::ICETrans> peer(const uuid_t &uuid) {
-  auto &peers = config.peers;
+  auto &peers = global.peers;
 
   auto it = peers.find(uuid);
 
@@ -63,11 +69,11 @@ std::shared_ptr<pj::ICETrans> peer(const uuid_t &uuid) {
 
 template<class F>
 auto peer_create(const uuid_t &uuid, F &&func) {
-  auto &peers = config.peers;
+  auto &peers = global.peers;
 
   if(peers.size() < config.max_peers && peers.find(uuid) == std::end(peers)) {
     return !peers.emplace(uuid, std::make_shared<pj::ICETrans>(
-      config.pool.ice_trans(on_data, std::forward<F>(func), on_call_connect))).second;
+      global.pool.ice_trans(on_data, std::forward<F>(func), on_call_connect))).second;
   }
 
   err::code = err::code_t::OUT_OF_BOUNDS;
@@ -75,7 +81,7 @@ auto peer_create(const uuid_t &uuid, F &&func) {
 };
 
 auto peer_remove(const uuid_t &uuid) {
-  return config.peers.erase(uuid);
+  return global.peers.erase(uuid);
 }
 
 
@@ -203,61 +209,63 @@ void quest_invite(file::io &server, nlohmann::json &remote_j) {
   auto uuid = *util::from_hex<uuid_t>(remote_j["uuid"].get<std::string_view>());
 
 
-  auto failure = peer_create(uuid,
-                             [uuid, &server, remote_j = std::move(remote_j)](pj::ICECall call, pj::status_t status) {
-                               if(status != pj::success) {
-                                 print(error, "failed initialization");
+  auto failure = peer_create(
+    uuid,
+    [uuid, &server, remote_j = std::move(remote_j)](pj::ICECall call, pj::status_t status) {
+      if(status != pj::success) {
+        print(error, "failed initialization");
 
-                                 return;
-                               }
+        return;
+      }
 
-                               auto err = call.init_ice(pj::ice_sess_role_t::PJ_ICE_SESS_ROLE_CONTROLLED);
-                               if(err) {
-                                 print(error, "ice_trans->init_ice(): ", pj::err(err));
+      auto err = call.init_ice(pj::ice_sess_role_t::PJ_ICE_SESS_ROLE_CONTROLLED);
+      if(err) {
+        print(error, "ice_trans->init_ice(): ", pj::err(err));
 
-                                 return;
-                               }
+        return;
+      }
 
-                               auto candidates = call.get_candidates();
-                               if(candidates.empty()) {
-                                 print(error, "no candidates");
+      auto candidates = call.get_candidates();
+      if(candidates.empty()) {
+        print(error, "no candidates");
 
-                                 peer_remove(uuid);
-                                 return;
-                               }
+        peer_remove(uuid);
+        return;
+      }
 
-                               auto remote_j_send = pack_remote(pj::remote_t {
-                                 call.credentials(),
-                                 candidates
-                               });
+      auto remote_j_send = pack_remote(pj::remote_t {
+        call.credentials(),
+        candidates
+      });
 
-                               if(!remote_j_send) {
-                                 print(error, "no remote: ", err::current());
+      if(!remote_j_send) {
+        print(error, "no remote: ", err::current());
 
-                                 peer_remove(uuid);
-                                 return;
-                               }
+        peer_remove(uuid);
+        return;
+      }
 
-                               // pack accept
-                               nlohmann::json accept;
-                               accept["quest"] = "accept";
-                               accept["uuid"] = remote_j["uuid"];
-                               accept["remote"] = *remote_j_send;
+      // pack accept
+      nlohmann::json accept;
+      accept["quest"] = "accept";
+      accept["uuid"] = remote_j["uuid"];
+      accept["remote"] = *remote_j_send;
 
-                               auto accept_str = accept.dump();
-                               print(server, file::raw(util::endian::little((std::uint16_t) accept_str.size())),
-                                     accept_str);
+      auto accept_str = accept.dump();
+      print(server, file::raw(util::endian::little((std::uint16_t) accept_str.size())),
+        accept_str);
 
-                               auto remote = unpack_remote(remote_j["remote"]);
-                               if(!remote) {
-                                 peer_remove(uuid);
-                                 print(error, "unpacking remote candidates: ", err::current());
+      auto remote = unpack_remote(remote_j["remote"]);
+      if(!remote) {
+        peer_remove(uuid);
+        print(error, "unpacking remote candidates: ", err::current());
 
-                                 return;
-                               }
+        return;
+      }
 
-                               call.start_ice(*remote);
-                             });
+      call.start_ice(*remote);
+    });
+
   if(failure) {
     print(error, "Could not find a transport for peer[", util::hex(uuid), "] :: ", err::current());
     quest_error(server,
@@ -306,6 +314,62 @@ void handle_quest(file::io &server) {
 
     return;
   }
+}
+
+int init() {
+  if(config.uuid == uuid_t {}) {
+    config.uuid = uuid_t::generate();
+  }
+
+  pj::init(config.log_file);
+
+  auto &pool = global.pool;
+  print(info, config.server_addr.ip, ':', config.server_addr.port);
+
+  pool = p2p::pj::Pool { "Loki-ICE" };
+  pool.dns_resolv().set_ns(config.dns);
+  pool.set_stun(config.stun_addr);
+
+  util::AutoRun<void> auto_run;
+
+  std::thread worker_thread([&auto_run]() {
+    auto thread_ptr = p2p::pj::register_thread();
+
+    auto_run.run([]() {
+
+      std::chrono::milliseconds max_tm { 500 };
+      std::chrono::milliseconds milli { 0 };
+
+      pool.timer_heap().poll(milli);
+
+      milli = std::min(milli, max_tm);
+
+      auto c = pool.io_queue().poll(milli);
+      if(c < 0) {
+        print(error, __FILE__, ": ", pj::err(pj::get_netos_err()));
+
+        std::abort();
+      }
+    });
+  });
+
+  auto &server = global.fd;
+  server = file::connect(config.server_addr);
+  if(!server.is_open()) {
+    return -1;
+  }
+
+  print(server, file::raw(util::endian::little(p2p::config.uuid)));
+  send_register(server);
+
+  global.poll.read(server, {});
+
+  while(true) {
+    auto s = 50ms;
+    global.poll.poll(s);
+  }
+
+  return 0;
 }
 
 }

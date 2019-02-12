@@ -6,8 +6,11 @@
 
 #include <kitty/file/tcp.h>
 #include <kitty/err/err.h>
+#include "tcp.h"
+
 
 namespace file {
+constexpr auto MAX_HOSTNAME_LEN = 1023;
 io connect(const char *hostname, const char *port) {
   constexpr std::chrono::seconds timeout { 0 };
   
@@ -16,7 +19,7 @@ io connect(const char *hostname, const char *port) {
 
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
-  
+
   if(int err = getaddrinfo(hostname, port, &hints, &server)) {
     err::set(gai_strerror(err));
     return {};
@@ -34,5 +37,20 @@ io connect(const char *hostname, const char *port) {
   freeaddrinfo(server);
   
   return sock;
+}
+
+io file::connect(const ip_addr_t &ip_addr) {
+  char port[std::numeric_limits<std::uint16_t>::digits10 +2];
+  char addr[MAX_HOSTNAME_LEN +1];
+
+  std::sprintf(port, "%hu", ip_addr.port);
+  if(ip_addr.ip.size() >= MAX_HOSTNAME_LEN) {
+    return io { };
+  }
+
+  addr[ip_addr.ip.size()] = '\0';
+  ip_addr.ip.copy(addr, ip_addr.ip.size());
+
+  return connect(addr, port);
 }
 }

@@ -64,7 +64,7 @@ std::optional<pj::ice_sess_cand_t> unpack_candidate(const nlohmann::json &candid
 
   const auto &ip = candidate["ip"];
   auto addr = ip[0].get<std::string>();
-  auto port = ip[1].get<std::uint32_t>();
+  auto port = ip[1].get<std::uint16_t>();
   cand.addr = *pj::ip_addr_t {
     addr,
     port

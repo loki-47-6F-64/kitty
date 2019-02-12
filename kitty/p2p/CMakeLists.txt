@@ -1,7 +1,7 @@
 project(Kitty-P2P)
 
 add_library(kitty-p2p STATIC
-        pack.cpp pack.h quest.cpp quest.h
+        pack.cpp pack.h p2p.cpp p2p.h
         pj/dns_resolv.cpp pj/dns_resolv.h
         pj/ice_trans.cpp pj/ice_trans.h
         pj/io_queue.cpp pj/io_queue.h

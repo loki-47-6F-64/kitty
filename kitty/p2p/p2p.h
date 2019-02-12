@@ -13,26 +13,20 @@
 #include <kitty/p2p/uuid.h>
 
 namespace p2p {
-void send_register(file::io &server);
-
 struct config_t {
   constexpr static std::size_t MAX_PEERS = 1;
-  struct {
-    file::io fd;
-    const char *hostname = "192.168.0.115";
-    const char *port = "2345";
-  } server;
+
+  const char *log_file {};
+  pj::ip_addr_t server_addr { "192.168.0.115", 2345 };
+  pj::ip_addr_t stun_addr   { "stun.l.google.com", 19302 };
+  std::vector<std::string_view> dns { "8.8.8.8" };
 
   std::size_t max_peers = MAX_PEERS;
 
-  std::map<uuid_t, std::shared_ptr<pj::ICETrans>> peers;
-  pj::Pool pool;
-
-  file::poll_t<file::io, std::monostate> poll;
-
-  uuid_t uuid;
+  uuid_t uuid {};
 };
 extern config_t config;
 
+int init();
 }
 #endif //T_MAN_QUEST_H

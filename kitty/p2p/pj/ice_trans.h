@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 #include <functional>
+#include <kitty/file/tcp.h>
 #include <kitty/p2p/pj/nath.h>
 #include <pjnath.h>
 
@@ -22,10 +23,7 @@ using ice_sess_role_t   = pj_ice_sess_role;
 using ice_trans_op_t    = pj_ice_strans_op;
 using ice_trans_state_t = pj_ice_strans_state;
 
-struct ip_addr_t {
-  std::string_view ip;
-  std::uint32_t port;
-
+struct ip_addr_t : public file::ip_addr_t {
   std::optional<sockaddr> to_sockaddr();
   static ip_addr_t from_sockaddr_t(std::vector<char> &buf, const sockaddr_t* ip_addr);
 };
