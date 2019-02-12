@@ -5,13 +5,14 @@
 #ifndef T_MAN_QUEST_H
 #define T_MAN_QUEST_H
 
-#include "../../../../../../usr/include/c++/7/map"
-#include "../../../../../../usr/include/c++/7/variant"
-#include "../../kitty/kitty/file/io_stream.h"
-#include "../ice_trans.h"
-#include "../pool.h"
-#include "../uuid.h"
+#include <map>
+#include <variant>
+#include <kitty/file/io_stream.h>
+#include <kitty/p2p/pj/ice_trans.h>
+#include <kitty/p2p/pj/pool.h>
+#include <kitty/p2p/uuid.h>
 
+namespace p2p {
 void send_register(file::io &server);
 
 struct config_t {
@@ -33,4 +34,5 @@ struct config_t {
 };
 extern config_t config;
 
+}
 #endif //T_MAN_QUEST_H

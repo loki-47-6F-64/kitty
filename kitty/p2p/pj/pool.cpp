@@ -4,9 +4,9 @@
 
 #include <mutex>
 
-#include <kitty/pj/pool.h>
+#include <kitty/p2p/pj/pool.h>
 
-namespace pj {
+namespace p2p::pj {
 caching_pool_t caching_pool;
 pj_caching_pool caching_pool_raw;
 

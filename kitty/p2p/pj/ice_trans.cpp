@@ -4,9 +4,9 @@
 
 #include <kitty/err/err.h>
 #include <kitty/log/log.h>
-#include <kitty/pj/ice_trans.h>
+#include <kitty/p2p/pj/ice_trans.h>
 
-namespace pj {
+namespace p2p::pj {
 
 auto constexpr INET6_ADDR_STRING_LEN = PJ_INET6_ADDRSTRLEN;
 auto constexpr ICE_MAX_CAND          = PJ_ICE_MAX_CAND;

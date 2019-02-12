@@ -7,11 +7,11 @@
 
 #include <map>
 #include <kitty/file/io_stream.h>
-#include <kitty/pj/uuid.h>
+#include <kitty/p2p/uuid.h>
 
+namespace p2p::server {
 void handle_quest(file::io &client, uuid_t uuid);
-
 std::map<uuid_t, file::io> &peers();
 file::poll_t<file::io, uuid_t> &poll();
-
+}
 #endif //T_MAN_QUEST_H

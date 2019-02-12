@@ -17,7 +17,7 @@
 
 #include <kitty/util/utility.h>
 
-namespace pj {
+namespace p2p::pj {
 
 auto constexpr success = PJ_SUCCESS;
 auto constexpr True    = PJ_TRUE;
@@ -53,8 +53,12 @@ struct thread_t {
   thread_ptr thread;
 };
 
-status_t init(util::Optional<std::string_view> logFile);
+status_t init(const char *log_file);
 
+/**
+ * register your thread before using pj
+ * @return thread handle
+ */
 thread_t register_thread();
 
 str_t string(const std::string_view &str);

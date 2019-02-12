@@ -5,10 +5,10 @@
 #ifndef T_MAN_IOQUEUE_H
 #define T_MAN_IOQUEUE_H
 
-#include <kitty/pj/nath.h>
-#include <kitty/pj/ice_trans.h>
+#include <kitty/p2p/pj/nath.h>
+#include <kitty/p2p/pj/ice_trans.h>
 
-namespace pj {
+namespace p2p::pj {
 class IOQueue {
 public:
   IOQueue() = default;

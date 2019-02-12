@@ -5,13 +5,13 @@
 #ifndef T_MAN_POOL_H
 #define T_MAN_POOL_H
 
-#include <kitty/pj/nath.h>
-#include <kitty/pj/timer_heap.h>
-#include <kitty/pj/io_queue.h>
-#include <kitty/pj/ice_trans.h>
-#include <kitty/pj/dns_resolv.h>
+#include <kitty/p2p/pj/nath.h>
+#include <kitty/p2p/pj/timer_heap.h>
+#include <kitty/p2p/pj/io_queue.h>
+#include <kitty/p2p/pj/ice_trans.h>
+#include <kitty/p2p/pj/dns_resolv.h>
 
-namespace pj {
+namespace p2p::pj {
 
 // TODO :: Configure [TURN]
 class Pool {

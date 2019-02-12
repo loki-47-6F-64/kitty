@@ -91,7 +91,7 @@ endif()
 
 if(KITTY_BUILD_P2P)
   set(KITTY_LIBRARIES ${KITTY_LIBRARIES} kitty-p2p)
-  add_subdirectory(kitty/pj)
+  add_subdirectory(kitty/p2p)
 endif()
 
 set(KITTY_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR} KITTY_INCLUDE_DIR)

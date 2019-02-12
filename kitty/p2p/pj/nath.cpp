@@ -4,13 +4,13 @@
 
 #include <string>
 #include <array>
+#include <optional>
 
-#include <kitty/pj/nath.h>
-#include <kitty/pj/pool.h>
-#include <kitty/util/optional.h>
 #include <kitty/log/log.h>
+#include <kitty/p2p/pj/nath.h>
+#include <kitty/p2p/pj/pool.h>
 
-namespace pj {
+namespace p2p::pj {
 
 // The application pool
 Pool pool;
@@ -57,13 +57,13 @@ thread_t register_thread() {
   };
 }
 
-status_t init(util::Optional<std::string_view> logFile) {
+status_t init(const char *log_file) {
   pj_log_set_level(2);
-  if(logFile) {
-    pj_log_set_log_func(&pj_log_write);
-  }
-
   pj_log_set_log_func(&log_func);
+
+  if(log_file) {
+    file::log_open(log_file);
+  }
 
   if(auto status = pj_init()) {
     return status;
@@ -76,6 +76,7 @@ status_t init(util::Optional<std::string_view> logFile) {
   if(auto status = pjnath_init()) {
     return status;
   }
+
   return success;
 }
 

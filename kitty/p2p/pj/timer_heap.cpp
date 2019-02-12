@@ -3,9 +3,9 @@
 //
 
 #include <cassert>
-#include <kitty/pj/timer_heap.h>
+#include <kitty/p2p/pj/timer_heap.h>
 
-namespace pj {
+namespace p2p::pj {
 
 TimerHeap::TimerHeap(pool_t &pool, ice_trans_cfg_t &ice_trans) {
   pj_timer_heap_create(pool.get(), 100, &ice_trans.stun_cfg.timer_heap);

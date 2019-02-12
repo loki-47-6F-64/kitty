@@ -6,6 +6,7 @@
 
 #include "pack.h"
 
+namespace p2p {
 std::optional<nlohmann::json> pack_candidate(const pj::ice_sess_cand_t &cand) {
   nlohmann::json json;
 
@@ -45,14 +46,11 @@ std::optional<pj::ice_sess_cand_t> unpack_candidate(const nlohmann::json &candid
 
   if(type == "host") {
     cand.type = pj::ice_cand_type_t::PJ_ICE_CAND_TYPE_HOST;
-  }
-  else if(type == "srflx") {
+  } else if(type == "srflx") {
     cand.type = pj::ice_cand_type_t::PJ_ICE_CAND_TYPE_SRFLX;
-  }
-  else if(type == "relay") {
+  } else if(type == "relay") {
     cand.type = pj::ice_cand_type_t::PJ_ICE_CAND_TYPE_RELAYED;
-  }
-  else {
+  } else {
     err::set("invalid candidate type");
 
     return std::nullopt;
@@ -105,7 +103,7 @@ std::optional<nlohmann::json> pack_remote(const pj::remote_t &remote) {
   nlohmann::json json;
 
   auto &creds = remote.creds;
-  json["ufrag"]  = creds.ufrag;
+  json["ufrag"] = creds.ufrag;
   json["passwd"] = creds.passwd;
 
   auto &cand_json = json["candidates"];
@@ -146,4 +144,6 @@ std::optional<pj::remote_buf_t> unpack_remote(const nlohmann::json &json) {
     },
     std::move(*candidates)
   };
+}
+
 }

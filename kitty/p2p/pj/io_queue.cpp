@@ -2,9 +2,9 @@
 // Created by loki on 25-1-19.
 //
 
-#include <kitty/pj/io_queue.h>
+#include <kitty/p2p/pj/io_queue.h>
 
-namespace pj {
+namespace p2p::pj {
 
 constexpr auto IOQUEUE_MAX_HANDLES = 16 > PJ_IOQUEUE_MAX_HANDLES ? PJ_IOQUEUE_MAX_HANDLES : 16;
 

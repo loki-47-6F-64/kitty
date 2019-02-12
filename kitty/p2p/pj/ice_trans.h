@@ -8,11 +8,10 @@
 #include <memory>
 #include <optional>
 #include <functional>
-
-#include <kitty/pj/nath.h>
+#include <kitty/p2p/pj/nath.h>
 #include <pjnath.h>
 
-namespace pj {
+namespace p2p::pj {
 
 using sockaddr_t = pj_sockaddr_t;
 using sockaddr   = pj_sockaddr;

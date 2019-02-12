@@ -9,6 +9,7 @@
 #include "nlohmann/json.hpp"
 #include "quest.h"
 
+namespace p2p::server {
 std::map<uuid_t, file::io> &peers() {
   static std::map<uuid_t, file::io> peers;
 
@@ -18,7 +19,7 @@ std::map<uuid_t, file::io> &peers() {
 file::poll_t<file::io, uuid_t> &poll() {
   static file::poll_t<file::io, uuid_t> poll([](file::io &fd, uuid_t uuid) {
     handle_quest(fd, uuid);
-  }, [](file::io&,uuid_t){}, [](file::io& fd, uuid_t uuid) {
+  }, [](file::io &, uuid_t) { }, [](file::io &fd, uuid_t uuid) {
     print(info, "removing uuid: ", util::hex(uuid));
 
     peers().erase(uuid);
@@ -30,15 +31,15 @@ file::poll_t<file::io, uuid_t> &poll() {
 void quest_error(file::io &client, const std::string_view &error) {
   nlohmann::json json_error;
 
-  json_error["quest"]   = "error";
+  json_error["quest"] = "error";
 
   // the 0 uuid is for error messages from the server
-  json_error["uuid"]    = util::hex(uuid_t {{0}}).to_string_view();
+  json_error["uuid"] = util::hex(uuid_t {{ 0 }}).to_string_view();
   json_error["message"] = error;
 
   auto error_str = json_error.dump();
 
-  print(client, file::raw(util::endian::little((std::uint16_t)error_str.size())), error_str);
+  print(client, file::raw(util::endian::little((std::uint16_t) error_str.size())), error_str);
 }
 
 void quest_accept(file::io &client, const uuid_t &sender, nlohmann::json &remote) {
@@ -56,12 +57,12 @@ void quest_accept(file::io &client, const uuid_t &sender, nlohmann::json &remote
   }
 
   nlohmann::json accept;
-  accept["quest"]      = "accept";
-  accept["uuid"]       = util::hex(sender).to_string_view();
-  accept["remote"]     = remote["remote"];
+  accept["quest"] = "accept";
+  accept["uuid"] = util::hex(sender).to_string_view();
+  accept["remote"] = remote["remote"];
 
   auto accept_str = accept.dump();
-  print(recipient->second, file::raw(util::endian::little((std::uint16_t)accept_str.size())), accept_str);
+  print(recipient->second, file::raw(util::endian::little((std::uint16_t) accept_str.size())), accept_str);
 }
 
 void quest_invite(file::io &client, const uuid_t &sender, nlohmann::json &remote) {
@@ -79,12 +80,12 @@ void quest_invite(file::io &client, const uuid_t &sender, nlohmann::json &remote
   // pack invite
 
   nlohmann::json invite;
-  invite["quest"]      = "invite";
-  invite["uuid"]       = util::hex(sender).to_string_view();
+  invite["quest"] = "invite";
+  invite["uuid"] = util::hex(sender).to_string_view();
   invite["remote"] = remote["remote"];
 
   auto invite_str = invite.dump();
-  print(recipient->second, file::raw(util::endian::little((std::uint16_t)invite_str.size())), invite_str);
+  print(recipient->second, file::raw(util::endian::little((std::uint16_t) invite_str.size())), invite_str);
 }
 
 void handle_register(file::io &client, const uuid_t &sender, nlohmann::json &remote) {
@@ -93,13 +94,13 @@ void handle_register(file::io &client, const uuid_t &sender, nlohmann::json &rem
 
     poll().read(it.first->second, sender);
 
-    nlohmann::json peers_json = {};
-    for(auto &[uuid,_] : peers()) {
+    nlohmann::json peers_json = { };
+    for(auto &[uuid, _] : peers()) {
       peers_json += util::hex(uuid).to_string_view();
     }
 
     auto peers_str = peers_json.dump();
-    print(it.first->second, file::raw(util::endian::little((std::uint16_t)peers_str.size())), peers_str);
+    print(it.first->second, file::raw(util::endian::little((std::uint16_t) peers_str.size())), peers_str);
   }
 }
 
@@ -151,11 +152,12 @@ void handle_quest(file::io &client, uuid_t uuid) {
       peers().erase(uuid);
     }
 
-  } catch (const std::exception &e) {
+  } catch(const std::exception &e) {
     print(error, "json exception caught: ", e.what());
 
     poll().remove(client);
 
     return;
   }
+}
 }

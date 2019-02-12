@@ -5,10 +5,12 @@
 #ifndef T_MAN_UUID_H
 #define T_MAN_UUID_H
 
-#include <random>
+#include "random"
+
+namespace p2p {
 
 union uuid_t {
-  std::uint8_t  b8[16];
+  std::uint8_t b8[16];
   std::uint16_t b16[8];
   std::uint32_t b32[4];
   std::uint64_t b64[2];
@@ -21,8 +23,8 @@ union uuid_t {
       el = dist(engine);
     }
 
-    buf.b8[7] &= (std::uint8_t)0b00101111;
-    buf.b8[9] &= (std::uint8_t)0b10011111;
+    buf.b8[7] &= (std::uint8_t) 0b00101111;
+    buf.b8[9] &= (std::uint8_t) 0b10011111;
 
     return buf;
   }
@@ -35,13 +37,14 @@ union uuid_t {
     return generate(engine);
   }
 
-  const bool operator==(const uuid_t& other) const {
+  const bool operator==(const uuid_t &other) const {
     return b64[0] == other.b64[0] && b64[1] == other.b64[1];
   }
 
-  const bool operator<(const uuid_t& other) const {
-    return (b64[0] < other.b64[0] || (b64[0] == other.b64[0] && b64[1] < other.b64[1]) );
+  const bool operator<(const uuid_t &other) const {
+    return (b64[0] < other.b64[0] || (b64[0] == other.b64[0] && b64[1] < other.b64[1]));
   }
 };
 
+}
 #endif //T_MAN_UUID_H

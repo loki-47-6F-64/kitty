@@ -3,9 +3,9 @@
 //
 
 #include <kitty/util/set.h>
-#include <kitty/pj/dns_resolv.h>
+#include <kitty/p2p/pj/dns_resolv.h>
 
-namespace pj {
+namespace p2p::pj {
 
 DNSResolv::DNSResolv(pool_t &pool, TimerHeap &timer_heap, IOQueue &io_queue) {
   pj_dns_resolver *resolv;

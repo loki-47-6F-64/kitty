@@ -5,11 +5,11 @@
 #ifndef T_MAN_DNSRESOLV_H
 #define T_MAN_DNSRESOLV_H
 
-#include <kitty/pj/nath.h>
-#include <kitty/pj/io_queue.h>
-#include <kitty/pj/timer_heap.h>
+#include <kitty/p2p/pj/nath.h>
+#include <kitty/p2p/pj/io_queue.h>
+#include <kitty/p2p/pj/timer_heap.h>
 
-namespace pj {
+namespace p2p::pj {
 class DNSResolv {
 public:
   DNSResolv() = default;
