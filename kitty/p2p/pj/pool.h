@@ -21,7 +21,7 @@ public:
   using on_connect_f    = ICETrans::on_connect_f;
 
   Pool() = default;
-  Pool(const char *name);
+  Pool(caching_pool_t &caching_pool, const char *name);
 
   TimerHeap & timer_heap();
   IOQueue   & io_queue();
@@ -33,7 +33,10 @@ public:
                      on_ice_create_f &&on_ice_init,
                      on_connect_f &&on_call_connect);
 
-
+  /**
+   * Create a caching_pool_t
+   */
+  static caching_pool_t init_caching_pool();
 private:
   ice_trans_cfg_t _ice_cfg;
 

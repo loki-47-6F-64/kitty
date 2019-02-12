@@ -11,11 +11,6 @@
 #include <kitty/p2p/pj/pool.h>
 
 namespace p2p::pj {
-
-// The application pool
-Pool pool;
-
-
 // log callback to write to file
 static void log_func(int level, const char *data, int len) {
   std::string_view str { data, (std::size_t)len };

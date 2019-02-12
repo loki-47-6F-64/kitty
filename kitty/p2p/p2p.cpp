@@ -24,6 +24,8 @@ using namespace std::chrono_literals;
 
 void handle_quest(file::io &);
 struct {
+  pj::caching_pool_t caching_pool;
+
   file::io fd;
 
   std::map<uuid_t, std::shared_ptr<pj::ICETrans>> peers;
@@ -41,6 +43,8 @@ struct {
 } global;
 
 config_t config { };
+
+util::AutoRun<void> auto_run;
 
 auto on_data = [](pj::ICECall call, std::string_view data) {
   print(debug, call.ip_addr.ip, ":", call.ip_addr.port, " [><] ", data);
@@ -334,19 +338,19 @@ int init() {
   if(config.uuid == uuid_t {}) {
     config.uuid = uuid_t::generate();
   }
+  print(info, config.server_addr.ip, ':', config.server_addr.port);
 
   pj::init(config.log_file);
 
-  auto &pool = global.pool;
-  print(info, config.server_addr.ip, ':', config.server_addr.port);
 
-  pool = p2p::pj::Pool { "Loki-ICE" };
+  auto &pool = global.pool;
+
+  global.caching_pool = pj::Pool::init_caching_pool();
+  pool = p2p::pj::Pool { global.caching_pool, "Loki-ICE" };
   pool.dns_resolv().set_ns(config.dns);
   pool.set_stun(config.stun_addr);
 
   std::thread worker_thread([]() {
-    util::AutoRun<void> auto_run;
-
     auto thread_ptr = p2p::pj::register_thread();
 
     auto_run.run([]() {
@@ -370,6 +374,9 @@ int init() {
   auto &server = global.fd;
   server = file::connect(config.server_addr);
   if(!server.is_open()) {
+    auto_run.stop();
+    worker_thread.join();
+
     return -1;
   }
 

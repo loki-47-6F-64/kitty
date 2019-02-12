@@ -4,19 +4,15 @@
 
 #include <mutex>
 
+#include <atomic>
 #include <kitty/p2p/pj/pool.h>
+#include <kitty/log/log.h>
+
 
 namespace p2p::pj {
-caching_pool_t caching_pool;
-pj_caching_pool caching_pool_raw;
+pj_caching_pool raw;
 
-Pool::Pool(const char *name) {
-  std::once_flag flag;
-  std::call_once(flag, []() {
-    pj_caching_pool_init(&caching_pool_raw, nullptr, 0);
-    caching_pool.reset(&caching_pool_raw);
-  });
-
+Pool::Pool(caching_pool_t &caching_pool, const char *name) {
   pj_ice_strans_cfg_default(&_ice_cfg);
 
   _ice_cfg.turn_tp->conn_type = PJ_TURN_TP_TCP;
@@ -57,5 +53,19 @@ void Pool::set_stun(ip_addr_t ip_addr) {
   }
 
   _ice_cfg.stun.server = string(ip_addr.ip);
+}
+
+caching_pool_t Pool::init_caching_pool() {
+  static std::atomic<bool> called { false };
+
+  if(called.exchange(true)) {
+    print(error, "Pool::init_caching_pool() called more than once");
+
+    std::abort();
+  }
+
+  pj_caching_pool_init(&raw, nullptr, 0);
+
+  return caching_pool_t { &raw };
 }
 }

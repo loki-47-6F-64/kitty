@@ -33,6 +33,7 @@ using str_t           = pj_str_t;
 using time_val_t      = pj_time_val;
 using ice_sess_cand_t = pj_ice_sess_cand;
 using ice_cand_type_t = pj_ice_cand_type;
+using caching_pool_raw    = pj_caching_pool;
 
 using func_err_t = status_t (*)();
 extern func_err_t get_netos_err;
