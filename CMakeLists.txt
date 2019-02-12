@@ -19,7 +19,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-if(KITTY_BUILD_SSL OR KITTY_BUILD_BLUETOOTH)
+if(KITTY_BUILD_SSL OR KITTY_BUILD_BLUETOOTH OR KITTY_BUILD_P2P)
   if(NOT KITTY_BUILD_SERVER)
     message("Warning: Implicitly set(KITTY_BUILD_SERVER ON)")
   endif()
@@ -56,11 +56,17 @@ if(KITTY_BUILD_BLUETOOTH)
   find_package(Bluez)
 endif()
 
+if(KITTY_BUILD_P2P)
+  if(NOT DEFINED PJSIP_INCLUDE_DIRS OR NOT DEFINED PJSIP_LIBRARIES)
+    message(FATAL_ERROR "Please specify the root to pjsip -- \${PJSIP_INCLUDE_DIRS} and \${PJSIP_LIBRARIES}")
+  endif()
+endif()
 # set up include-directories
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${OPENSSL_INCLUDE_DIR}
   ${BLUEZ_INCLUDE_DIRS}
+  ${PJSIP_INCLUDE_DIRS}
 )
 
 add_subdirectory(kitty/err)
@@ -81,6 +87,11 @@ endif()
 if(KITTY_BUILD_BLUETOOTH)  
   set(KITTY_LIBRARIES ${KITTY_LIBRARIES} kitty-bluetooth)
   add_subdirectory(kitty/blueth)
+endif()
+
+if(KITTY_BUILD_P2P)
+  set(KITTY_LIBRARIES ${KITTY_LIBRARIES} kitty-p2p)
+  add_subdirectory(kitty/pj)
 endif()
 
 set(KITTY_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR} KITTY_INCLUDE_DIR)
