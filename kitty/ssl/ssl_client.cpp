@@ -5,14 +5,16 @@
 
 namespace server {
 template<>
-std::optional<ssl::client_t> ssl::_accept() {
+std::variant<err::code_t, ssl::client_t> ssl::_accept() {
   sockaddr_in6 client_addr {};
   socklen_t addr_size {sizeof (client_addr)};
 
   int client_fd = accept(_member.listenfd.fd, (sockaddr *) & client_addr, &addr_size);
 
   if (client_fd < 0) {
-    return std::nullopt;
+    err::code = err::LIB_SSL;
+
+    return err::code;
   }
 
   char ip_buf[INET6_ADDRSTRLEN];
@@ -21,7 +23,9 @@ std::optional<ssl::client_t> ssl::_accept() {
 
   file::ssl socket = ::ssl::accept(_member.ctx, client_fd);
   if(!socket.is_open()) {
-    return std::nullopt;
+    err::code = err::LIB_SYS;
+
+    return err::code;
   }
   
   return client_t {

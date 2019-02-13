@@ -7,7 +7,7 @@
 
 namespace server {
 template<>
-std::optional<bluetooth::client_t> bluetooth::_accept() {
+std::variant<err::code_t, bluetooth::client_t> bluetooth::_accept() {
   sockaddr_l2 client_addr {};
 
   socklen_t addr_size = sizeof(client_addr);
@@ -15,7 +15,9 @@ std::optional<bluetooth::client_t> bluetooth::_accept() {
   int client_fd = accept(_member.listenfd.fd, (sockaddr *) &client_addr, &addr_size);
 
   if (client_fd < 0) {
-    return {};
+    err::code = err::LIB_SYS;
+
+    return err::code;
   }
 
   auto dev = bt::device(client_addr.l2_bdaddr, 0);
