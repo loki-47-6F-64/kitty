@@ -102,8 +102,6 @@ public:
   }
   
   void join() {
-    stop();
-    
     std::lock_guard<std::mutex> lg(_lock);
   }
 

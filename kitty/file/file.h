@@ -80,7 +80,7 @@ public:
 
   // Write to file
   int out() {
-    if ((_select(WRITE))) {
+    if ((wait_for(WRITE))) {
       // Don't clear cache on timeout
       return -1;
     }
@@ -219,14 +219,19 @@ public:
     return err::OK;
   }
 
-private:
-  int _select(const int mode) {
+  /**
+   * Wait for READ/WRITE
+   * @param mode either READ or WRITE
+   * @return non-zero on timeout or error
+   */
+  int wait_for(const int mode) {
     return _stream.select(_timeout, mode);
   }
 
-  // Load file into cache.data(), replaces old cache.data()
+private:
+  // Load file into _in.cache.data(), replaces old _in.cache.data()
   int _load(std::vector<uint8_t>::size_type max_bytes) {
-    if(_select(READ)) {
+    if(wait_for(READ)) {
       return -1;
     }
     

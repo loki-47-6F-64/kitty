@@ -25,229 +25,73 @@ using namespace std::chrono_literals;
 void handle_quest(file::io &);
 struct {
   pj::caching_pool_t caching_pool;
-
-  file::io fd;
-
-  std::map<uuid_t, std::shared_ptr<pj::ICETrans>> peers;
-  std::vector<uuid_t> vec_peers;
-
-  pj::Pool pool;
-
-  file::poll_t<file::io, std::monostate> poll { [](file::io &fd, std::monostate) {
-    handle_quest(fd);
-  }, [](file::io &, std::monostate) { }, [](file::io &fd, std::monostate) {
-    print(info, "removing connection to the server");
-
-    fd.seal();
-  }};
 } global;
 
 config_t config { };
 
 util::AutoRun<void> auto_run;
 
-auto on_data = [](pj::ICECall call, std::string_view data) {
-  print(debug, call.ip_addr.ip, ":", call.ip_addr.port, " [><] ", data);
-};
-
-auto on_call_connect = [](pj::ICECall call, pj::status_t status) {
-  if(status != pj::success) {
-    print(error, "failed negotiation");
-
-    return;
+int init() {
+  if(config.uuid == uuid_t {}) {
+    config.uuid = uuid_t::generate();
   }
 
-  print(debug, "<<<<<<<<<<<<<<<<<<<<< sending data >>>>>>>>>>>>>>>>>>>>>>>");
-
-  call.send(util::toContainer("Hello peer!"));
-};
-
-std::shared_ptr<pj::ICETrans> peer(const uuid_t &uuid) {
-  auto &peers = global.peers;
-
-  auto it = peers.find(uuid);
-
-  if(it == std::end(peers)) {
-    err::code = err::code_t::OUT_OF_BOUNDS;
-    return nullptr;
-  }
-
-  return it->second;
+  pj::init(config.log_file);
+  global.caching_pool = pj::Pool::init_caching_pool();
+  return 0;
 }
 
-template<class F>
-auto peer_create(const uuid_t &uuid, F &&func) {
-  auto &peers = global.peers;
+file::p2p quest_t::_send_accept(uuid_t uuid, const pj::remote_buf_t &remote) {
+  std::mutex m;
 
-  if(peers.size() < config.max_peers && peers.find(uuid) == std::end(peers)) {
-    return !peers.emplace(uuid, std::make_shared<pj::ICETrans>(
-      global.pool.ice_trans(on_data, std::forward<F>(func), on_call_connect))).second;
-  }
+  bool p2p_fail = false;
+  std::condition_variable cv;
 
-  err::code = err::code_t::OUT_OF_BOUNDS;
-  return true;
-};
+  auto bridge = std::make_shared<file::stream::pipe_t>();
 
-bool peer_create(const uuid_t &uuid, pj::Pool::on_data_f &&on_data, pj::Pool::on_ice_create_f &&on_create, pj::Pool::on_connect_f &&on_connect) {
-  auto &peers = global.peers;
+  auto success = _peer_create(uuid,
 
-  if(peers.size() < config.max_peers && peers.find(uuid) == std::end(peers)) {
-    return !peers.emplace(uuid, std::make_shared<pj::ICETrans>(
-      global.pool.ice_trans(std::move(on_data), std::move(on_create), std::move(on_connect)))).second;
-  }
+    // TODO this function can be generalized in _peer_create
+    [bridge](pj::ICECall call, std::string_view data) {
+      bridge->push(data);
+    },
 
-  err::code = err::code_t::OUT_OF_BOUNDS;
-  return true;
-}
+    [&](pj::ICECall call, pj::status_t status) {
+      auto guard {
+        util::fail_guard([&]() {
+          p2p_fail = true;
 
-void peer_remove(const uuid_t &uuid) {
-  global.peers.erase(uuid);
-}
+          _peer_remove(uuid);
+          {
+            std::lock_guard<std::mutex> lg(m);
+            cv.notify_all();
+          }
 
-void quest_error(file::io &server, const std::string_view &error) {
-  nlohmann::json json_error;
+          return;
+        })
+      };
 
-  json_error["quest"] = "error";
-  json_error["uuid"] = util::hex(config.uuid).to_string_view();
-  json_error["message"] = error;
-
-  auto error_str = json_error.dump();
-
-  print(server, file::raw(util::endian::little((std::uint16_t) error_str.size())), error_str);
-}
-
-void send_invite(file::io &server, uuid_t uuid) {
-  auto ice_trans = peer(uuid);
-  if(!ice_trans) {
-    print(error, "Could not find a transport for peer[", util::hex(uuid), "] :: ", err::current());
-    return;
-  }
-
-  auto err = ice_trans->init_ice(pj::ice_sess_role_t::PJ_ICE_SESS_ROLE_CONTROLLING);
-  if(err) {
-    print(error, "ice_trans().init_ice(): ", pj::err(err));
-
-    peer_remove(uuid);
-    return;
-  }
-
-  auto candidates = ice_trans->get_candidates();
-  if(candidates.empty()) {
-    print(error, "No candidates");
-
-    peer_remove(uuid);
-    return;
-  }
-
-  auto remote_j = pack_remote({ ice_trans->credentials(), candidates });
-  if(!remote_j) {
-    print(error, "No remote: ", err::current());
-
-    peer_remove(uuid);
-    return;
-  }
-
-  nlohmann::json invite;
-  invite["quest"] = "invite";
-  invite["uuid"] = util::hex(uuid).to_string_view();
-  invite["remote"] = *remote_j;
-
-  auto invite_str = invite.dump();
-  print(server, file::raw(util::endian::little((std::uint16_t) invite_str.size())), invite_str);
-}
-
-void send_invite(uuid_t uuid) {
-  send_invite(global.fd, uuid);
-}
-
-void send_register(file::io &server) {
-  nlohmann::json register_;
-
-  register_["quest"] = "register";
-
-  auto register_str = register_.dump();
-
-  print(server, file::raw(util::endian::little((std::uint16_t) register_str.size())), register_str);
-  auto size = util::endian::little(file::read_struct<std::uint16_t>(server));
-  if(!size) {
-    print(error, "received no list of peers");
-    return;
-  }
-
-  auto peers_json = file::read_string(server, *size);
-  if(!peers_json) {
-    print(error, "received no list of peers");
-    return;
-  }
-
-  auto peers = unpack_peers(nlohmann::json::parse(*peers_json));
-
-  peers.erase(std::remove(std::begin(peers), std::end(peers), config.uuid), std::end(peers));
-
-  print(info, "received a list of ", peers.size(), " peers.");
-
-  global.vec_peers = std::move(peers);
-}
-
-std::optional<uuid_t> peer() {
-  if(global.vec_peers.empty()) {
-    return std::nullopt;
-  }
-
-  return global.vec_peers[0];
-}
-
-void quest_accept(file::io &server, nlohmann::json &remote_json) {
-  auto uuid = *util::from_hex<uuid_t>(remote_json["uuid"].get<std::string_view>());
-
-  auto ice_trans = peer(uuid);
-  if(!ice_trans) {
-    print(error, "Could not find a transport for peer[", util::hex(uuid), "] :: ", err::current());
-    quest_error(server,
-                "Could not find a transport for peer[" + util::hex(uuid).to_string() + "] :: " + err::current());
-
-    return;
-  }
-
-  auto remote = unpack_remote(remote_json["remote"]);
-  if(!remote) {
-    peer_remove(uuid);
-
-    print(error, "unpacking remote: ", err::current());
-    quest_error(server, "unpacking remote: "s + err::current());
-
-    return;
-  }
-
-  // Attempt connection
-  ice_trans->start_ice(*remote);
-}
-
-void quest_invite(file::io &server, nlohmann::json &remote_j) {
-  auto uuid = *util::from_hex<uuid_t>(remote_j["uuid"].get<std::string_view>());
-
-
-  auto failure = peer_create(
-    uuid,
-    [uuid, &server, remote_j = std::move(remote_j)](pj::ICECall call, pj::status_t status) {
       if(status != pj::success) {
-        print(error, "failed initialization");
+        err::set("failed initialization");
+
+
+
+        // TODO send decline
 
         return;
       }
 
       auto err = call.init_ice(pj::ice_sess_role_t::PJ_ICE_SESS_ROLE_CONTROLLED);
       if(err) {
-        print(error, "ice_trans->init_ice(): ", pj::err(err));
+        err::set("ice_trans->init_ice(): "s + pj::err(err));
 
         return;
       }
 
       auto candidates = call.get_candidates();
       if(candidates.empty()) {
-        print(error, "no candidates");
+        err::set("no candidates");
 
-        peer_remove(uuid);
         return;
       }
 
@@ -257,140 +101,449 @@ void quest_invite(file::io &server, nlohmann::json &remote_j) {
       });
 
       if(!remote_j_send) {
-        print(error, "no remote: ", err::current());
+        err::set("no remote: "s + err::current());
 
-        peer_remove(uuid);
         return;
       }
+
+      guard.failure = false;
 
       // pack accept
       nlohmann::json accept;
       accept["quest"] = "accept";
-      accept["uuid"] = remote_j["uuid"];
+      accept["uuid"] = util::hex(uuid).to_string_view();
       accept["remote"] = *remote_j_send;
 
       auto accept_str = accept.dump();
       print(server, file::raw(util::endian::little((std::uint16_t) accept_str.size())),
-        accept_str);
+            accept_str);
 
-      auto remote = unpack_remote(remote_j["remote"]);
-      if(!remote) {
-        peer_remove(uuid);
-        print(error, "unpacking remote candidates: ", err::current());
+      call.start_ice(remote);
+      return;
+    },
 
+    // TODO find a way to generalize this function -- then ICECalls can be reused
+    [&] (pj::ICECall call, pj::status_t status) {
+      auto guard {
+        util::fail_guard([&]() {
+          p2p_fail = true;
+
+          _peer_remove(uuid);
+          {
+            std::lock_guard<std::mutex> lg(m);
+            cv.notify_all();
+          }
+
+          return;
+        })
+      };
+
+      if(status != pj::success) {
+        err::set("failed initialization");
         return;
       }
 
-      call.start_ice(*remote);
-    });
+      bridge->set_call(call);
 
-  if(failure) {
+      guard.failure = false;
+      {
+        std::lock_guard<std::mutex> lg(m);
+        cv.notify_all();
+      }
+    }
+  );
+
+  if(!success) {
+    // TODO send decline
+
+    return {};
+  }
+
+  std::unique_lock<std::mutex> ul(m);
+  cv.wait(ul, [&]() { return p2p_fail || bridge->is_open(); });
+
+  return file::p2p { 3s, bridge };
+}
+
+std::optional<pj::remote_buf_t> quest_t::_process_invite(uuid_t uuid, const nlohmann::json &remote_j) {
+  if(!_accept_cb) {
+    // TODO: decline
+
+    return std::nullopt;
+  }
+
+  auto remote = unpack_remote(remote_j["remote"]);
+  if(!remote) {
+    _peer_remove(uuid);
+
+    err::set("unpacking remote: "s + err::current());
+    _send_error(err::current());
+
+    return std::nullopt;
+  }
+
+  return remote;
+}
+
+void quest_t::_handle_accept(uuid_t uuid, const nlohmann::json &remote_j) {
+  auto ice_trans = _peer(uuid);
+  if(!ice_trans) {
     print(error, "Could not find a transport for peer[", util::hex(uuid), "] :: ", err::current());
-    quest_error(server,
-                "Could not find a transport for peer[" + util::hex(uuid).to_string() + "] :: " + err::current());
+    _send_error("Could not find a transport for peer[" + util::hex(uuid).to_string() + "] :: " + err::current());
 
     return;
   }
+
+  auto remote = unpack_remote(remote_j["remote"]);
+  if(!remote) {
+    _peer_remove(uuid);
+
+    print(error, "unpacking remote: ", err::current());
+    _send_error("unpacking remote: "s + err::current());
+
+    return;
+  }
+
+  // Attempt connection
+  ice_trans->start_ice(*remote);
 }
 
-void handle_quest(file::io &server) {
+std::variant<int, file::p2p> quest_t::process_quest() {
   auto size = util::endian::little(file::read_struct<std::uint16_t>(server));
 
   if(!size) {
-    print(error, "Could not read size");
+    err::set("Could not read size");
 
-    return;
+    return -1;
   }
 
   try {
-    auto remote = nlohmann::json::parse(*read_string(server, *size));
+    auto remote_j = nlohmann::json::parse(*file::read_string(server, *size));
+    auto uuid = *util::from_hex<uuid_t>(remote_j["uuid"].get<std::string_view>());
 
-    auto quest = remote["quest"].get<std::string_view>();
+    auto quest = remote_j["quest"].get<std::string_view>();
 
     print(debug, "handling quest [", quest, "]");
     if(quest == "error") {
-      print(error, "uuid: ", remote["uuid"].get<std::string_view>(), ": message: ",
-            remote["message"].get<std::string_view>());
+      print(error, "uuid: ", remote_j["uuid"].get<std::string_view>(), ": message: ",
+            remote_j["message"].get<std::string_view>());
 
-      return;
+      return 0;
     }
 
     if(quest == "invite") {
       // initiate connection between sender and recipient
 
-      quest_invite(server, remote);
+      auto remote = _process_invite(uuid, remote_j);
+      if(remote) {
+        // TODO return p2p fd
+        return _send_accept(uuid, *remote);
+      }
+
+      return -1;
     }
 
     if(quest == "accept") {
       // tell both peers to start negotiation
 
-      quest_accept(server, remote);
+      _handle_accept(uuid, remote_j);
     }
 
   } catch(const std::exception &e) {
-    print(error, "json exception caught: ", e.what());
+    err::set("json exception caught: "s + e.what());
 
-    return;
+    return -1;
   }
+
+  return 0;
 }
 
-int init() {
-  if(config.uuid == uuid_t {}) {
-    config.uuid = uuid_t::generate();
+void quest_t::_send_error(const std::string_view &err_str) {
+  nlohmann::json json_error;
+
+  json_error["quest"] = "error";
+  json_error["uuid"] = util::hex(uuid).to_string_view();
+  json_error["message"] = err_str;
+
+  auto error_str = json_error.dump();
+
+  print(server, file::raw(util::endian::little((std::uint16_t) error_str.size())), error_str);
+}
+
+int quest_t::send_register() {
+  nlohmann::json register_;
+
+  register_["quest"] = "register";
+
+  auto register_str = register_.dump();
+
+  print(server, file::raw(util::endian::little((std::uint16_t) register_str.size())), register_str);
+  auto size = util::endian::little(file::read_struct<std::uint16_t>(server));
+  if(!size) {
+    err::set("received no list of peers");
+    return -1;
   }
-  print(info, config.server_addr.ip, ':', config.server_addr.port);
 
-  pj::init(config.log_file);
+  auto peers_json = file::read_string(server, *size);
+  if(!peers_json) {
+    err::set("received no list of peers");
+    return -1;
+  }
+
+  auto peers = unpack_peers(nlohmann::json::parse(*peers_json));
+
+  peers.erase(std::remove(std::begin(peers), std::end(peers), uuid), std::end(peers));
+
+  print(info, "received a list of ", peers.size(), " peers.");
+
+  vec_peers = std::move(peers);
+
+  return 0;
+}
+
+bool quest_t::_peer_create(const p2p::uuid_t &uuid, p2p::pj::Pool::on_data_f &&on_data,
+                           p2p::pj::Pool::on_ice_create_f &&on_create, p2p::pj::Pool::on_connect_f &&on_connect) {
+
+  if(_peers.size() < _max_peers && _peers.find(uuid) == std::end(_peers)) {
+    return _peers.emplace(uuid, std::make_shared<pj::ICETrans>(
+      pool.ice_trans(std::move(on_data), std::move(on_create), std::move(on_connect)))).second;
+  }
+
+  err::code = err::code_t::OUT_OF_BOUNDS;
+  return false;
+}
+
+void quest_t::_peer_remove(const p2p::uuid_t &uuid) {
+  _peers.erase(uuid);
+}
+
+std::shared_ptr<pj::ICETrans> quest_t::_peer(const p2p::uuid_t &uuid) {
+  auto it = _peers.find(uuid);
+
+  if(it == std::end(_peers)) {
+    return nullptr;
+  }
+
+  return it->second;
+}
+
+file::p2p quest_t::invite(uuid_t recipient) {
+  std::mutex m;
+
+  bool p2p_fail = false;
+  std::condition_variable cv;
+
+  auto bridge = std::make_shared<file::stream::pipe_t>();
+
+  auto success = _peer_create(recipient,
+
+    // TODO this function can be generalized in _peer_create
+    [bridge](pj::ICECall call, std::string_view data) {
+      bridge->push(data);
+    },
+
+    [&](pj::ICECall call, pj::status_t status) {
+      auto guard {
+        util::fail_guard([&]() {
+          p2p_fail = true;
+
+          _peer_remove(recipient);
+          {
+            std::lock_guard<std::mutex> lg(m);
+            cv.notify_all();
+          }
+
+          return;
+        })
+      };
+
+      if(status != pj::success) {
+        err::set("failed initialization");
 
 
-  auto &pool = global.pool;
 
-  global.caching_pool = pj::Pool::init_caching_pool();
-  pool = p2p::pj::Pool { global.caching_pool, "Loki-ICE" };
-  pool.dns_resolv().set_ns(config.dns);
-  pool.set_stun(config.stun_addr);
+        // TODO send decline
 
-  std::thread worker_thread([]() {
-    auto thread_ptr = p2p::pj::register_thread();
+        return;
+      }
 
-    auto_run.run([]() {
+      auto err = call.init_ice(pj::ice_sess_role_t::PJ_ICE_SESS_ROLE_CONTROLLED);
+      if(err) {
+        err::set("ice_trans->init_ice(): "s + pj::err(err));
+
+        return;
+      }
+
+      auto candidates = call.get_candidates();
+      if(candidates.empty()) {
+        err::set("no candidates");
+
+        return;
+      }
+
+      auto remote_j_send = pack_remote(pj::remote_t {
+        call.credentials(),
+        candidates
+      });
+
+      if(!remote_j_send) {
+        err::set("no remote: "s + err::current());
+
+        return;
+      }
+
+      guard.failure = false;
+
+      // pack accept
+      nlohmann::json accept;
+      accept["quest"] = "invite";
+      accept["uuid"] = util::hex(recipient).to_string_view();
+      accept["remote"] = *remote_j_send;
+
+      auto accept_str = accept.dump();
+      print(server, file::raw(util::endian::little((std::uint16_t) accept_str.size())),
+            accept_str);
+
+      return;
+    },
+
+    // TODO find a way to generalize this function -- then ICECalls can be reused
+    [&] (pj::ICECall call, pj::status_t status) {
+      auto guard {
+        util::fail_guard([&]() {
+          p2p_fail = true;
+
+          _peer_remove(recipient);
+          {
+            std::lock_guard<std::mutex> lg(m);
+            cv.notify_all();
+          }
+
+          return;
+        })
+      };
+
+      if(status != pj::success) {
+        err::set("failed initialization");
+        return;
+      }
+
+      bridge->set_call(call);
+
+      guard.failure = false;
+      {
+        std::lock_guard<std::mutex> lg(m);
+        cv.notify_all();
+      }
+    }
+  );
+
+  if(!success) {
+    // TODO send decline
+
+    return {};
+  }
+
+  std::unique_lock<std::mutex> ul(m);
+  cv.wait(ul, [&]() { return p2p_fail || bridge->is_open(); });
+
+  return file::p2p { 3s, bridge };
+}
+
+quest_t::quest_t(quest_t::accept_cb &&pred, const uuid_t &uuid) : uuid { uuid }, _accept_cb { std::move(pred) } {}
+
+}
+
+namespace server {
+
+template<>
+int p2p::_init_listen(const file::ip_addr_t &ip_addr) {
+  _member.pool = ::p2p::pj::Pool { ::p2p::global.caching_pool, "Loki-ICE" };
+  _member.pool.dns_resolv().set_ns(::p2p::config.dns);
+  _member.pool.set_stun(::p2p::config.stun_addr);
+
+  _member.server = file::connect(ip_addr);
+
+  if(!_member.server.is_open()) {
+    return -1;
+  }
+
+  _member.auto_run_thread = std::thread ([this]() {
+    auto thread_ptr = ::p2p::pj::register_thread();
+
+    _member.auto_run.run([this]() {
 
       std::chrono::milliseconds max_tm { 500 };
       std::chrono::milliseconds milli { 0 };
 
-      pool.timer_heap().poll(milli);
+      _member.pool.timer_heap().poll(milli);
 
       milli = std::min(milli, max_tm);
 
-      auto c = pool.io_queue().poll(milli);
+      auto c = _member.pool.io_queue().poll(milli);
       if(c < 0) {
-        print(error, __FILE__, ": ", pj::err(pj::get_netos_err()));
+        print(error, __FILE__, ": ", ::p2p::pj::err(::p2p::pj::get_netos_err()));
 
         std::abort();
       }
     });
   });
 
-  auto &server = global.fd;
-  server = file::connect(config.server_addr);
-  if(!server.is_open()) {
-    auto_run.stop();
-    worker_thread.join();
+  print(_member.server, file::raw(util::endian::little(_member.uuid)));
+
+  return _member.send_register();
+}
+
+template<>
+int p2p::_poll() {
+  if(auto result = _member.server.wait_for(file::READ)) {
+    if(err::code == err::TIMEOUT) {
+      return 0;
+    }
 
     return -1;
   }
 
-  print(server, file::raw(util::endian::little(p2p::config.uuid)));
-  send_register(server);
-
-  global.poll.read(server, {});
-
-  worker_thread.detach();
-  return 0;
+  return 1;
 }
 
-void poll() {
-  global.poll.poll(config.poll_tm);
+template<>
+std::variant<err::code_t, p2p::client_t> p2p::_accept() {
+  int result = _poll();
+  if(result < 0) {
+    return err::code;
+  }
+
+  if(!result) {
+    return err::TIMEOUT;
+  }
+
+  auto remote = _member.process_quest();
+  if(std::holds_alternative<file::p2p>(remote)) {
+    // auto fd = _member.connect(std::get<::p2p::pj::remote_buf_t>(remote));
+
+    auto &fd = std::get<file::p2p>(remote);
+    if(!fd.is_open()) {
+      return err::TIMEOUT;
+    }
+
+    // std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    return client_t {
+      std::make_unique<file::p2p>(std::move(fd))
+    };
+  }
+
+  result = std::get<int>(remote);
+  if(result < 0) {
+    return err::code;
+  }
+
+  return err::TIMEOUT;
 }
 
+template<>
+void p2p::_cleanup() {
+  _member.auto_run.stop();
+  _member.auto_run_thread.join();
+}
 }

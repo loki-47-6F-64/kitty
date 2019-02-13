@@ -14,6 +14,38 @@
 namespace util {
 
 template<class T>
+class FailGuard {
+public:
+  FailGuard() = delete;
+  FailGuard(T && f) noexcept : _func { std::forward<T>(f) } {}
+  FailGuard(FailGuard &&other) :_func { std::move(other._func) } {
+    this->failure = other.failure;
+
+    other.failure = false;
+  }
+
+  FailGuard(const FailGuard &) = delete;
+
+  FailGuard &operator=(const FailGuard &) = delete;
+  FailGuard &operator=(FailGuard &&) = delete;
+
+  ~FailGuard() noexcept {
+    if(failure) {
+      _func();
+    }
+  }
+
+  bool failure { true };
+private:
+  T _func;
+};
+
+template<class T>
+auto fail_guard(T && f) {
+  return FailGuard<T> { std::forward<T>(f) };
+}
+
+template<class T>
 void append_struct(std::vector<uint8_t> &buf, const T &_struct) {
   constexpr size_t data_len = sizeof(_struct);
 
