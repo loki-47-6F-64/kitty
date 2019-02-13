@@ -130,7 +130,7 @@ public:
       --max;
 
       if (err::code_t err = f(_in.cache[_in.data_p++])) {
-        // Return FileErr::OK if err_code != FileErr::BREAK
+        // Return err::OK if err_code != err::BREAK
         return err == err::BREAK ? 0 : -1;
       }
     }

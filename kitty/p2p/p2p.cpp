@@ -176,8 +176,7 @@ std::optional<pj::remote_buf_t> quest_t::_process_invite(uuid_t uuid, const nloh
   if(!remote) {
     _peer_remove(uuid);
 
-    err::set("unpacking remote: "s + err::current());
-    _send_error(err::current());
+    _send_error("unpacking remote: "s + err::current());
 
     return std::nullopt;
   }
@@ -212,12 +211,17 @@ std::variant<int, file::p2p> quest_t::process_quest() {
   auto size = util::endian::little(file::read_struct<std::uint16_t>(server));
 
   if(!size) {
-    err::set("Could not read size");
+    print(error, "Could not read size", err::current());
 
-    return -1;
+    return 0;
   }
 
   try {
+    auto remote_j_str = file::read_string(server, *size);
+    if(!remote_j_str) {
+      print(error, "Could not read the json string: ", err::current());
+    }
+
     auto remote_j = nlohmann::json::parse(*file::read_string(server, *size));
     auto uuid = *util::from_hex<uuid_t>(remote_j["uuid"].get<std::string_view>());
 
@@ -240,7 +244,8 @@ std::variant<int, file::p2p> quest_t::process_quest() {
         return _send_accept(uuid, *remote);
       }
 
-      return -1;
+      print(error, "Could not unpack remote: ", err::current());
+      return 0;
     }
 
     if(quest == "accept") {
@@ -250,9 +255,9 @@ std::variant<int, file::p2p> quest_t::process_quest() {
     }
 
   } catch(const std::exception &e) {
-    err::set("json exception caught: "s + e.what());
+    print(error, "json exception caught: ", e.what());
 
-    return -1;
+    return 0;
   }
 
   return 0;

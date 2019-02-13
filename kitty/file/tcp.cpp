@@ -12,7 +12,7 @@
 namespace file {
 constexpr auto MAX_HOSTNAME_LEN = 1023;
 io connect(const char *hostname, const char *port) {
-  constexpr std::chrono::seconds timeout { 0 };
+  constexpr std::chrono::seconds timeout { 3 };
   
   addrinfo hints { 0 };
   addrinfo *server;

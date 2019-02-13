@@ -98,39 +98,35 @@ io::io(io &&other) noexcept {
 
 int io::select(std::chrono::milliseconds to, const int read) const {
   if(to.count() > 0) {
-    auto dur_micro = (suseconds_t)std::chrono::duration_cast<std::chrono::microseconds>(to).count();
-    timeval tv {
-      0,
-      dur_micro
-    };
+    pollfd pfd;
+    pfd.fd = fd();
 
-    fd_set selected;
-
-    FD_ZERO(&selected);
-    FD_SET(fd(), &selected);
-
-    int result;
-    if (read == file::READ) {
-      result = ::select(fd() + 1, &selected, nullptr, nullptr, &tv);
+    if(read == READ) {
+      pfd.events = POLLIN | POLLRDHUP;
     }
-    else /*if (read == WRITE)*/ {
-      result = ::select(fd() + 1, nullptr, &selected, nullptr, &tv);
+    else { /* read == WRITE */
+      pfd.events = POLLOUT;
     }
 
-    if (result < 0) {
-      err::code = err::LIB_SYS;
+    auto res = poll(&pfd, 1, (int)to.count());
 
-      if(fd() <= 0) {
+    if(res > 0) {
+      if(pfd.revents & (POLLHUP | POLLRDHUP | POLLERR)) {
         err::code = err::code_t::FILE_CLOSED;
+
+        return -1;
       }
 
-      return -1;
+      if(pfd.revents & (POLLIN | POLLOUT)) {
+        return err::OK;
+      }
     }
 
-    else if (result == 0) {
-      err::code = err::TIMEOUT;
-      return -1;
+    if(res < 0) {
+      err::code = err::LIB_SYS;
     }
+
+    return err::TIMEOUT;
   }
 
   return err::OK;
