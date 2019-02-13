@@ -10,8 +10,7 @@
 namespace server {
 struct ssl_client_t {
   struct member_t : public tcp_client_t::member_t {
-    member_t(::ssl::Context &&ctx, const sockaddr_in6 &in) : tcp_client_t::member_t(in), ctx { std::move(ctx) } {}
-
+    member_t(::ssl::Context &&ctx) : ctx { std::move(ctx) } {}
     ::ssl::Context ctx;
   };
 
@@ -19,7 +18,7 @@ struct ssl_client_t {
   std::string ip_addr;
 };
 
-typedef Server<ssl_client_t> ssl;
+typedef Server<ssl_client_t, const sockaddr_in6&> ssl;
 }
 
 #endif

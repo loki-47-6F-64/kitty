@@ -46,7 +46,7 @@ int main(int args, char *argv[]) {
   sockaddr.sin6_family = AF_INET6;
   sockaddr.sin6_port = htons(port);
 
-  server::tcp server { sockaddr };
+  server::tcp server;
   util::AutoRun<void> auto_run;
 
   std::thread worker_thread([&]() {
@@ -55,5 +55,5 @@ int main(int args, char *argv[]) {
     });
   });
 
-  return server.start(p2p::server::accept_client);
+  return server.start(p2p::server::accept_client, sockaddr);
 }

@@ -29,7 +29,7 @@ std::optional<bluetooth::client_t> bluetooth::_accept() {
 }
 
 template<>
-int bluetooth::_init_listen() {
+int bluetooth::_init_listen(const sockaddr_l2 &server) {
   pollfd pfd {
     socket(AF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_L2CAP),
     POLLIN,
@@ -47,7 +47,7 @@ int bluetooth::_init_listen() {
     return -1;
   }
 
-  if(bind(pfd.fd, (const sockaddr *) &_member.sockaddr, sizeof(_member.sockaddr)) < 0) {
+  if(bind(pfd.fd, (const sockaddr *) &server, sizeof(server)) < 0) {
     err::code = err::LIB_SYS;
     return -1;
   }

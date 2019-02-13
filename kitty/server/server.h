@@ -23,7 +23,7 @@
 namespace server {
 util::ThreadPool &tasks();
 
-template<class T>
+template<class T, class... InitArgs>
 class Server {
 public:
   using client_t  = T;
@@ -47,8 +47,8 @@ public:
    */
 
   // Returns -1 on failure
-  int start(std::function<void(client_t &&)> f) {
-    if(_init_listen()) {
+  int start(std::function<void(client_t &&)> f, InitArgs&& ...args) {
+    if(_init_listen(std::forward<InitArgs>(args)...)) {
       return -1;
     }
 
@@ -86,8 +86,9 @@ private:
         _autoRun.stop();
       }
     });
-    
-    if(result == -1) {
+
+    _cleanup();
+    if(result < 0) {
       return -1;
     }
     
@@ -102,7 +103,7 @@ private:
    * Perform necessary instructions to setup listening
    * @return result < 0 on failure
    */
-  int _init_listen();
+  int _init_listen(InitArgs&&...);
 
   /**
    * Poll for incoming client
@@ -126,10 +127,6 @@ private:
 
 struct tcp_client_t {
   struct member_t {
-    member_t(const sockaddr_in6 &sockaddr) : sockaddr { sockaddr } {}
-
-    sockaddr_in6 sockaddr;
-
     pollfd listenfd {};
   };
 
@@ -137,6 +134,6 @@ struct tcp_client_t {
   std::string ip_addr;
 };
 
-typedef Server<tcp_client_t> tcp;
+typedef Server<tcp_client_t, const sockaddr_in6 &> tcp;
 }
 #endif

@@ -15,6 +15,10 @@
 namespace server {
 
 struct peer_t {
+  struct member_t {
+    file::io server;
+  };
+
   std::unique_ptr<file::p2p> socket;
 
   p2p::pj::ip_addr_t ip_addr;

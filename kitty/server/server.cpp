@@ -23,7 +23,7 @@ std::optional<tcp::client_t> tcp::_accept() {
 }
 
 template<>
-int tcp::_init_listen() {
+int tcp::_init_listen(const sockaddr_in6 &server) {
   pollfd pfd {
     socket(AF_INET6, SOCK_STREAM, 0),
     POLLIN,
@@ -41,7 +41,7 @@ int tcp::_init_listen() {
     return -1;
   }
 
-  if(bind(pfd.fd, (const sockaddr *) &_member.sockaddr, sizeof(_member.sockaddr)) < 0) {
+  if(bind(pfd.fd, (const sockaddr *) &server, sizeof(server)) < 0) {
     err::code = err::LIB_SYS;
     return -1;
   }

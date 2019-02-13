@@ -14,7 +14,6 @@ namespace server {
 
 struct blue_client_t {
   struct member_t {
-    sockaddr_l2 sockaddr;
     bt::HCI *hci;
 
     pollfd listenfd {};
@@ -32,7 +31,7 @@ struct blue_client_t {
   } security;
 };
 
-typedef Server<blue_client_t> bluetooth;
+typedef Server<blue_client_t, const sockaddr_l2 &> bluetooth;
 }
 
 #endif
