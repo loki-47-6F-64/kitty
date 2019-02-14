@@ -153,6 +153,11 @@ public:
   creds_t credentials();
 
   std::vector<ice_sess_cand_t> get_candidates(unsigned comp_cnt = 0);
+
+  on_data_f       & on_data();
+  on_ice_create_f & on_ice_create();
+  on_connect_f    & on_connect();
+
 private:
   func_t _ice_cb;
 

@@ -5,6 +5,8 @@
 #include <kitty/err/err.h>
 #include <kitty/log/log.h>
 #include <kitty/p2p/pj/ice_trans.h>
+#include "ice_trans.h"
+
 
 namespace p2p::pj {
 
@@ -155,6 +157,18 @@ ICEState ICETrans::get_state() const {
   return ICEState {
     pj_ice_strans_get_state(_ice_trans.get())
   };
+}
+
+ICETrans::on_data_f &ICETrans::on_data() {
+  return std::get<0>(*_ice_cb);
+}
+
+ICETrans::on_ice_create_f &ICETrans::on_ice_create() {
+  return std::get<1>(*_ice_cb);
+}
+
+ICETrans::on_connect_f &ICETrans::on_connect() {
+  return std::get<2>(*_ice_cb);
 }
 
 ip_addr_t ip_addr_t::from_sockaddr_t(std::vector<char> &buf, const sockaddr_t *const ip_addr) {

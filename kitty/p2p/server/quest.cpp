@@ -34,7 +34,7 @@ void quest_error(file::io &client, const std::string_view &error) {
   json_error["quest"] = "error";
 
   // the 0 uuid is for error messages from the server
-  json_error["uuid"] = util::hex(uuid_t {{ 0 }}).to_string_view();
+  json_error["from"] = util::hex(uuid_t {}).to_string_view();
   json_error["message"] = error;
 
   auto error_str = json_error.dump();
@@ -42,64 +42,22 @@ void quest_error(file::io &client, const std::string_view &error) {
   print(client, file::raw(util::endian::little((std::uint16_t) error_str.size())), error_str);
 }
 
-void quest_accept(file::io &client, const uuid_t &sender, nlohmann::json &remote) {
-  auto receiver = util::from_hex<uuid_t>(remote["uuid"].get<std::string_view>());
-
-  auto recipient = peers().find(*receiver);
-
-  if(recipient == peers().cend()) {
-    // The intended recipient is not on the list
-
-    print(error, "the recipient [", util::hex(*receiver), "] is not connected to the server");
-
-    quest_error(client, "the recipient [" + util::hex(*receiver).to_string() + "] is not connected to the server");
-    return;
-  }
-
-  nlohmann::json accept;
-  accept["quest"] = "accept";
-  accept["uuid"] = util::hex(sender).to_string_view();
-  accept["remote"] = remote["remote"];
-
-  auto accept_str = accept.dump();
-  print(recipient->second, file::raw(util::endian::little((std::uint16_t) accept_str.size())), accept_str);
-}
-
-void quest_invite(file::io &client, const uuid_t &sender, nlohmann::json &remote) {
-  auto receiver = util::from_hex<uuid_t>(remote["uuid"].get<std::string_view>());
-
-  auto recipient = peers().find(*receiver);
-
-  if(recipient == peers().cend()) {
-    // The intended recipient is not on the list
-
-    print(error, "the recipient [", util::hex(*receiver), "] is not connected to the server");
-    quest_error(client, "the recipient [" + util::hex(*receiver).to_string() + "] is not connected to the server");
-    return;
-  }
-  // pack invite
-
-  nlohmann::json invite;
-  invite["quest"] = "invite";
-  invite["uuid"] = util::hex(sender).to_string_view();
-  invite["remote"] = remote["remote"];
-
-  auto invite_str = invite.dump();
-  print(recipient->second, file::raw(util::endian::little((std::uint16_t) invite_str.size())), invite_str);
-}
-
-void handle_register(file::io &client, const uuid_t &sender, nlohmann::json &remote) {
+void handle_register(file::io &client, const uuid_t &sender) {
   if(peers().find(sender) == peers().cend()) {
     auto it = peers().emplace(sender, std::move(client));
 
     poll().read(it.first->second, sender);
 
-    nlohmann::json peers_json = { };
+    nlohmann::json peers_json;
     for(auto &[uuid, _] : peers()) {
       peers_json += util::hex(uuid).to_string_view();
     }
 
-    auto peers_str = peers_json.dump();
+    nlohmann::json register_json;
+    register_json["quest"] = "register";
+    register_json["peers"] = peers_json;
+
+    auto peers_str = register_json.dump();
     print(it.first->second, file::raw(util::endian::little((std::uint16_t) peers_str.size())), peers_str);
   }
 }
@@ -121,35 +79,39 @@ void handle_quest(file::io &client, uuid_t uuid) {
     return;
   }
 
+  print(info, *remote_str);
+
   try {
     auto remote = nlohmann::json::parse(*remote_str);
 
-    auto quest = remote["quest"].get<std::string_view>();
+    auto quest     = remote["quest"].get<std::string_view>();
+    auto recipient = util::from_hex<uuid_t>(remote["to"].get<std::string_view>());
 
     print(debug, "handling quest [", quest, "] from :", util::hex(uuid));
     if(quest == "register") {
       // register the client
 
-      handle_register(client, uuid, remote);
+      handle_register(client, uuid);
     }
 
-    if(quest == "invite") {
-      // initiate connection between sender and recipient
-
-      quest_invite(client, uuid, remote);
-    }
-
-    if(quest == "accept") {
-      // tell both peers to start negotiation
-
-      quest_accept(client, uuid, remote);
-    }
-
-
-    if(quest == "leave") {
-      // remote the client from the list
+    else if(quest == "leave") {
+      // remove the client from the list
 
       peers().erase(uuid);
+    }
+
+    else {
+      auto peer = peers().find(*recipient);
+
+      if(peer == peers().cend()) {
+        // The intended recipient is not on the list
+        print(error, "the recipient [", util::hex(*recipient), "] is not connected to the server");
+
+        quest_error(client, "the recipient [" + util::hex(*recipient).to_string() + "] is not connected to the server");
+        return;
+      }
+
+      print(peer->second, file::raw(util::endian::little(*size)), *remote_str);
     }
 
   } catch(const std::exception &e) {

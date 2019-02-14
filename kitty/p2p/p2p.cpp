@@ -15,8 +15,6 @@
 #include <kitty/p2p/uuid.h>
 #include <kitty/p2p/pack.h>
 #include <kitty/p2p/p2p.h>
-#include "p2p.h"
-
 
 namespace p2p {
 using namespace std::string_literals;
@@ -29,8 +27,6 @@ struct {
 
 config_t config { };
 
-util::AutoRun<void> auto_run;
-
 int init() {
   if(config.uuid == uuid_t {}) {
     config.uuid = uuid_t::generate();
@@ -41,16 +37,20 @@ int init() {
   return 0;
 }
 
-file::p2p quest_t::_send_accept(uuid_t uuid, const pj::remote_buf_t &remote) {
-  util::Alarm<bool> alarm { false };
+file::p2p quest_t::_send_accept(uuid_t recipient, const pj::remote_buf_t &remote) {
+  util::Alarm<std::optional<decline_t>> alarm { std::nullopt };
 
-  auto peer = _peer_create(uuid, alarm,
+  auto peer = _peer_create(recipient, alarm,
     [&](pj::ICECall call, pj::status_t status) {
       auto guard {
         util::fail_guard([&]() {
-          _peer_remove(uuid);
 
-          alarm.status() = true;
+          _peer_remove(recipient);
+          alarm.status() = decline_t {
+            decline_t::ERROR,
+            err::current()
+          };
+
           alarm.ring();
           return;
         })
@@ -58,10 +58,6 @@ file::p2p quest_t::_send_accept(uuid_t uuid, const pj::remote_buf_t &remote) {
 
       if(status != pj::success) {
         err::set("failed initialization");
-
-
-
-        // TODO send decline
 
         return;
       }
@@ -95,8 +91,9 @@ file::p2p quest_t::_send_accept(uuid_t uuid, const pj::remote_buf_t &remote) {
 
       // pack accept
       nlohmann::json accept;
-      accept["quest"] = "accept";
-      accept["uuid"] = util::hex(uuid).to_string_view();
+      accept["quest"]  = "accept";
+      accept["to"]     = util::hex(recipient).to_string_view();
+      accept["from"]   = util::hex(uuid).to_string_view();
       accept["remote"] = *remote_j_send;
 
       auto accept_str = accept.dump();
@@ -109,28 +106,33 @@ file::p2p quest_t::_send_accept(uuid_t uuid, const pj::remote_buf_t &remote) {
   );
 
   if(!peer) {
-    // TODO send decline
+    _send_decline(recipient, {
+      decline_t::DECLINE, err::current()
+    });
 
     return {};
   }
 
   alarm.wait([&]() { return alarm.status() || peer->is_open(); });
 
+  if(alarm.status()) {
+    _send_decline(recipient, *alarm.status());
+
+    return {};
+  }
+
   return file::p2p { std::move(*peer) };
 }
 
-std::optional<pj::remote_buf_t> quest_t::_process_invite(uuid_t uuid, const nlohmann::json &remote_j) {
-  if(!_accept_cb) {
-    // TODO: decline
-
-    return std::nullopt;
-  }
-
+std::optional<pj::remote_buf_t> quest_t::_process_invite(uuid_t sender, const nlohmann::json &remote_j) {
   auto remote = unpack_remote(remote_j["remote"]);
   if(!remote) {
-    _peer_remove(uuid);
+    _peer_remove(sender);
 
-    _send_error("unpacking remote: "s + err::current());
+    _send_decline(sender, {
+      decline_t::ERROR,
+      "unpacking remote: "s + err::current()
+    });
 
     return std::nullopt;
   }
@@ -138,21 +140,42 @@ std::optional<pj::remote_buf_t> quest_t::_process_invite(uuid_t uuid, const nloh
   return remote;
 }
 
-void quest_t::_handle_accept(uuid_t uuid, const nlohmann::json &remote_j) {
-  auto ice_trans = _peer(uuid);
+void quest_t::_handle_decline(uuid_t sender) {
+  auto ice_trans = _peer(sender);
+
+  if(ice_trans) {
+    ice_trans->on_connect()({}, decline_t::DECLINE);
+  }
+}
+
+void quest_t::_send_decline(uuid_t recipient, decline_t decline) {
+  nlohmann::json decline_j;
+
+  decline_j["quest"]  = "decline";
+  decline_j["to"]     = util::hex(recipient).to_string_view();
+  decline_j["from"]   = util::hex(uuid).to_string_view();
+  decline_j["reason"] = { decline.reason, decline.msg };
+
+  auto decline_str = decline_j.dump();
+
+  print(server, file::raw(util::endian::little((std::uint16_t)decline_str.size())), decline_str);
+}
+
+void quest_t::_handle_accept(uuid_t sender, const nlohmann::json &remote_j) {
+  auto ice_trans = _peer(sender);
   if(!ice_trans) {
-    print(error, "Could not find a transport for peer[", util::hex(uuid), "] :: ", err::current());
-    _send_error("Could not find a transport for peer[" + util::hex(uuid).to_string() + "] :: " + err::current());
+    print(error, "Could not find a transport for peer[", util::hex(sender), "] :: ", err::current());
+    _send_error(sender, "Could not find a transport for peer[" + util::hex(sender).to_string() + "] :: " + err::current());
 
     return;
   }
 
   auto remote = unpack_remote(remote_j["remote"]);
   if(!remote) {
-    _peer_remove(uuid);
+    _peer_remove(sender);
 
-    print(error, "unpacking remote: ", err::current());
-    _send_error("unpacking remote: "s + err::current());
+    print(error, "Could not unpack remote: ", err::current());
+    _send_error(sender, "Could not unpack remote: "s + err::current());
 
     return;
   }
@@ -177,13 +200,13 @@ std::variant<int, file::p2p> quest_t::process_quest() {
     }
 
     auto remote_j = nlohmann::json::parse(*remote_j_str);
-    auto uuid = *util::from_hex<uuid_t>(remote_j["uuid"].get<std::string_view>());
+    auto sender = *util::from_hex<uuid_t>(remote_j["from"].get<std::string_view>());
 
     auto quest = remote_j["quest"].get<std::string_view>();
 
     print(debug, "handling quest [", quest, "]");
     if(quest == "error") {
-      print(error, "uuid: ", remote_j["uuid"].get<std::string_view>(), ": message: ",
+      print(error, "uuid: ", remote_j["from"].get<std::string_view>(), ": message: ",
             remote_j["message"].get<std::string_view>());
 
       return 0;
@@ -192,10 +215,16 @@ std::variant<int, file::p2p> quest_t::process_quest() {
     if(quest == "invite") {
       // initiate connection between sender and recipient
 
-      auto remote = _process_invite(uuid, remote_j);
+      auto decline = _accept_cb(sender);
+      if(decline) {
+        _send_decline(sender, *decline);
+
+        return 0;
+      }
+
+      auto remote = _process_invite(sender, remote_j);
       if(remote) {
-        // TODO return p2p fd
-        return _send_accept(uuid, *remote);
+        return _send_accept(sender, *remote);
       }
 
       print(error, "Could not unpack remote: ", err::current());
@@ -205,7 +234,11 @@ std::variant<int, file::p2p> quest_t::process_quest() {
     if(quest == "accept") {
       // tell both peers to start negotiation
 
-      _handle_accept(uuid, remote_j);
+      _handle_accept(sender, remote_j);
+    }
+
+    if(quest == "decline") {
+      _handle_decline(sender);
     }
 
   } catch(const std::exception &e) {
@@ -217,11 +250,12 @@ std::variant<int, file::p2p> quest_t::process_quest() {
   return 0;
 }
 
-void quest_t::_send_error(const std::string_view &err_str) {
+void quest_t::_send_error(uuid_t recipient, const std::string_view &err_str) {
   nlohmann::json json_error;
 
   json_error["quest"] = "error";
-  json_error["uuid"] = util::hex(uuid).to_string_view();
+  json_error["to"]    = util::hex(recipient).to_string_view();
+  json_error["from"]  = util::hex(uuid).to_string_view();
   json_error["message"] = err_str;
 
   auto error_str = json_error.dump();
@@ -233,6 +267,8 @@ int quest_t::send_register() {
   nlohmann::json register_;
 
   register_["quest"] = "register";
+  register_["from"]  = util::hex(uuid).to_string_view();
+  register_["to"]    = util::hex(uuid_t {}).to_string_view();
 
   auto register_str = register_.dump();
 
@@ -243,14 +279,28 @@ int quest_t::send_register() {
     return -1;
   }
 
-  auto peers_json = file::read_string(server, *size);
-  if(!peers_json) {
+  auto peers_str = file::read_string(server, *size);
+  if(!peers_str) {
     err::set("received no list of peers");
     return -1;
   }
 
-  auto peers = unpack_peers(nlohmann::json::parse(*peers_json));
+  nlohmann::json peers_json;
+  try {
+    peers_json = nlohmann::json::parse(*peers_str);
+    auto quest = peers_json["quest"].get<std::string_view>();
 
+    if(quest == "error") {
+      print(error, "something something dark side");
+      // TODO handle error
+    }
+  } catch(std::exception &e) {
+    print(error, "Caught json exception: ", e.what());
+
+    return -1;
+  }
+
+  auto peers = unpack_peers(peers_json["peers"]);
   peers.erase(std::remove(std::begin(peers), std::end(peers), uuid), std::end(peers));
 
   print(info, "received a list of ", peers.size(), " peers.");
@@ -260,7 +310,8 @@ int quest_t::send_register() {
   return 0;
 }
 
-std::optional<file::p2p> quest_t::_peer_create(const uuid_t &uuid, util::Alarm<bool> &alarm, pj::Pool::on_ice_create_f &&on_create) {
+std::optional<file::p2p> quest_t::_peer_create(const uuid_t &uuid, util::Alarm<std::optional<decline_t>> &alarm,
+                                               pj::Pool::on_ice_create_f &&on_create) {
 
   if(_peers.size() < _max_peers && _peers.find(uuid) == std::end(_peers)) {
     auto pipe = std::make_shared<file::stream::pipe_t>();
@@ -272,17 +323,34 @@ std::optional<file::p2p> quest_t::_peer_create(const uuid_t &uuid, util::Alarm<b
     auto on_connect = [this, pipe, &alarm, &uuid] (pj::ICECall call, pj::status_t status) {
       auto guard {
         util::fail_guard([&]() {
-          alarm.status() = true;
+          alarm.status() = {
+            decline_t::ERROR,
+            err::current()
+          };
 
           _peer_remove(uuid);
+
           alarm.ring();
 
           return;
         })
       };
 
+      if(status == decline_t::DECLINE) {
+        alarm.status() = {
+          decline_t::DECLINE,
+          "Invitee declined invitation"
+        };
+
+
+        guard.failure = false;
+        alarm.ring();
+        return;
+      }
+
       if(status != pj::success) {
-        err::set("failed initialization");
+        err::set("failed negotiation");
+
         return;
       }
 
@@ -317,8 +385,8 @@ std::shared_ptr<pj::ICETrans> quest_t::_peer(const p2p::uuid_t &uuid) {
   return it->second;
 }
 
-file::p2p quest_t::invite(uuid_t recipient) {
-  util::Alarm<bool> alarm { false };
+std::variant<decline_t, file::p2p> quest_t::invite(uuid_t recipient) {
+  util::Alarm<std::optional<decline_t>> alarm { std::nullopt };
 
   auto peer = _peer_create(recipient, alarm,
     [&](pj::ICECall call, pj::status_t status) {
@@ -326,7 +394,11 @@ file::p2p quest_t::invite(uuid_t recipient) {
         util::fail_guard([&]() {
           _peer_remove(recipient);
 
-          alarm.status() = true;
+          alarm.status() = {
+            decline_t::ERROR,
+            err::current()
+          };
+
           alarm.ring();
 
           return;
@@ -335,10 +407,6 @@ file::p2p quest_t::invite(uuid_t recipient) {
 
       if(status != pj::success) {
         err::set("failed initialization");
-
-
-
-        // TODO send decline
 
         return;
       }
@@ -368,29 +436,34 @@ file::p2p quest_t::invite(uuid_t recipient) {
         return;
       }
 
-      guard.failure = false;
-
       // pack accept
       nlohmann::json accept;
-      accept["quest"] = "invite";
-      accept["uuid"] = util::hex(recipient).to_string_view();
+      accept["quest"]  = "invite";
+      accept["to"]     = util::hex(recipient).to_string_view();
+      accept["from"]   = util::hex(uuid).to_string_view();
       accept["remote"] = *remote_j_send;
 
       auto accept_str = accept.dump();
       print(server, file::raw(util::endian::little((std::uint16_t) accept_str.size())),
             accept_str);
 
+      guard.failure = false;
       return;
     }
   );
 
   if(!peer) {
-    // TODO send decline
-
-    return {};
+    return decline_t {
+      decline_t::ERROR,
+      err::current()
+    };
   }
 
   alarm.wait([&]() { return alarm.status() || peer->is_open(); });
+
+  if(alarm.status()) {
+    return *alarm.status();
+  }
 
   return file::p2p { std::move(*peer) };
 }
@@ -465,14 +538,11 @@ std::variant<err::code_t, p2p::client_t> p2p::_accept() {
 
   auto remote = _member.process_quest();
   if(std::holds_alternative<file::p2p>(remote)) {
-    // auto fd = _member.connect(std::get<::p2p::pj::remote_buf_t>(remote));
-
     auto &fd = std::get<file::p2p>(remote);
     if(!fd.is_open()) {
       return err::TIMEOUT;
     }
 
-    // std::this_thread::sleep_for(std::chrono::milliseconds(50));
     return client_t {
       std::make_unique<file::p2p>(std::move(fd))
     };

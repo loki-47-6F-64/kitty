@@ -16,9 +16,17 @@
 #include <kitty/p2p/p2p_stream.h>
 
 namespace p2p {
+struct decline_t {
+  enum : pj::status_t {
+    DECLINE = PJ_ERRNO_START_SYS +1,
+    ERROR
+  } reason;
+  std::string_view msg;
+};
+
 class quest_t {
 public:
-  using accept_cb = std::function<bool(uuid_t)>;
+  using accept_cb = std::function<std::optional<decline_t>(uuid_t)>;
 
   quest_t(accept_cb &&pred, const uuid_t &uuid);
 
@@ -40,29 +48,44 @@ public:
   /**
    * Invite recipient to connect
    * @param uuid the recipient
-   * @return the connection
+   * @return
+   *    std::holds_alternative<decline_t> -- The reason for declining
+   *    std::holds_alternative<file::p2p> -- The connection
    */
-  file::p2p invite(uuid_t recipient);
+  std::variant<decline_t, file::p2p> invite(uuid_t recipient);
 private:
   /**
    * start ICE
+   * It will call _send_decline on error
    * @param remote The remote candidates
    * @return the connection
    */
-  file::p2p _send_accept(uuid_t uuid, const pj::remote_buf_t &remote);
+  file::p2p _send_accept(uuid_t recipient, const pj::remote_buf_t &remote);
 
+  /**
+   * Notify inviter that you're declining connection
+   * @param recipient
+   */
+  void _send_decline(uuid_t recipient, decline_t decline);
   /**
    * Extract the remote candidates from the package
    * @param remote_j the json object
    * @return the remote candidates on success
    */
-  std::optional<pj::remote_buf_t> _process_invite(uuid_t uuid, const nlohmann::json &remote_j);
+  std::optional<pj::remote_buf_t> _process_invite(uuid_t sender, const nlohmann::json &remote_j);
 
   /**
    * Handles connecting to the invitee
+   * @param sender the invitee
    * @param remote_j the remote candidates
    */
-  void _handle_accept(uuid_t uuid, const nlohmann::json &remote_j);
+  void _handle_accept(uuid_t sender, const nlohmann::json &remote_j);
+
+  /**
+   * Handles declining the connection
+   * @param recipient the invitee
+   */
+  void _handle_decline(uuid_t recipient);
 
   /**
    * Allocate a transport
@@ -71,7 +94,8 @@ private:
    * @param on_create callback when candidates are gathered
    * @return an fd on successfully allocating a transport
    */
-  std::optional<file::p2p> _peer_create(const uuid_t &uuid, util::Alarm<bool> &alarm, pj::Pool::on_ice_create_f &&on_create);
+  std::optional<file::p2p> _peer_create(const uuid_t &uuid, util::Alarm<std::optional<decline_t>> &alarm,
+                                        pj::Pool::on_ice_create_f &&on_create);
 
   /**
    * remove a transport from peers
@@ -81,7 +105,7 @@ private:
 
   std::shared_ptr<pj::ICETrans> _peer(const uuid_t &uuid);
 
-  void _send_error(const std::string_view &err_str);
+  void _send_error(uuid_t recipient, const std::string_view &err_str);
 public:
   file::io server;
 
