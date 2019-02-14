@@ -11,8 +11,29 @@
 
 #include <kitty/util/optional.h>
 #include <kitty/util/utility.h>
-#include <kitty/util/thread_t.h>
 namespace util {
+
+class _ImplBase {
+public:
+  //_unique_base_type _this_ptr;
+
+  inline virtual ~_ImplBase() = default;
+
+  virtual void run() = 0;
+};
+
+template<class Function>
+class _Impl : public _ImplBase {
+  Function _func;
+
+public:
+
+  _Impl(Function&& f) : _func(std::forward<Function>(f)) { }
+
+  void run() {
+    _func();
+  }
+};
 
 class TaskPool {
 public:

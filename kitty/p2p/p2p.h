@@ -67,15 +67,11 @@ private:
   /**
    * Allocate a transport
    * @param uuid the recipient of the invitation
-   * @param on_data
+   * @param alarm the alarm to ring when finished
    * @param on_create callback when candidates are gathered
-   * @param on_connect callback when finished negotiating a connection
-   * @return true on successfully allocating a transport
+   * @return an fd on successfully allocating a transport
    */
-  bool _peer_create(const uuid_t &uuid,
-                   pj::Pool::on_data_f &&on_data,
-                   pj::Pool::on_ice_create_f &&on_create,
-                   pj::Pool::on_connect_f &&on_connect);
+  std::optional<file::p2p> _peer_create(const uuid_t &uuid, util::Alarm<bool> &alarm, pj::Pool::on_ice_create_f &&on_create);
 
   /**
    * remove a transport from peers

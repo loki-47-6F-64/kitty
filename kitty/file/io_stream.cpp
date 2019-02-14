@@ -124,6 +124,8 @@ int io::select(std::chrono::milliseconds to, const int read) const {
 
     if(res < 0) {
       err::code = err::LIB_SYS;
+
+      return -1;
     }
 
     return err::TIMEOUT;

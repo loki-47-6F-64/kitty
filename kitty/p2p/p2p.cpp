@@ -42,31 +42,16 @@ int init() {
 }
 
 file::p2p quest_t::_send_accept(uuid_t uuid, const pj::remote_buf_t &remote) {
-  std::mutex m;
+  util::Alarm<bool> alarm { false };
 
-  bool p2p_fail = false;
-  std::condition_variable cv;
-
-  auto bridge = std::make_shared<file::stream::pipe_t>();
-
-  auto success = _peer_create(uuid,
-
-    // TODO this function can be generalized in _peer_create
-    [bridge](pj::ICECall call, std::string_view data) {
-      bridge->push(data);
-    },
-
+  auto peer = _peer_create(uuid, alarm,
     [&](pj::ICECall call, pj::status_t status) {
       auto guard {
         util::fail_guard([&]() {
-          p2p_fail = true;
-
           _peer_remove(uuid);
-          {
-            std::lock_guard<std::mutex> lg(m);
-            cv.notify_all();
-          }
 
+          alarm.status() = true;
+          alarm.ring();
           return;
         })
       };
@@ -120,49 +105,18 @@ file::p2p quest_t::_send_accept(uuid_t uuid, const pj::remote_buf_t &remote) {
 
       call.start_ice(remote);
       return;
-    },
-
-    // TODO find a way to generalize this function -- then ICECalls can be reused
-    [&] (pj::ICECall call, pj::status_t status) {
-      auto guard {
-        util::fail_guard([&]() {
-          p2p_fail = true;
-
-          _peer_remove(uuid);
-          {
-            std::lock_guard<std::mutex> lg(m);
-            cv.notify_all();
-          }
-
-          return;
-        })
-      };
-
-      if(status != pj::success) {
-        err::set("failed initialization");
-        return;
-      }
-
-      bridge->set_call(call);
-
-      guard.failure = false;
-      {
-        std::lock_guard<std::mutex> lg(m);
-        cv.notify_all();
-      }
     }
   );
 
-  if(!success) {
+  if(!peer) {
     // TODO send decline
 
     return {};
   }
 
-  std::unique_lock<std::mutex> ul(m);
-  cv.wait(ul, [&]() { return p2p_fail || bridge->is_open(); });
+  alarm.wait([&]() { return alarm.status() || peer->is_open(); });
 
-  return file::p2p { 3s, bridge };
+  return file::p2p { std::move(*peer) };
 }
 
 std::optional<pj::remote_buf_t> quest_t::_process_invite(uuid_t uuid, const nlohmann::json &remote_j) {
@@ -222,7 +176,7 @@ std::variant<int, file::p2p> quest_t::process_quest() {
       print(error, "Could not read the json string: ", err::current());
     }
 
-    auto remote_j = nlohmann::json::parse(*file::read_string(server, *size));
+    auto remote_j = nlohmann::json::parse(*remote_j_str);
     auto uuid = *util::from_hex<uuid_t>(remote_j["uuid"].get<std::string_view>());
 
     auto quest = remote_j["quest"].get<std::string_view>();
@@ -306,16 +260,47 @@ int quest_t::send_register() {
   return 0;
 }
 
-bool quest_t::_peer_create(const p2p::uuid_t &uuid, p2p::pj::Pool::on_data_f &&on_data,
-                           p2p::pj::Pool::on_ice_create_f &&on_create, p2p::pj::Pool::on_connect_f &&on_connect) {
+std::optional<file::p2p> quest_t::_peer_create(const uuid_t &uuid, util::Alarm<bool> &alarm, pj::Pool::on_ice_create_f &&on_create) {
 
   if(_peers.size() < _max_peers && _peers.find(uuid) == std::end(_peers)) {
-    return _peers.emplace(uuid, std::make_shared<pj::ICETrans>(
-      pool.ice_trans(std::move(on_data), std::move(on_create), std::move(on_connect)))).second;
+    auto pipe = std::make_shared<file::stream::pipe_t>();
+
+    auto on_data = [pipe](pj::ICECall call, std::string_view data) {
+      pipe->push(data);
+    };
+
+    auto on_connect = [this, pipe, &alarm, &uuid] (pj::ICECall call, pj::status_t status) {
+      auto guard {
+        util::fail_guard([&]() {
+          alarm.status() = true;
+
+          _peer_remove(uuid);
+          alarm.ring();
+
+          return;
+        })
+      };
+
+      if(status != pj::success) {
+        err::set("failed initialization");
+        return;
+      }
+
+      pipe->set_call(call);
+
+      guard.failure = false;
+      alarm.ring();
+    };
+
+    _peers.emplace(uuid, std::make_shared<pj::ICETrans>(
+      pool.ice_trans(std::move(on_data), std::move(on_create), std::move(on_connect))
+      ));
+
+    return file::p2p { 3s, pipe };
   }
 
   err::code = err::code_t::OUT_OF_BOUNDS;
-  return false;
+  return std::nullopt;
 }
 
 void quest_t::_peer_remove(const p2p::uuid_t &uuid) {
@@ -333,30 +318,16 @@ std::shared_ptr<pj::ICETrans> quest_t::_peer(const p2p::uuid_t &uuid) {
 }
 
 file::p2p quest_t::invite(uuid_t recipient) {
-  std::mutex m;
+  util::Alarm<bool> alarm { false };
 
-  bool p2p_fail = false;
-  std::condition_variable cv;
-
-  auto bridge = std::make_shared<file::stream::pipe_t>();
-
-  auto success = _peer_create(recipient,
-
-    // TODO this function can be generalized in _peer_create
-    [bridge](pj::ICECall call, std::string_view data) {
-      bridge->push(data);
-    },
-
+  auto peer = _peer_create(recipient, alarm,
     [&](pj::ICECall call, pj::status_t status) {
       auto guard {
         util::fail_guard([&]() {
-          p2p_fail = true;
-
           _peer_remove(recipient);
-          {
-            std::lock_guard<std::mutex> lg(m);
-            cv.notify_all();
-          }
+
+          alarm.status() = true;
+          alarm.ring();
 
           return;
         })
@@ -410,49 +381,18 @@ file::p2p quest_t::invite(uuid_t recipient) {
             accept_str);
 
       return;
-    },
-
-    // TODO find a way to generalize this function -- then ICECalls can be reused
-    [&] (pj::ICECall call, pj::status_t status) {
-      auto guard {
-        util::fail_guard([&]() {
-          p2p_fail = true;
-
-          _peer_remove(recipient);
-          {
-            std::lock_guard<std::mutex> lg(m);
-            cv.notify_all();
-          }
-
-          return;
-        })
-      };
-
-      if(status != pj::success) {
-        err::set("failed initialization");
-        return;
-      }
-
-      bridge->set_call(call);
-
-      guard.failure = false;
-      {
-        std::lock_guard<std::mutex> lg(m);
-        cv.notify_all();
-      }
     }
   );
 
-  if(!success) {
+  if(!peer) {
     // TODO send decline
 
     return {};
   }
 
-  std::unique_lock<std::mutex> ul(m);
-  cv.wait(ul, [&]() { return p2p_fail || bridge->is_open(); });
+  alarm.wait([&]() { return alarm.status() || peer->is_open(); });
 
-  return file::p2p { 3s, bridge };
+  return file::p2p { std::move(*peer) };
 }
 
 quest_t::quest_t(quest_t::accept_cb &&pred, const uuid_t &uuid) : uuid { uuid }, _accept_cb { std::move(pred) } {}
@@ -502,7 +442,7 @@ int p2p::_init_listen(const file::ip_addr_t &ip_addr) {
 template<>
 int p2p::_poll() {
   if(auto result = _member.server.wait_for(file::READ)) {
-    if(err::code == err::TIMEOUT) {
+    if(result == err::TIMEOUT) {
       return 0;
     }
 

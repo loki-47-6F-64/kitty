@@ -6,6 +6,8 @@
 #include <type_traits>
 #include <algorithm>
 #include <optional>
+#include <mutex>
+#include <condition_variable>
 
 #include <kitty/util/optional.h>
 #include <kitty/err/err.h>
@@ -14,11 +16,73 @@
 namespace util {
 
 template<class T>
+class Alarm {
+public:
+  using status_t = T;
+
+  template<class... Args>
+  Alarm(Args&& ...args) : _ul(_lock), _status { std::forward<Args>(args)... } {}
+
+  void ring() {
+    std::lock_guard<std::mutex> lg(_lock);
+
+    _cv.notify_one();
+  }
+
+  void ring_all() {
+    std::lock_guard<std::mutex> lg(_lock);
+
+    _cv.notify_all();
+  }
+
+  template<class Rep, class Period>
+  auto wait_for(const std::chrono::duration<Rep, Period>& rel_time) {
+    return _cv.wait_for(_ul, rel_time);
+  }
+
+  template<class Rep, class Period, class Pred>
+  auto wait_for(const std::chrono::duration<Rep, Period>& rel_time, Pred &&pred) {
+    return _cv.wait_for(_ul, rel_time, std::forward<Pred>(pred));
+  }
+
+  template<class Rep, class Period>
+  auto wait_until(const std::chrono::duration<Rep, Period>& rel_time) {
+    return _cv.wait_until(_ul, rel_time);
+  }
+
+  template<class Rep, class Period, class Pred>
+  auto wait_until(const std::chrono::duration<Rep, Period>& rel_time, Pred &&pred) {
+    return _cv.wait_until(_ul, rel_time, std::forward<Pred>(pred));
+  }
+
+  template<class Rep, class Period>
+  auto wait() {
+    return _cv.wait(_ul);
+  }
+
+  template<class Pred>
+  auto wait(Pred &&pred) {
+    return _cv.wait(_ul, std::forward<Pred>(pred));
+  }
+
+  status_t &status() {
+    return _status;
+  }
+private:
+  std::mutex _lock;
+  std::unique_lock<std::mutex> _ul;
+
+  std::condition_variable _cv;
+
+  status_t _status;
+};
+
+template<class T>
 class FailGuard {
 public:
   FailGuard() = delete;
   FailGuard(T && f) noexcept : _func { std::forward<T>(f) } {}
-  FailGuard(FailGuard &&other) :_func { std::move(other._func) } {
+  FailGuard(FailGuard &&other) : _func { std::move(other._func) } {
     this->failure = other.failure;
 
     other.failure = false;
@@ -57,7 +121,7 @@ void append_struct(std::vector<uint8_t> &buf, const T &_struct) {
     buf.push_back(data[x]);
   }
 }
-  
+
 template<class T>
 class Hex {
 public:
