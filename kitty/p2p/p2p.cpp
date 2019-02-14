@@ -16,9 +16,9 @@
 #include <kitty/p2p/pack.h>
 #include <kitty/p2p/p2p.h>
 
-namespace p2p {
 using namespace std::string_literals;
 using namespace std::chrono_literals;
+namespace p2p {
 
 void handle_quest(file::io &);
 struct {
@@ -474,6 +474,8 @@ quest_t::quest_t(quest_t::accept_cb &&pred, const uuid_t &uuid) : uuid { uuid },
 
 namespace server {
 
+
+
 template<>
 int p2p::_init_listen(const file::ip_addr_t &ip_addr) {
   _member.pool = ::p2p::pj::Pool { ::p2p::global.caching_pool, "Loki-ICE" };
@@ -490,20 +492,7 @@ int p2p::_init_listen(const file::ip_addr_t &ip_addr) {
     auto thread_ptr = ::p2p::pj::register_thread();
 
     _member.auto_run.run([this]() {
-
-      std::chrono::milliseconds max_tm { 500 };
-      std::chrono::milliseconds milli { 0 };
-
-      _member.pool.timer_heap().poll(milli);
-
-      milli = std::min(milli, max_tm);
-
-      auto c = _member.pool.io_queue().poll(milli);
-      if(c < 0) {
-        print(error, __FILE__, ": ", ::p2p::pj::err(::p2p::pj::get_netos_err()));
-
-        std::abort();
-      }
+      _member.pool.iterate(500ms);
     });
   });
 

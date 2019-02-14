@@ -68,4 +68,19 @@ caching_pool_t Pool::init_caching_pool() {
 
   return caching_pool_t { &raw };
 }
+
+void Pool::iterate(std::chrono::milliseconds max_to) {
+  std::chrono::milliseconds milli { 0 };
+
+  timer_heap().poll(milli);
+
+  milli = std::min(milli, max_to);
+
+  auto c = io_queue().poll(milli);
+  if(c < 0) {
+    print(error, __FILE__, ": ", err(get_netos_err()));
+
+    std::abort();
+  }
+}
 }
