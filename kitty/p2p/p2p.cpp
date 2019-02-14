@@ -19,8 +19,6 @@
 using namespace std::string_literals;
 using namespace std::chrono_literals;
 namespace p2p {
-
-void handle_quest(file::io &);
 struct {
   pj::caching_pool_t caching_pool;
 } global;
@@ -206,13 +204,13 @@ std::variant<int, file::p2p> quest_t::process_quest() {
 
     print(debug, "handling quest [", quest, "]");
     if(quest == "error") {
-      print(error, "uuid: ", remote_j["from"].get<std::string_view>(), ": message: ",
+      print(error, "sender: ", remote_j["from"].get<std::string_view>(), ": message: ",
             remote_j["message"].get<std::string_view>());
 
       return 0;
     }
 
-    if(quest == "invite") {
+    else if(quest == "invite") {
       // initiate connection between sender and recipient
 
       auto decline = _accept_cb(sender);
@@ -231,16 +229,15 @@ std::variant<int, file::p2p> quest_t::process_quest() {
       return 0;
     }
 
-    if(quest == "accept") {
+    else if(quest == "accept") {
       // tell both peers to start negotiation
 
       _handle_accept(sender, remote_j);
     }
 
-    if(quest == "decline") {
+    else if(quest == "decline") {
       _handle_decline(sender);
     }
-
   } catch(const std::exception &e) {
     print(error, "json exception caught: ", e.what());
 
@@ -291,21 +288,22 @@ int quest_t::send_register() {
     auto quest = peers_json["quest"].get<std::string_view>();
 
     if(quest == "error") {
-      print(error, "something something dark side");
-      // TODO handle error
-    }
-  } catch(std::exception &e) {
-    print(error, "Caught json exception: ", e.what());
+      auto msg = peers_json["message"];
 
+      err::set(msg);
+      return -1;
+    }
+
+    auto peers = unpack_peers(peers_json["peers"]);
+    peers.erase(std::remove(std::begin(peers), std::end(peers), uuid), std::end(peers));
+
+    print(info, "received a list of ", peers.size(), " peers.");
+
+    vec_peers = std::move(peers);
+  } catch(std::exception &e) {
+    err::set("Caught json exception: "s + e.what());
     return -1;
   }
-
-  auto peers = unpack_peers(peers_json["peers"]);
-  peers.erase(std::remove(std::begin(peers), std::end(peers), uuid), std::end(peers));
-
-  print(info, "received a list of ", peers.size(), " peers.");
-
-  vec_peers = std::move(peers);
 
   return 0;
 }
