@@ -5,19 +5,17 @@
 #include <map>
 #include <thread>
 #include <chrono>
-#include <nlohmann/json.hpp>
+#include <kitty/server/proxy.h>
 #include <kitty/util/auto_run.h>
 #include <kitty/file/io_stream.h>
 #include <kitty/util/utility.h>
 #include <kitty/file/tcp.h>
 #include <kitty/log/log.h>
-#include <kitty/p2p/p2p.h>
 #include <kitty/p2p/uuid.h>
-#include <kitty/p2p/pack.h>
+#include <kitty/p2p/data_types.h>
 #include <kitty/p2p/p2p.h>
 
-using namespace std::string_literals;
-using namespace std::chrono_literals;
+using namespace std::literals;
 namespace p2p {
 struct {
   pj::caching_pool_t caching_pool;
@@ -60,8 +58,7 @@ file::p2p quest_t::_send_accept(uuid_t recipient, const pj::remote_buf_t &remote
         return;
       }
 
-      auto err = call.init_ice(pj::ice_sess_role_t::PJ_ICE_SESS_ROLE_CONTROLLED);
-      if(err) {
+      if(auto err = call.init_ice(pj::ice_sess_role_t::PJ_ICE_SESS_ROLE_CONTROLLED)) {
         err::set("ice_trans->init_ice(): "s + pj::err(err));
 
         return;
@@ -74,30 +71,17 @@ file::p2p quest_t::_send_accept(uuid_t recipient, const pj::remote_buf_t &remote
         return;
       }
 
-      auto remote_j_send = pack_remote(pj::remote_t {
-        call.credentials(),
-        candidates
-      });
 
-      if(!remote_j_send) {
-        err::set("no remote: "s + err::current());
+      auto err = ::server::proxy::push(server, recipient, uuid, "accept"sv,
+        data::pack(call.credentials(), candidates));
+
+      if(err) {
+        print(error, "Couldn't push data: ", err::current());
 
         return;
       }
 
       guard.failure = false;
-
-      // pack accept
-      nlohmann::json accept;
-      accept["quest"]  = "accept";
-      accept["to"]     = util::hex(recipient).to_string_view();
-      accept["from"]   = util::hex(uuid).to_string_view();
-      accept["remote"] = *remote_j_send;
-
-      auto accept_str = accept.dump();
-      print(server, file::raw(util::endian::little((std::uint16_t) accept_str.size())),
-            accept_str);
-
       call.start_ice(remote);
       return;
     }
@@ -122,22 +106,6 @@ file::p2p quest_t::_send_accept(uuid_t recipient, const pj::remote_buf_t &remote
   return file::p2p { std::move(*peer) };
 }
 
-std::optional<pj::remote_buf_t> quest_t::_process_invite(uuid_t sender, const nlohmann::json &remote_j) {
-  auto remote = unpack_remote(remote_j["remote"]);
-  if(!remote) {
-    _peer_remove(sender);
-
-    _send_decline(sender, {
-      decline_t::ERROR,
-      "unpacking remote: "s + err::current()
-    });
-
-    return std::nullopt;
-  }
-
-  return remote;
-}
-
 void quest_t::_handle_decline(uuid_t sender) {
   auto ice_trans = _peer(sender);
 
@@ -147,19 +115,10 @@ void quest_t::_handle_decline(uuid_t sender) {
 }
 
 void quest_t::_send_decline(uuid_t recipient, decline_t decline) {
-  nlohmann::json decline_j;
-
-  decline_j["quest"]  = "decline";
-  decline_j["to"]     = util::hex(recipient).to_string_view();
-  decline_j["from"]   = util::hex(uuid).to_string_view();
-  decline_j["reason"] = { decline.reason, decline.msg };
-
-  auto decline_str = decline_j.dump();
-
-  print(server, file::raw(util::endian::little((std::uint16_t)decline_str.size())), decline_str);
+  ::server::proxy::push(server, recipient, uuid, "decline"sv, decline.reason, decline.msg);
 }
 
-void quest_t::_handle_accept(uuid_t sender, const nlohmann::json &remote_j) {
+void quest_t::_handle_accept(uuid_t sender, const pj::remote_buf_t &remote) {
   auto ice_trans = _peer(sender);
   if(!ice_trans) {
     print(error, "Could not find a transport for peer[", util::hex(sender), "] :: ", err::current());
@@ -168,142 +127,87 @@ void quest_t::_handle_accept(uuid_t sender, const nlohmann::json &remote_j) {
     return;
   }
 
-  auto remote = unpack_remote(remote_j["remote"]);
-  if(!remote) {
-    _peer_remove(sender);
-
-    print(error, "Could not unpack remote: ", err::current());
-    _send_error(sender, "Could not unpack remote: "s + err::current());
-
-    return;
-  }
-
   // Attempt connection
-  ice_trans->start_ice(*remote);
+  ice_trans->start_ice(remote);
 }
 
 std::variant<int, file::p2p> quest_t::process_quest() {
-  auto size = util::endian::little(file::read_struct<std::uint16_t>(server));
+  uuid_t to, from;
+  std::string quest;
 
-  if(!size) {
-    print(error, "Could not read size", err::current());
+  if(::server::proxy::load(server, to, from, quest)) {
+    print(error, err::current());
 
     return 0;
   }
 
-  try {
-    auto remote_j_str = file::read_string(server, *size);
-    if(!remote_j_str) {
-      print(error, "Could not read the json string: ", err::current());
-    }
+  print(debug, "handling quest [", quest, "] from: ", util::hex(from), " to: ", util::hex(to));
+  if(quest == "error") {
+    std::string msg;
 
-    auto remote_j = nlohmann::json::parse(*remote_j_str);
-    auto sender = *util::from_hex<uuid_t>(remote_j["from"].get<std::string_view>());
+    ::server::proxy::load(server, msg);
+    print(error, "sender: ", util::hex(from), ": message: ", msg);
 
-    auto quest = remote_j["quest"].get<std::string_view>();
+    return 0;
+  }
 
-    print(debug, "handling quest [", quest, "]");
-    if(quest == "error") {
-      print(error, "sender: ", remote_j["from"].get<std::string_view>(), ": message: ",
-            remote_j["message"].get<std::string_view>());
+  if(quest == "invite" || quest == "accept") {
+
+    data::remote_t remote_d;
+    if(::server::proxy::load(server, remote_d)) {
+      _peer_remove(from);
+
+      print(error, "Could not unpack remote: ", err::current());
+      _send_error(from, "Could not unpack remote: "s + err::current());
 
       return 0;
     }
 
-    else if(quest == "invite") {
-      // initiate connection between sender and recipient
+    auto remote = data::unpack(std::move(remote_d));
 
-      auto decline = _accept_cb(sender);
+    if(quest == "invite") {
+      // initiate connection between sender and recipient
+      auto decline = _accept_cb(from);
       if(decline) {
-        _send_decline(sender, *decline);
+        _send_decline(from, *decline);
 
         return 0;
       }
 
-      auto remote = _process_invite(sender, remote_j);
-      if(remote) {
-        return _send_accept(sender, *remote);
-      }
-
-      print(error, "Could not unpack remote: ", err::current());
-      return 0;
+      return _send_accept(from, remote);
     }
 
-    else if(quest == "accept") {
-      // tell both peers to start negotiation
+    // tell both peers to start negotiation
 
-      _handle_accept(sender, remote_j);
-    }
-
-    else if(quest == "decline") {
-      _handle_decline(sender);
-    }
-  } catch(const std::exception &e) {
-    print(error, "json exception caught: ", e.what());
-
-    return 0;
+    _handle_accept(from, remote);
   }
 
+  if(quest == "decline") {
+    _handle_decline(from);
+  }
   return 0;
 }
 
 void quest_t::_send_error(uuid_t recipient, const std::string_view &err_str) {
-  nlohmann::json json_error;
-
-  json_error["quest"] = "error";
-  json_error["to"]    = util::hex(recipient).to_string_view();
-  json_error["from"]  = util::hex(uuid).to_string_view();
-  json_error["message"] = err_str;
-
-  auto error_str = json_error.dump();
-
-  print(server, file::raw(util::endian::little((std::uint16_t) error_str.size())), error_str);
+  ::server::proxy::push(server, recipient, uuid, "error"sv, err_str);
 }
 
 int quest_t::send_register() {
-  nlohmann::json register_;
+  ::server::proxy::push(server, uuid_t {}, uuid, "register"sv);
 
-  register_["quest"] = "register";
-  register_["from"]  = util::hex(uuid).to_string_view();
-  register_["to"]    = util::hex(uuid_t {}).to_string_view();
-
-  auto register_str = register_.dump();
-
-  print(server, file::raw(util::endian::little((std::uint16_t) register_str.size())), register_str);
-  auto size = util::endian::little(file::read_struct<std::uint16_t>(server));
-  if(!size) {
-    err::set("received no list of peers");
+  std::string quest;
+  std::vector<uuid_t> peers;
+  auto err = ::server::proxy::load(server, quest, peers);
+  if(err) {
+    err::set("received no list of peers: "s + err::current());
     return -1;
   }
 
-  auto peers_str = file::read_string(server, *size);
-  if(!peers_str) {
-    err::set("received no list of peers");
-    return -1;
-  }
+  peers.erase(std::remove(std::begin(peers), std::end(peers), uuid), std::end(peers));
 
-  nlohmann::json peers_json;
-  try {
-    peers_json = nlohmann::json::parse(*peers_str);
-    auto quest = peers_json["quest"].get<std::string_view>();
+  print(info, "received a list of ", peers.size(), " peers.");
 
-    if(quest == "error") {
-      auto msg = peers_json["message"];
-
-      err::set(msg);
-      return -1;
-    }
-
-    auto peers = unpack_peers(peers_json["peers"]);
-    peers.erase(std::remove(std::begin(peers), std::end(peers), uuid), std::end(peers));
-
-    print(info, "received a list of ", peers.size(), " peers.");
-
-    vec_peers = std::move(peers);
-  } catch(std::exception &e) {
-    err::set("Caught json exception: "s + e.what());
-    return -1;
-  }
+  vec_peers = std::move(peers);
 
   return 0;
 }
@@ -409,7 +313,7 @@ std::variant<decline_t, file::p2p> quest_t::invite(uuid_t recipient) {
         return;
       }
 
-      auto err = call.init_ice(pj::ice_sess_role_t::PJ_ICE_SESS_ROLE_CONTROLLED);
+      auto err = call.init_ice(pj::ice_sess_role_t::PJ_ICE_SESS_ROLE_CONTROLLING);
       if(err) {
         err::set("ice_trans->init_ice(): "s + pj::err(err));
 
@@ -423,27 +327,8 @@ std::variant<decline_t, file::p2p> quest_t::invite(uuid_t recipient) {
         return;
       }
 
-      auto remote_j_send = pack_remote(pj::remote_t {
-        call.credentials(),
-        candidates
-      });
-
-      if(!remote_j_send) {
-        err::set("no remote: "s + err::current());
-
-        return;
-      }
-
-      // pack accept
-      nlohmann::json accept;
-      accept["quest"]  = "invite";
-      accept["to"]     = util::hex(recipient).to_string_view();
-      accept["from"]   = util::hex(uuid).to_string_view();
-      accept["remote"] = *remote_j_send;
-
-      auto accept_str = accept.dump();
-      print(server, file::raw(util::endian::little((std::uint16_t) accept_str.size())),
-            accept_str);
+      ::server::proxy::push(server, recipient, uuid, "invite"sv,
+        data::pack(call.credentials(), candidates));
 
       guard.failure = false;
       return;
@@ -493,8 +378,6 @@ int p2p::_init_listen(const file::ip_addr_t &ip_addr) {
       _member.pool.iterate(500ms);
     });
   });
-
-  print(_member.server, file::raw(util::endian::little(_member.uuid)));
 
   return _member.send_register();
 }

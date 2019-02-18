@@ -40,7 +40,7 @@ io connect(const char *hostname, const char *port) {
 }
 
 io connect(const ip_addr_t &ip_addr) {
-  char port[std::numeric_limits<std::uint16_t>::digits10 +2];
+  char port[16];
   char addr[MAX_HOSTNAME_LEN +1];
 
   std::sprintf(port, "%hu", ip_addr.port);

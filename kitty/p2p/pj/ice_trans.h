@@ -37,6 +37,7 @@ struct creds_buf_t {
   std::string ufrag;
   std::string passwd;
 
+  creds_buf_t() = default;
   creds_buf_t(creds_buf_t&&) noexcept = default;
   creds_buf_t&operator=(creds_buf_t&&) noexcept = default;
 

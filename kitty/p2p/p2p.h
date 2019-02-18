@@ -7,7 +7,6 @@
 
 #include <map>
 #include <variant>
-#include <nlohmann/json.hpp>
 #include <kitty/file/io_stream.h>
 #include <kitty/server/server.h>
 #include <kitty/p2p/pj/ice_trans.h>
@@ -67,19 +66,13 @@ private:
    * @param recipient
    */
   void _send_decline(uuid_t recipient, decline_t decline);
-  /**
-   * Extract the remote candidates from the package
-   * @param remote_j the json object
-   * @return the remote candidates on success
-   */
-  std::optional<pj::remote_buf_t> _process_invite(uuid_t sender, const nlohmann::json &remote_j);
 
   /**
    * Handles connecting to the invitee
    * @param sender the invitee
-   * @param remote_j the remote candidates
+   * @param remote the remote candidates
    */
-  void _handle_accept(uuid_t sender, const nlohmann::json &remote_j);
+  void _handle_accept(uuid_t sender, const pj::remote_buf_t &remote);
 
   /**
    * Handles declining the connection
@@ -132,7 +125,7 @@ struct config_t {
   constexpr static std::size_t MAX_PEERS = 16;
 
   const char *log_file {};
-  pj::ip_addr_t server_addr { "192.168.0.115", 2345 };
+  pj::ip_addr_t server_addr { "localhost", 2345 };
   pj::ip_addr_t stun_addr   { "stun.l.google.com", 19302 };
   std::vector<std::string_view> dns { "8.8.8.8" };
 

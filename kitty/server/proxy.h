@@ -8,19 +8,18 @@
 
 #include <kitty/err/err.h>
 #include <kitty/file/file.h>
-#include <kitty/server/server.h>
 #include <kitty/util/utility.h>
+#include <kitty/util/template_helper.h>
 
-namespace server {
-namespace proxy {
+namespace server::proxy {
 /*
  * All values in the request are send in a null-terminated byte string
  * On failure a non-zero value is returned and err_msg is set.
  */
 
-template<class File>
-int load(File &socket) {
-  if (socket.eof()) {
+template<class Stream>
+int load(file::FD<Stream> &fd) {
+  if (fd.eof()) {
     err::code = err::FILE_CLOSED;
     return -1;
   }
@@ -28,101 +27,241 @@ int load(File &socket) {
   return 0;
 }
 
-template<class File, class... Args>
-int load(File &socket, std::string &buf, int max, Args && ... params) {
-  int err = socket.eachByte([&](unsigned char ch) {
-    if (buf.size() > max) {
-      return err::OUT_OF_BOUNDS;
+template<class Stream, class T, class... Args>
+int load(file::FD<Stream> &fd, T &param, Args&... args) {
+  if constexpr (util::instantiation_of<std::tuple, T>::value) {
+    auto err = std::apply([&fd](auto &&...args) {
+      return load(fd, std::forward<decltype(args)>(args)...);
+    }, param);
+
+    if(err) {
+      return -1;
     }
 
-    if (!ch) {
-      return err::BREAK;
+    return load(fd, args...);
+  }
+  else if constexpr (util::instantiation_of<std::optional, T>::value) {
+    auto ch = fd.next();
+    if(!ch) {
+      return -1;
     }
 
-    buf.push_back(ch);
+    if(!*ch) {
+      param = std::nullopt;
+      return load(fd, args...);
+    }
+    else {
+      return load(fd, *param, args...);
+    }
+  }
+  else if constexpr (util::instantiation_of<std::vector, T>::value) {
+    auto size_opt = util::endian::little(file::read_struct<std::uint16_t>(fd));
+
+    if(!size_opt) {
+      return -1;
+    }
+
+    param.reserve(*size_opt);
+    for(uint16_t x = 0; x < size_opt; ++x) {
+      typename T::value_type val;
+      auto err = load(fd, val);
+
+      if(err) {
+        return err;
+      }
+
+      param.emplace_back(std::move(val));
+    }
+
+    return load(fd, args...);
+  }
+  else if constexpr (std::is_same_v<std::string, T>) {
+    auto size_opt { util::endian::little(file::read_struct<std::uint16_t>(fd)) };
+
+    if(!size_opt) {
+      return -1;
+    }
+
+    auto str { file::read_string(fd, *size_opt) };
+    if(!str) {
+      return -1;
+    }
+
+    param = std::move(*str);
+
+    return load(fd, args...);
+  }
+  else {
+    auto struct_opt { util::endian::little(file::read_struct<T>(fd)) };
+
+    if(!struct_opt) {
+      return -1;
+    }
+
+    param = *struct_opt;
+
+    return load(fd, args...);
+  }
+}
+
+template<class Stream, class T, class... Args>
+int _load_raw(file::FD<Stream> &fd, std::vector<std::uint8_t> &vec);
+
+/*
+ * load the raw data from a tuple
+ */
+template<class T, class... Args>
+struct _load_raw_helper {
+public:
+  template<class Stream>
+  static int run(file::FD<Stream> &fd, std::vector<std::uint8_t> &vec) {
+    return _load_raw<Stream, T, Args...>(fd, vec);
+  }
+};
+
+template<class Stream>
+int _load_raw(file::FD<Stream> &fd, std::vector<std::uint8_t>&) {
+  return load(fd);
+}
+
+template<class Stream, class T, class... Args>
+int _load_raw(file::FD<Stream> &fd, std::vector<std::uint8_t> &vec) {
+  std::size_t size;
+
+  if constexpr (util::instantiation_of<std::tuple, T>::value) {
+    auto err = util::map_template<T, _load_raw_helper>::type_t::run(fd, vec);
+
+    if(err) {
+      return -1;
+    }
+
+    size = 0;
+  }
+  else if constexpr (util::instantiation_of<std::optional, T>::value) {
+    auto ch = fd.next();
+    if(!ch) {
+      return -1;
+    }
+
+    vec.push_back(*ch);
+    if(*ch) {
+      if(_load_raw<Stream, typename T::value_type>(fd, vec)) {
+        return -1;
+      }
+    }
+
+    size = 0;
+  }
+  else if constexpr (util::instantiation_of<std::vector, T>::value) {
+    auto size_opt = file::read_struct<std::uint16_t>(fd);
+
+    if(!size_opt) {
+      return -1;
+    }
+
+    util::append_struct(vec, *size_opt);
+
+    for(auto x = 0; x < *size_opt; ++x) {
+      if(_load_raw<Stream, typename T::value_type>(fd, vec)) {
+        return -1;
+      }
+    }
+
+    size = 0;
+  }
+  else if constexpr (std::is_same_v<std::string, T>) {
+    auto size_opt = file::read_struct<std::uint16_t>(fd);
+
+    if(!size_opt) {
+      return -1;
+    }
+
+    util::append_struct(vec, *size_opt);
+
+    size = util::endian::little(*size_opt);
+  }
+  else {
+    size = sizeof(T);
+  }
+
+  auto err = fd.eachByte([&vec](auto ch) {
+    vec.push_back(ch);
+
     return err::OK;
-  });
+  }, size);
 
-  if (err) {
+  if(err) {
     return -1;
   }
 
-  return load(socket, std::forward<Args>(params)...);
+  return _load_raw<Stream, Args...>(fd, vec);
 }
 
-template<class File, class... Args>
-int load(File &socket, int64_t &buf, Args && ... params) {
-  constexpr int max_digits = 10;
+template<class Stream, class... Args>
+std::optional<std::vector<uint8_t>> load_raw(file::FD<Stream> &fd) {
+  std::vector<uint8_t> vec;
 
-  std::string str;
-  if (load(socket, str, max_digits)) {
-    return -1;
+  auto err = _load_raw<Stream, Args...>(fd, vec);
+
+  if(err) {
+    return std::nullopt;
   }
 
-  buf = std::atol(str.c_str());
-  return load(socket, std::forward<Args>(params)...);
+  return std::move(vec);
 }
 
-template<class File, class... Args>
-int load(File &socket, int &buf, Args && ... params) {
-  constexpr int max_digits = 10;
-
-  std::string str;
-  if (load(socket, str, max_digits)) {
-    return -1;
-  }
-
-  buf = std::atoi(str.c_str());
-  return load(socket, std::forward<Args>(params)...);
+template<class Stream>
+int push(file::FD<Stream> &fd) {
+  return fd.out();
 }
 
-template<class File, class... Args>
-int load(
-  File &socket,
-  std::vector<std::string> &vs, int max_params, const int max_size,
-  Args && ... params) {
+template<class Stream, class T, class... Args>
+int push(file::FD<Stream> &fd, const T &param, const Args&... args) {
+  if constexpr (util::instantiation_of<std::tuple, T>::value) {
+    auto err = std::apply([&](auto&&... args) {
+      return push(fd, std::forward<decltype(args)>(args)...);
+    }, param);
 
-  for (int x = 0; x < max_params; ++x) {
-    std::string tmp;
-    if (load(socket, tmp, max_size)) {
+    if(err) {
       return -1;
     }
 
-    if (tmp.empty()) {
-      break;
-    }
-
-    vs.push_back(std::move(tmp));
+    return push(fd, args...);
   }
-
-  return load(socket, std::forward<Args>(params)...);
-}
-
-template<class File, class... Args>
-int load(File &socket,
-         std::vector<std::pair<int, std::string>> &vis,
-         const int max_params, const int max_size, Args && ... params) {
-
-  for (int x = 0; x < max_params; ++x) {
-    std::string tmp;
-    if (load(socket, tmp, max_size)) {
-      return -1;
-    }
-
-    if (tmp.empty()) {
-      break;
-    }
-
-    int room_number;
-    if (load(socket, room_number)) {
-      return -1;
-    }
-
-    vis.emplace_back(room_number, std::move(tmp));
+  else if constexpr (util::instantiation_of<file::raw_t, T>::value) {
+    return push(fd.append(param.val), args...);
   }
+  else if constexpr (util::instantiation_of<std::optional, T>::value) {
+    if(param) {
+      fd.append('\x01').append(*param);
+    }
+    else {
+      fd.append('\x00');
+    }
 
-  return load(socket, std::forward<Args>(params)...);
+    return push(fd, args...);
+  }
+  else if constexpr (util::instantiation_of<std::vector, T>::value) {
+    fd.append(file::raw(util::endian::little((std::uint16_t)param.size())));
+
+    for(auto &el : param) {
+      auto err = push(fd, el);
+      if(err) {
+        return err;
+      }
+    }
+
+    return push(fd, args...);
+  }
+  else if constexpr (std::is_same_v<std::string, T> || std::is_same_v<std::string_view, T>) {
+    fd.append(file::raw(util::endian::little((std::uint16_t)param.size()))).append(param);
+
+    return push(fd, args...);
+  }
+  else {
+    return push(fd.append(file::raw(util::endian::little(param))), args...);
+  }
 }
-}
+
 }
 #endif

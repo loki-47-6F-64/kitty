@@ -41,8 +41,11 @@ struct buffer_t {
 /* Represents file in memory, storage or socket */
 template <class Stream>
 class FD { /* File descriptor */
-  typedef std::chrono::milliseconds duration_t;
-  Stream _stream;
+public:
+  using duration_t = std::chrono::milliseconds ;
+  using stream_t = Stream;
+private:
+  stream_t _stream;
 
   // Change of cacheSize only affects next load
   static constexpr std::vector<uint8_t>::size_type _cacheSize = 1024;
@@ -76,7 +79,7 @@ public:
 
   ~FD() noexcept { seal(); }
 
-  Stream &getStream() { return _stream; }
+  stream_t &getStream() { return _stream; }
 
   // Write to file
   int out() {
@@ -95,6 +98,7 @@ public:
         return out();
       }
 
+      write_clear();
       return err::OK;
     }
 
@@ -103,16 +107,16 @@ public:
   }
 
   // Useful when fine control is necessary
-  util::Optional<uint8_t> next() {
+  std::optional<std::uint8_t> next() {
     // Load new _cache if end of buffer is reached
     if (_endOfBuffer()) {
       if (_load(_cacheSize)) {
-        return util::Optional<uint8_t>();
+        return std::nullopt;
       }
     }
 
     // If cache.empty() return '\0'
-    return _in.cache.empty() ? util::Optional<uint8_t>() : util::Optional<uint8_t>(_in.cache[_in.data_p++]);
+    return _in.cache.empty() ? std::nullopt : std::optional<std::uint8_t> { _in.cache[_in.data_p++] };
   }
 
   template<class Function>
@@ -251,7 +255,7 @@ private:
   template<class T, class S = void>
   struct AppendFunc {
     static void run(std::vector<uint8_t> &cache, const T &container) {
-      cache.insert(std::end(cache), std::cbegin(container), std::cend(container));
+      cache.insert(std::end(cache), std::begin(container), std::end(container));
     }
   };
 

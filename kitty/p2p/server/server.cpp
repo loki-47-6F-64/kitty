@@ -10,26 +10,13 @@
 #include <kitty/p2p/uuid.h>
 #include <kitty/p2p/server/quest.h>
 
-#include <nlohmann/json.hpp>
-
 using namespace std::chrono_literals;
 namespace p2p::server {
 
 void accept_client(::server::tcp::client_t &&client) {
   print(debug, "Accepted client :: ", client.ip_addr);
 
-  auto uuid = util::endian::little(file::read_struct<uuid_t>(*client.socket));
-
-  if(!uuid) {
-    client.socket->seal();
-
-    print(error, client.ip_addr, ": Could not read uuid: ", err::current());
-
-    return;
-  }
-
-  print(info, client.ip_addr, ": uuid: ", util::hex(*uuid));
-  handle_quest(*client.socket, *uuid);
+  handle_quest(*client.socket);
 }
 
 }

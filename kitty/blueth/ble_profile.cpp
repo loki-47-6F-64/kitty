@@ -657,7 +657,7 @@ int Profile::main(server::blue_client_t &client) const {
   std::vector<uint8_t> response;
 
   while (!client.socket->eof()) {
-    util::Optional<uint8_t> requestType = client.socket->next();
+    auto requestType = client.socket->next();
 
     if (!requestType) {
       if(err::code == err::TIMEOUT) {
@@ -667,8 +667,8 @@ int Profile::main(server::blue_client_t &client) const {
       break;
     }
 
-    print_request(requestType, client.socket->get_read_cache());
-    switch (requestType) {
+    print_request(*requestType, client.socket->get_read_cache());
+    switch (*requestType) {
     case ATT_OP_READ_BY_GROUP_REQ:
       response = _readByGroup(client);
       break;
@@ -699,7 +699,7 @@ int Profile::main(server::blue_client_t &client) const {
       response = _mtu(client);
       break;
     default:
-      response = parseError(requestType, 0x0000, ATT_ECODE_REQ_NOT_SUPP);
+      response = parseError(*requestType, 0x0000, ATT_ECODE_REQ_NOT_SUPP);
       print(error, "Request: 0x", util::hex(requestType), " not supported");
       break;
     }

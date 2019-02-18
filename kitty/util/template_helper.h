@@ -41,5 +41,14 @@ struct contains_instantiation_of<X, T<Y...>&> : public contains_instantiation_of
 
 template<template<typename...> class X, template<typename...> class T, class... Y>
 struct contains_instantiation_of<X, T<Y...>&&> : public contains_instantiation_of<X, Y...> {};
+
+template<class T, template<class...> class X>
+struct map_template;
+
+template<template<class...> class T, template<class...> class X, class... Args>
+struct map_template<T<Args...>, X> {
+
+  using type_t = X<Args...>;
+};
 }
 #endif

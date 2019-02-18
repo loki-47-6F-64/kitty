@@ -128,6 +128,7 @@ int io::select(std::chrono::milliseconds to, const int read) const {
       return -1;
     }
 
+    err::code = err::TIMEOUT;
     return err::TIMEOUT;
   }
 
