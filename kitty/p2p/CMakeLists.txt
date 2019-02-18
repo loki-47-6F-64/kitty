@@ -16,7 +16,7 @@ target_link_libraries(kitty-p2p
         ${CMAKE_THREAD_LIBS_INIT})
 
 
-add_executable(kitty-pj-server server/server.cpp uuid.h server/quest.h server/quest.cpp data_types.h)
-target_link_libraries(kitty-pj-server
+add_executable(kitty-p2p-bootstrap bootstrap/bootstrap.cpp uuid.h bootstrap/quest.h bootstrap/quest.cpp data_types.h)
+target_link_libraries(kitty-p2p-bootstrap
         ${KITTY_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT})

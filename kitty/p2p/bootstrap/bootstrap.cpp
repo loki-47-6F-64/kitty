@@ -8,12 +8,12 @@
 #include <kitty/server/server.h>
 #include <kitty/log/log.h>
 #include <kitty/p2p/uuid.h>
-#include <kitty/p2p/server/quest.h>
+#include <kitty/p2p/bootstrap/quest.h>
 
 using namespace std::chrono_literals;
-namespace p2p::server {
+namespace p2p::bootstrap {
 
-void accept_client(::server::tcp::client_t &&client) {
+void accept_client(server::tcp::client_t &&client) {
   print(debug, "Accepted client :: ", client.ip_addr);
 
   handle_quest(*client.socket);
@@ -38,9 +38,9 @@ int main(int args, char *argv[]) {
 
   std::thread worker_thread([&]() {
     auto_run.run([]() {
-      p2p::server::poll().poll(500ms);
+      p2p::bootstrap::poll().poll(500ms);
     });
   });
 
-  return server.start(p2p::server::accept_client, sockaddr);
+  return server.start(p2p::bootstrap::accept_client, sockaddr);
 }

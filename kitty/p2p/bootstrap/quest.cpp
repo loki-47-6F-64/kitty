@@ -12,10 +12,10 @@
 #include <kitty/p2p/data_types.h>
 #include "quest.h"
 
-namespace p2p::server {
+namespace p2p::bootstrap {
 using namespace std::literals;
 
-using namespace ::server::proxy;
+using namespace server::proxy;
 std::map<uuid_t, file::io> &peers() {
   static std::map<uuid_t, file::io> peers;
 

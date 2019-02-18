@@ -72,7 +72,7 @@ file::p2p quest_t::_send_accept(uuid_t recipient, const pj::remote_buf_t &remote
       }
 
 
-      auto err = ::server::proxy::push(server, recipient, uuid, "accept"sv,
+      auto err = server::proxy::push(server, recipient, uuid, "accept"sv,
         data::pack(call.credentials(), candidates));
 
       if(err) {
@@ -115,7 +115,7 @@ void quest_t::_handle_decline(uuid_t sender) {
 }
 
 void quest_t::_send_decline(uuid_t recipient, decline_t decline) {
-  ::server::proxy::push(server, recipient, uuid, "decline"sv, decline.reason, decline.msg);
+  server::proxy::push(server, recipient, uuid, "decline"sv, decline.reason, decline.msg);
 }
 
 void quest_t::_handle_accept(uuid_t sender, const pj::remote_buf_t &remote) {
@@ -135,7 +135,7 @@ std::variant<int, file::p2p> quest_t::process_quest() {
   uuid_t to, from;
   std::string quest;
 
-  if(::server::proxy::load(server, to, from, quest)) {
+  if(server::proxy::load(server, to, from, quest)) {
     print(error, err::current());
 
     return 0;
@@ -145,7 +145,7 @@ std::variant<int, file::p2p> quest_t::process_quest() {
   if(quest == "error") {
     std::string msg;
 
-    ::server::proxy::load(server, msg);
+    server::proxy::load(server, msg);
     print(error, "sender: ", util::hex(from), ": message: ", msg);
 
     return 0;
@@ -154,7 +154,7 @@ std::variant<int, file::p2p> quest_t::process_quest() {
   if(quest == "invite" || quest == "accept") {
 
     data::remote_t remote_d;
-    if(::server::proxy::load(server, remote_d)) {
+    if(server::proxy::load(server, remote_d)) {
       _peer_remove(from);
 
       print(error, "Could not unpack remote: ", err::current());
@@ -189,15 +189,15 @@ std::variant<int, file::p2p> quest_t::process_quest() {
 }
 
 void quest_t::_send_error(uuid_t recipient, const std::string_view &err_str) {
-  ::server::proxy::push(server, recipient, uuid, "error"sv, err_str);
+  server::proxy::push(server, recipient, uuid, "error"sv, err_str);
 }
 
 int quest_t::send_register() {
-  ::server::proxy::push(server, uuid_t {}, uuid, "register"sv);
+  server::proxy::push(server, uuid_t {}, uuid, "register"sv);
 
   std::string quest;
   std::vector<uuid_t> peers;
-  auto err = ::server::proxy::load(server, quest, peers);
+  auto err = server::proxy::load(server, quest, peers);
   if(err) {
     err::set("received no list of peers: "s + err::current());
     return -1;
@@ -327,7 +327,7 @@ std::variant<decline_t, file::p2p> quest_t::invite(uuid_t recipient) {
         return;
       }
 
-      ::server::proxy::push(server, recipient, uuid, "invite"sv,
+      server::proxy::push(server, recipient, uuid, "invite"sv,
         data::pack(call.credentials(), candidates));
 
       guard.failure = false;

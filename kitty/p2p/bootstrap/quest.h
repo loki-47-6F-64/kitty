@@ -9,7 +9,7 @@
 #include <kitty/file/io_stream.h>
 #include <kitty/p2p/uuid.h>
 
-namespace p2p::server {
+namespace p2p::bootstrap {
 void handle_quest(file::io &client);
 std::map<uuid_t, file::io> &peers();
 file::poll_t<file::io, uuid_t> &poll();
