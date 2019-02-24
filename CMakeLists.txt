@@ -27,6 +27,13 @@ if(KITTY_BUILD_SSL OR KITTY_BUILD_BLUETOOTH OR KITTY_BUILD_P2P)
   set(KITTY_BUILD_SERVER ON)
 endif()
 
+if(KITTY_BUILD_TOPO)
+  if(NOT KITTY_BUILD_SQLITE3)
+    message("Warning: Implicitly set(KITTY_BUILD_SQLITE3 ON)")
+  endif()
+  set(KITTY_BUILD_SQLITE3 ON)
+endif()
+
 set(KITTY_LIBRARIES
   kitty-err
   kitty-file
@@ -61,18 +68,31 @@ if(KITTY_BUILD_P2P)
     message(FATAL_ERROR "Please specify the root to pjsip -- \${PJSIP_INCLUDE_DIRS} and \${PJSIP_LIBRARIES}")
   endif()
 endif()
+
+if(KITTY_BUILD_SQLITE3)
+  if(NOT DEFINED SQLITE3_INCLUDE_DIRS OR NOT DEFINED SQLITE3_LIBRARIES)
+    message(FATAL_ERROR "Please specify the root to sqlite3 -- \${SQLITE3_INCLUDE_DIRS} and \${SQLITE3_LIBRARIES}")
+  endif()
+endif()
+
 # set up include-directories
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${OPENSSL_INCLUDE_DIR}
   ${BLUEZ_INCLUDE_DIRS}
   ${PJSIP_INCLUDE_DIRS}
+  ${SQLITE3_INCLUDE_DIRS}
 )
 
 add_subdirectory(kitty/err)
 add_subdirectory(kitty/util)
 add_subdirectory(kitty/file)
 add_subdirectory(kitty/log)
+
+if(KITTY_BUILD_SQLITE3)
+  set(KITTY_LIBRARIES ${KITTY_LIBRARIES} kitty-sqlite3)
+  add_subdirectory(kitty/sqlite3)
+endif()
 
 if(KITTY_BUILD_SERVER)
   set(KITTY_LIBRARIES ${KITTY_LIBRARIES} kitty-server)
@@ -87,6 +107,11 @@ endif()
 if(KITTY_BUILD_BLUETOOTH)  
   set(KITTY_LIBRARIES ${KITTY_LIBRARIES} kitty-bluetooth)
   add_subdirectory(kitty/blueth)
+endif()
+
+if(KITTY_BUILD_TOPO)
+  set(KITTY_LIBRARIES ${KITTY_LIBRARIES} kitty-topo)
+  add_subdirectory(kitty/topo)
 endif()
 
 if(KITTY_BUILD_P2P)

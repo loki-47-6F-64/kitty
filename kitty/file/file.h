@@ -42,7 +42,7 @@ struct buffer_t {
 template <class Stream>
 class FD { /* File descriptor */
 public:
-  using duration_t = std::chrono::milliseconds ;
+  using duration_t = std::chrono::milliseconds;
   using stream_t = Stream;
 private:
   stream_t _stream;
@@ -346,6 +346,28 @@ std::optional<std::string> read_string(FD<T> &socket, std::size_t size) {
   }
 
   return buf;
+}
+
+template<class T>
+std::optional<std::string> read_line(FD<T> &socket, std::string buf = std::string {}) {
+  auto err = socket.eachByte([&buf](std::uint8_t byte) {
+    if(byte == '\r') {
+      return err::OK;
+    }
+    if(byte == '\n') {
+      return err::BREAK;
+    }
+
+    buf += byte;
+
+    return err::OK;
+  });
+
+  if(err) {
+    return std::nullopt;
+  }
+
+  return std::move(buf);
 }
 
 template<class T, class X>

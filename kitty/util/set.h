@@ -8,7 +8,9 @@
 #include <utility>
 #include <type_traits>
 #include <array>
-#include "optional.h"
+#include <optional>
+
+#include <kitty/util/template_helper.h>
 
 namespace util {
   template<class It>
@@ -35,10 +37,7 @@ namespace util {
   
   template<class It, class Function>
   inline auto map_if(It begin, It end, Function &&f) {
-    typedef
-    typename std::remove_const<
-    typename std::remove_reference<decltype(*f(*begin))>::type
-    >::type output_t;
+    using output_t = std::decay_t<decltype(*f(*begin))>;
     
     std::vector<output_t> result;
     result.reserve(std::distance(begin, end));
@@ -61,13 +60,8 @@ namespace util {
   
   template<class It, class Function>
   inline auto map(It begin, It end, Function &&f) {
-    typedef decltype(*begin) input_t;
-    typedef typename std::remove_const<
-    typename std::remove_reference<decltype(f(*begin))>::type
-    >::type output_t;
-    
-    return map_if(begin, end, [&](input_t &input) {
-      return util::Optional<output_t> { f(input) };
+    return map_if(begin, end, [&](auto &input) {
+      return std::optional { f(input) };
     });
   }
   
@@ -93,9 +87,8 @@ namespace util {
   }
   
   template<class Container, class Function>
-  typename std::remove_reference<Container>::type
-  copy_if(Container &&from, Function &&f) {
-    typename std::remove_reference<Container>::type result;
+  auto copy_if(Container &&from, Function &&f) {
+    std::decay_t<Container> result;
     
     std::copy_if(std::begin(from), std::end(from), std::back_inserter(result), std::forward<Function>(f));
     
@@ -142,22 +135,20 @@ namespace util {
   }
   
   template<class Container, class Type>
-  std::vector<typename std::remove_reference<Container>::type>
-  split(Container &&container, const Type &&val) {
-    
-    std::vector<typename std::remove_reference<Container>::type> vecContainer;
+  auto split(Container &&container, const Type &val) {
+    std::vector<typename to_view<std::decay_t<Container>>::type> vecContainer;
     
     auto begin = std::begin(container);
     auto end = begin;
     for(; end < std::end(container); ++end) {
-      if(val == *end && begin < end) {
-        vecContainer.emplace_back(begin, end);
+      if(val == *end) {
+        vecContainer.emplace_back(&*begin, std::distance(begin, end));
         begin = end +1;
       }
     }
     
     if(begin < end) {
-      vecContainer.emplace_back(begin, end);
+      vecContainer.emplace_back(&*begin, std::distance(begin, end));
     }
 
     return vecContainer;
@@ -202,12 +193,6 @@ namespace util {
 
     return true;
   }
-
-  template<class T, class... Args>
-  struct First {
-    typedef T type;
-  };
-  
   
   template<std::size_t N, class Array, class Arg>
   Array _make_array(Array &array, Arg&& arg) {
@@ -225,8 +210,8 @@ namespace util {
   }
   
   template<class... Args, std::size_t N = sizeof... (Args)>
-  std::array<typename First<Args...>::type, N> make_array(Args&& ... args) {
-    typedef std::array<typename First<Args...>::type, N> Array;
+  std::array<typename head_types<Args...>::type, N> make_array(Args&& ... args) {
+    typedef std::array<typename head_types<Args...>::type, N> Array;
     
     Array arr;
     return _make_array<std::tuple_size<Array>::value - 1>(arr, std::forward<Args>(args)...);  

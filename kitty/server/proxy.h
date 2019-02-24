@@ -129,7 +129,7 @@ int _load_raw(file::FD<Stream> &fd, std::vector<std::uint8_t> &vec) {
   std::size_t size;
 
   if constexpr (util::instantiation_of<std::tuple, T>::value) {
-    auto err = util::map_template<T, _load_raw_helper>::type_t::run(fd, vec);
+    auto err = util::copy_types<T, _load_raw_helper>::type::run(fd, vec);
 
     if(err) {
       return -1;

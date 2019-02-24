@@ -82,7 +82,7 @@ class FailGuard {
 public:
   FailGuard() = delete;
   FailGuard(T && f) noexcept : _func { std::forward<T>(f) } {}
-  FailGuard(FailGuard &&other) : _func { std::move(other._func) } {
+  FailGuard(FailGuard &&other) noexcept : _func { std::move(other._func) } {
     this->failure = other.failure;
 
     other.failure = false;
@@ -91,7 +91,7 @@ public:
   FailGuard(const FailGuard &) = delete;
 
   FailGuard &operator=(const FailGuard &) = delete;
-  FailGuard &operator=(FailGuard &&) = delete;
+  FailGuard &operator=(FailGuard &&other) = delete;
 
   ~FailGuard() noexcept {
     if(failure) {
@@ -273,6 +273,34 @@ FakeContainer<T*> toContainer(T * const begin) {
   return toContainer(begin, end);
 }
 
+template<class T, class H>
+struct _init_helper;
+
+template<template<class...> class T, class H, class... Args>
+struct _init_helper<T<Args...>, H> {
+  using type = T<Args...>;
+
+  static type move(Args&&... args, H&&) {
+    return std::make_tuple(std::move(args)...);
+  }
+
+  static type copy(const Args&... args, const H&) {
+    return std::make_tuple(args...);
+  }
+};
+
+template<class... Args>
+auto init(std::tuple<Args...> &&tuple) {
+  using tuple_t = std::tuple<Args...>;
+  return std::apply(_init_helper<typename init_types<tuple_t>::type, typename last_types<tuple_t>::type>::move, std::move(tuple));
+}
+
+template<class... Args>
+auto init(const std::tuple<Args...> &tuple) {
+  using tuple_t = std::tuple<Args...>;
+  return std::apply(_init_helper<typename init_types<tuple_t>::type, typename last_types<tuple_t>::type>::copy, tuple);
+}
+
 namespace endian {
 template<class T = void>
 struct endianness {
@@ -363,6 +391,18 @@ inline auto little(T x) { return endian_helper<T>::little(x); }
 template<class T>
 inline auto big(T x) { return endian_helper<T>::big(x); }
 } /* endian */
+
+inline std::int64_t from_chars(const char *begin, const char *end) {
+  std::int64_t res {};
+  std::int64_t mul = 1;
+  while(begin != --end) {
+    res += (std::int64_t)(*end - '0') * mul;
+
+    mul *= 10;
+  }
+
+  return *begin != '-' ? res + (std::int64_t)(*begin - '0') * mul : -res;
+}
 
 } /* util */
 #endif

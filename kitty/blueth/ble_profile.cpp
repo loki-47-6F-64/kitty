@@ -113,7 +113,7 @@ std::vector<uint8_t> slice_data(std::vector<uint8_t> && data, uint16_t mtu, uint
   data.erase(data.end() - compensation, data.end());
   data.erase(data.begin() + start, data.begin() + start + offset);
 
-  return data;
+  return std::move(data);
 }
 
 std::vector<uint8_t> Profile::_readByGroup(server::blue_client_t &client) const {
