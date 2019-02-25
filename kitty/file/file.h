@@ -475,24 +475,16 @@ private:
 
 }
 
-//TODO: print is not thread_safe
-
-template<class Stream>
-int _print(file::FD<Stream> &file) {
-  return file.out();
-}
-
-template<class Stream, class Out, class... Args>
-int _print(file::FD<Stream> &file, Out && out, Args && ... params) {
-  return _print(file.append(std::forward<Out>(out)), std::forward<Args>(params)...);
-}
-
 /*
  * First clear file, then recursively print all params
  */
 template<class Stream, class... Args>
 int print(file::FD<Stream> &file, Args && ... params) {
-  return _print(file.write_clear(), std::forward<Args>(params)...);
+  file.write_clear();
+
+  (file.append(std::forward<Args>(params)),...);
+
+  return file.out();
 }
 #endif
 
