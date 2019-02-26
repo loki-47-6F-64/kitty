@@ -7,7 +7,7 @@
 
 #include <cstddef>
 
-namespace util::lit {
+namespace literal {
 
 struct __concat_impl_t {};
 struct __string_impl_t {};
@@ -85,6 +85,8 @@ struct string_t<N, __concat_impl_t> {
   }
 };
 
+template<std::size_t I>
+using static_string_t = string_t<I, __string_impl_t>;
 template<std::size_t N>
 string_t(const char (&data)[N]) -> string_t<N -1, __string_impl_t>;
 
