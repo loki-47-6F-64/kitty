@@ -10,6 +10,7 @@
 
 #include <kitty/util/utility.h>
 #include <kitty/util/template_helper.h>
+#include <kitty/util/string.h>
 
 namespace sqlite {
 typedef util::safe_ptr_v2<sqlite3, int, sqlite3_close> sDatabase;
@@ -120,6 +121,152 @@ public:
 template<class T>
 using optional_unique_t = std::optional<Unique<T>>;
 
+template<class T>
+struct type_value;
+
+template<>
+struct type_value<bool> {
+  using type = util::lit::concat_t<util::lit::literal_t<'b','o','o','l'>, util::lit::string_literal_t<5>>;
+};
+
+template<>
+struct type_value<std::int8_t> {
+  using type = util::lit::concat_t<util::lit::literal_t<'c', 'h', 'a', 'r'>, util::lit::string_literal_t<8>>;
+};
+
+template<>
+struct type_value<std::int16_t> {
+  using type = util::lit::concat_t<util::lit::literal_t<'s', 'h', 'o', 'r', 't'>, util::lit::string_literal_t<16>>;
+};
+
+template<>
+struct type_value<std::int32_t> {
+  using type = util::lit::concat_t<util::lit::literal_t<'i', 'n', 't'>, util::lit::string_literal_t<32>>;
+};
+
+template<>
+struct type_value<std::int64_t> {
+  using type = util::lit::concat_t<util::lit::literal_t<'l', 'o', 'n', 'g'>, util::lit::string_literal_t<64>>;
+};
+
+template<>
+struct type_value<std::uint8_t> {
+  using type = util::lit::concat_t<util::lit::literal_t<'b', 'y', 't', 'e', ' ', 'u', 'n', 's', 'i', 'g', 'n', 'e', 'd'>, util::lit::string_literal_t<8>>;
+};
+
+template<>
+struct type_value<std::uint16_t> {
+  using type = util::lit::concat_t<util::lit::literal_t<'s', 'h', 'o', 'r', 't', ' ', 'u', 'n', 's', 'i', 'g', 'n', 'e', 'd'>, util::lit::string_literal_t<16>>;
+};
+
+template<>
+struct type_value<std::uint32_t> {
+  using type = util::lit::concat_t<util::lit::literal_t<'i', 'n', 't', ' ', 'u', 'n', 's', 'i', 'g', 'n', 'e', 'd'>, util::lit::string_literal_t<32>>;
+};
+
+template<>
+struct type_value<std::uint64_t> {
+  using type = util::lit::concat_t<util::lit::literal_t<'l', 'o', 'n', 'g', ' ', 'u', 'n', 's', 'i', 'g', 'n', 'e', 'd'>, util::lit::string_literal_t<64>>;
+};
+
+template<>
+struct type_value<double> {
+  using type = util::lit::literal_t<'d','o','u','b','l','e'>;
+};
+
+template<>
+struct type_value<float> {
+  using type = util::lit::literal_t<'f','l','o','a','t'>;
+};
+
+template<>
+struct type_value<std::string> {
+  using type = util::lit::concat_t<util::lit::literal_t<'s', 't', 'r', 'i', 'n', 'g'>, util::lit::string_literal_t<128>>;
+};
+
+template<class T>
+struct type_value<std::vector<T>> {
+  using type = util::lit::concat_t<typename type_value<T>::type, util::lit::literal_t<'v', 'e', 'c', 't', 'o', 'r'>>;
+};
+
+template<class T>
+struct type_value<Unique<T>> {
+  using type = util::lit::concat_t<typename type_value<T>::type, util::lit::literal_t<'U', 'n', 'i', 'q', 'u', 'e'>>;
+};
+
+template<class T>
+struct type_value<std::optional<T>> {
+  using type = util::lit::concat_t<typename type_value<T>::type, util::lit::literal_t<'o', 'p', 't', 'i', 'o', 'n', 'a', 'l'>>;
+};
+
+template<std::size_t I, class T>
+struct fold_columns_name;
+
+template<std::size_t I, class T>
+struct fold_columns_bind;
+
+template<std::size_t I, class T>
+struct fold_columns_update;
+
+template<std::size_t I, auto...Args>
+struct fold_columns_name<I, util::lit::literal_t<Args...>> {
+  using type = util::lit::concat_t<
+    util::lit::concat_t<util::lit::string_literal_quote_t<I>, util::lit::literal_t<','>>,
+    util::lit::literal_t<Args...>
+    >;
+};
+
+template<std::size_t I, auto...Args>
+struct fold_columns_bind<I, util::lit::literal_t<Args...>> {
+  using type = util::lit::concat_t<util::lit::literal_t<Args...>, util::lit::literal_t<'?',','>>;
+};
+
+template<std::size_t I, auto...Args>
+struct fold_columns_update<I, util::lit::literal_t<Args...>> {
+  using type = util::lit::concat_t<
+    util::lit::concat_t<util::lit::string_literal_quote_t<I>, util::lit::literal_t<'=', '?',','>>,
+    util::lit::literal_t<Args...>
+  >;
+};
+
+template<class T>
+using type_value_t = typename type_value<T>::type;
+
+// Fowler–Noll–Vo hash function
+constexpr std::size_t hash_mul = sizeof(std::size_t) == 4 ? 16777619 : 1099511628211;
+
+template<std::size_t hash, class T>
+struct apply_t;
+
+template<std::size_t hash>
+struct apply_t<hash, util::lit::literal_t<>> {
+  static constexpr std::size_t value = hash;
+};
+
+template<std::size_t hash, char... Args>
+struct apply_t<hash, util::lit::literal_t<Args...>> {
+  static constexpr std::size_t value = apply_t<(hash * hash_mul) ^ util::lit::literal_t<Args...>::value[0], util::lit::tail_t<util::lit::literal_t<Args...>>>::value;
+};
+
+template<std::size_t hash, class T>
+struct hash_t;
+
+template<std::size_t hash>
+struct hash_t<hash, std::tuple<>> {
+  static constexpr std::size_t value = hash;
+};
+
+template<std::size_t hash, class...Args>
+struct hash_t<hash, std::tuple<Args...>> {
+  static constexpr std::size_t value = hash_t<
+    apply_t<hash, type_value_t<typename util::head_types<std::tuple<Args...>>::type>>::value,
+    typename util::tail_types<std::tuple<Args...>>::type
+  >::value;
+};
+
+template<class T>
+static constexpr std::size_t hash_v = hash_t<14695981039346656037ul, T>::value;
+
 template<class ...Args>
 class Model {
 public:
@@ -128,8 +275,9 @@ public:
 
   static constexpr std::size_t tuple_size = std::tuple_size<tuple_t>::value;
 private:
-  std::string _table;
-  std::array<std::string, tuple_size> _columns;
+  using _index_t = util::lit::index_sequence_t<tuple_size -1>;
+
+  static constexpr auto _table = util::lit::string_literal_quote_t<hash_v<tuple_t>>::to_string();
 
   sStatement _transaction_start;
   sStatement _transaction_end;
@@ -139,10 +287,9 @@ private:
   sStatement _update;
   sStatement _delete;
 public:
-  Model(std::string &&table, std::array<std::string, tuple_size> &&columns, sqlite3 *db)
-    : _table(std::move(table)), _columns(std::move(columns)) {
+  Model(sqlite3 *db) {
     char *buf { nullptr };
-    sqlite3_exec(db, _sql_init().c_str(), nullptr, nullptr, &buf);
+    sqlite3_exec(db, sql_init.begin(), nullptr, nullptr, &buf);
     if(buf) {
       err::set(buf);
 
@@ -154,10 +301,10 @@ public:
     _transaction_start = sStatement(mk_statement(db, "BEGIN TRANSACTION;"));
     _transaction_end   = sStatement(mk_statement(db, "COMMIT;"));
 
-    _insert         = sStatement(mk_statement(db, _sql_insert(false).c_str()));
-    _insert_with_id = sStatement(mk_statement(db, _sql_insert(true).c_str()));
-    _update         = sStatement(mk_statement(db, _sql_update().c_str()));
-    _delete         = sStatement(mk_statement(db, _sql_delete().c_str()));
+    _insert         = sStatement(mk_statement(db, sql_insert.begin()));
+    _insert_with_id = sStatement(mk_statement(db, sql_insert_with_id.begin()));
+    _update         = sStatement(mk_statement(db, sql_update.begin()));
+    _delete         = sStatement(mk_statement(db, sql_delete.begin()));
   }
 
 
@@ -215,19 +362,19 @@ public:
 
   template<class Callable>
   int load(Callable &&f) {
-    auto statement = mk_statement(sqlite3_db_handle(_insert.get()), _sql_select().c_str());
+    auto statement = mk_statement(sqlite3_db_handle(_insert.get()), (sql_select + ";").begin());
     return _output(statement, std::forward<Callable>(f));
   }
 
   template<class Callable>
   int load(const std::vector<filter_t> &filters, Callable &&f) {
-    auto statement = mk_statement(sqlite3_db_handle(_insert.get()), (_sql_select() + _sql_where(filters)).c_str());
+    auto statement = mk_statement(sqlite3_db_handle(_insert.get()), (_sql_select().begin() + _sql_where(filters)).c_str());
     return _output(statement, filters, std::forward<Callable>(f));
   }
 
   template<class Callable>
   int load(sqlite3_int64 id, Callable &&f) {
-    auto statement = mk_statement(sqlite3_db_handle(_insert.get()), (_sql_select() + " WHERE (ID=?);").c_str());
+    auto statement = mk_statement(sqlite3_db_handle(_insert.get()), (_sql_select() + " WHERE (ID=?);").begin());
 
     sqlite3_bind_int64(statement.get(), 1, id);
 
@@ -309,64 +456,44 @@ public:
     }
   }
 
-  std::string _sql_init() {
-    return "CREATE TABLE IF NOT EXISTS " + _table + " (ID INTEGER PRIMARY KEY, " + SQL<tuple_t, 0>::init(*this);
+  constexpr static auto _sql_init() {
+    return "CREATE TABLE IF NOT EXISTS " + _table + " (ID INTEGER PRIMARY KEY, " + SQL<tuple_t, 0>::init();
   }
 
-  std::string _sql_insert(bool custom_id) {
-    std::string sql = "INSERT INTO " + _table + " (";
+  template<bool custom_id>
+  auto static constexpr _sql_insert() {
+    using last_literal_t = util::lit::string_literal_quote_t<tuple_size -1>;
 
-    std::for_each(_columns.begin(), _columns.end() - 1, [&](auto &column) {
-      sql.append(column).append(",");
-    });
-    sql.append(*(_columns.end() - 1));
+    constexpr util::lit::string_t sql_begin  = "INSERT INTO " + _table + " (" + util::lit::fold_t<_index_t, fold_columns_name, last_literal_t>::to_string();
+    constexpr util::lit::string_t sql_middle = util::lit::fold_t<_index_t, fold_columns_bind, util::lit::literal_t<>>::to_string();
 
-    if(custom_id) {
-      sql.append(",ID) VALUES (");
+    if constexpr (custom_id) {
+      return sql_begin + ",ID) VALUES (" + sql_middle + "?,?);";
     }
     else {
-      sql.append(") VALUES (");
+      return sql_begin + ") VALUES (" + sql_middle + "?);";
     }
-
-    std::for_each(_columns.begin(), _columns.end() - 1, [&](auto &column) {
-      sql.append("?,");
-    });
-
-    if(custom_id) {
-      sql.append("?,?);");
-    }
-    else {
-      sql.append("?);");
-    }
-    return sql;
   }
 
-  std::string _sql_update() {
-    std::string sql = "UPDATE " + _table + " SET ";
+  static constexpr auto _sql_update() {
+    using last_literal_t = util::lit::concat_t<util::lit::string_literal_quote_t<tuple_size -1>, util::lit::literal_t<'=','?'>>;
 
-    std::for_each(_columns.begin(), _columns.end() - 1, [&](auto &column) {
-      sql.append(column).append(" = ?,");
-    });
-
-    sql.append(*(_columns.end() - 1)).append(" = ?").append(" WHERE ID = ?");
-
-    return sql;
+    return "UPDATE " + _table + " SET " +
+      util::lit::fold_t<_index_t, fold_columns_update, last_literal_t>::to_string() +
+      " WHERE ID=?;";
   }
 
-  std::string _sql_delete() {
-    return "DELETE FROM " + _table + " WHERE ID = ?";
+  static constexpr auto _sql_delete() {
+    return "DELETE FROM " + _table + " WHERE ID=?;";
   }
 
-  std::string _sql_select() {
-    std::string columns;
+  static constexpr auto _sql_select() {
+    using last_literal_t = util::lit::string_literal_quote_t<tuple_size -1>;
 
-    for(auto &column : _columns) {
-      columns.append(column).append(",");
-    }
-
-    columns.append("ID");
-
-    return "SELECT " + columns + " FROM " + _table;
+    return
+      "SELECT " +
+      util::lit::fold_t<_index_t, fold_columns_name, last_literal_t>::to_string() +
+      "ID FROM " + _table;
   }
 
   std::string _sql_where(const std::vector<filter_t> &filters) {
@@ -392,12 +519,12 @@ public:
 
     typedef std::decay_t<decltype(std::get<offset>(std::declval<tuple_t>()))> elem_t;
   public:
-    static std::string init(Model &_this) {
-      if(elem == tuple_size - 1) {
-        return _this._columns[offset] + " " + AppendFunc<elem_t>::not_null() + SQL<tuple_t, elem + 1>::init(_this);
+    static constexpr auto init() {
+      if constexpr (elem == tuple_size - 1) {
+        return util::lit::string_literal_quote_t<offset>::to_string() + " " + AppendFunc<elem_t>::not_null() + SQL<tuple_t, elem + 1>::init();
       } else {
-        return _this._columns[offset] + " " + AppendFunc<elem_t>::not_null() + "," +
-               SQL<tuple_t, elem + 1>::init(_this);
+        return util::lit::string_literal_quote_t<offset>::to_string() + " " + AppendFunc<elem_t>::not_null() + "," +
+               SQL<tuple_t, elem + 1>::init();
       }
     }
 
@@ -419,9 +546,9 @@ public:
       std::string sql;
       if(optional_value) {
         if(empty) {
-          sql = "(" + _this._columns[elem] + " " + comp_to_string[optional_value->first] + " ? ";
+          sql = "(" + util::lit::string_literal_quote_t<elem>::to_string().native() + " " + comp_to_string[optional_value->first] + " ? ";
         } else {
-          sql = "AND " + _this._columns[elem] + " " + comp_to_string[optional_value->first] + " ? ";
+          sql = "AND " + util::lit::string_literal_quote_t<elem>::to_string().native() + " " + comp_to_string[optional_value->first] + " ? ";
         }
       }
 
@@ -451,13 +578,13 @@ public:
       typedef decltype(*std::begin(std::declval<T>())) raw_type;
       typedef std::decay_t<raw_type> base_type;
 
-      static std::string not_null() {
+      static constexpr auto not_null() {
         return type() + " NOT NULL";
       }
 
 
-      static std::string type() {
-        return std::is_same<char, base_type>::value ? "TEXT" : "BLOB";
+      static constexpr auto type() {
+        return util::lit::string_t { std::is_same<char, base_type>::value ? "TEXT" : "BLOB" };
       }
 
       static void deleter(void *ptr) {
@@ -506,12 +633,12 @@ public:
 
     template<class T>
     struct AppendFunc<T, std::enable_if_t<std::is_integral<T>::value>> {
-      static std::string not_null() {
-        return "INTEGER NOT NULL";
+      static constexpr auto not_null() {
+        return util::lit::string_t { "INTEGER NOT NULL" };
       }
 
-      static std::string type() {
-        return "INTEGER";
+      static constexpr auto  type() {
+        return util::lit::string_t { "INTEGER" };
       }
 
       static void bind(sStatement &statement, const T &value, int element = offset) {
@@ -525,12 +652,12 @@ public:
 
     template<class T>
     struct AppendFunc<T, std::enable_if_t<std::is_floating_point<T>::value>> {
-      static std::string not_null() {
-        return "REAL NOT NULL";
+      static constexpr auto not_null() {
+        return util::lit::string_t { "REAL NOT NULL" };
       }
 
-      static std::string type() {
-        return "REAL";
+      static constexpr auto type() {
+        return util::lit::string_t { "REAL" };
       }
 
       static void bind(sStatement &statement, const T &value, int element = offset) {
@@ -552,7 +679,7 @@ public:
       static_assert(!util::contains_instantiation_of<std::optional, elem_t>::value,
                     "std::optional<std::optional<T>> detected.");
 
-      static std::string not_null() {
+      static constexpr auto not_null() {
         return AppendFunc<elem_t>::type();
       }
 
@@ -582,11 +709,11 @@ public:
                     "std::optional should be the top constraint.");
       static_assert(!util::contains_instantiation_of<Unique, elem_t>::value, "Unique<Unique<T>> detected.");
 
-      static std::string not_null() {
+      static constexpr auto not_null() {
         return AppendFunc<elem_t>::not_null() + " UNIQUE";
       }
 
-      static std::string type() {
+      static constexpr auto type() {
         return AppendFunc<elem_t>::type() + " UNIQUE";
       }
 
@@ -603,7 +730,7 @@ public:
   template<class tuple_t, int elem>
   class SQL<tuple_t, elem, std::enable_if_t<(elem == std::tuple_size<tuple_t>::value)>> {
   public:
-    static std::string init(Model &_this) { return ");"; }
+    static constexpr auto init() { return util::lit::string_t { ");" }; }
 
     static void bind(sStatement &statement, const tuple_t &tuple) { }
 
@@ -617,6 +744,14 @@ public:
     // Return the amount of values bound
     static int optional_bind(int bound, sStatement &statement, const filter_t &filter) { return bound; }
   };
+
+public:
+  static constexpr util::lit::string_t sql_init           = _sql_init();
+  static constexpr util::lit::string_t sql_select         = _sql_select();
+  static constexpr util::lit::string_t sql_insert         = _sql_insert<false>();
+  static constexpr util::lit::string_t sql_insert_with_id = _sql_insert<true>();
+  static constexpr util::lit::string_t sql_update         = _sql_update();
+  static constexpr util::lit::string_t sql_delete         = _sql_delete();
 };
 
 template<class Tuple>
@@ -630,11 +765,8 @@ public:
   Database(const std::string &dbName);
 
   template<class Tuple, class ...Args>
-  auto mk_model(std::string &&table, Args &&... columns) {
-    static_assert(sizeof...(Args) >= std::tuple_size<Tuple>::value, "Too few columns");
-    static_assert(sizeof...(Args) == std::tuple_size<Tuple>::value, "Too many columns");
-
-    return model_controller_t<Tuple>(std::move(table), { std::forward<Args>(columns)... }, _db.get());
+  auto mk_model() {
+    return model_controller_t<Tuple>(_db.get());
   }
 };
 }

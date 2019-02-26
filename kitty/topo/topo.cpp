@@ -27,31 +27,15 @@ using ip_block_t   = std::tuple<std::uint32_t, std::uint32_t, std::optional<std:
 using coordinate_t = std::tuple<std::string, double, double>;
 
 util::copy_types<country_t, sqlite::Model>::type country_m(sqlite::Database &database) {
-  return database.mk_model<country_t>(
-    "countries"s,
-    "continent_code"s,
-    "continent_name"s,
-    "country_code"s,
-    "country_name"s);
+  return database.mk_model<country_t>();
 }
 
 util::copy_types<ip_block_t, sqlite::Model>::type ip_block_m(sqlite::Database &database) {
-  return database.mk_model<ip_block_t>(
-    "ip_block"s,
-    "ip_lower"s,
-    "ip_upper"s,
-    "registered_country_code"s,
-    "represented_country_code"s,
-    "anonymous_proxy"s,
-    "sattelite_provider"s);
+  return database.mk_model<ip_block_t>();
 }
 
 util::copy_types<coordinate_t, sqlite::Model>::type coord_m(sqlite::Database &database) {
-  return database.mk_model<coordinate_t>(
-    "coordinates"s,
-    "country_code"s,
-    "latitude"s,
-    "longitude"s);
+  return database.mk_model<coordinate_t>();
 }
 
 auto parse_line_country(const std::string &line) {
