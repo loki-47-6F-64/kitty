@@ -292,13 +292,13 @@ struct _init_helper<T<Args...>, H> {
 template<class... Args>
 auto init(std::tuple<Args...> &&tuple) {
   using tuple_t = std::tuple<Args...>;
-  return std::apply(_init_helper<typename init_types<tuple_t>::type, typename last_types<tuple_t>::type>::move, std::move(tuple));
+  return std::apply(_init_helper<typename __init_types<tuple_t>::type, typename __last_types<tuple_t>::type>::move, std::move(tuple));
 }
 
 template<class... Args>
 auto init(const std::tuple<Args...> &tuple) {
   using tuple_t = std::tuple<Args...>;
-  return std::apply(_init_helper<typename init_types<tuple_t>::type, typename last_types<tuple_t>::type>::copy, tuple);
+  return std::apply(_init_helper<typename __init_types<tuple_t>::type, typename __last_types<tuple_t>::type>::copy, tuple);
 }
 
 namespace endian {
@@ -333,7 +333,7 @@ struct endian_helper { };
 
 template<class T>
 struct endian_helper<T, std::enable_if_t<
-  !(instantiation_of<std::optional, T>::value || instantiation_of<Optional, T>::value)
+  !(instantiation_of_v<std::optional, T> || instantiation_of_v<Optional, T>)
 >> {
   static inline T big(T x) {
     if constexpr (endianness<T>::little) {
@@ -358,7 +358,7 @@ struct endian_helper<T, std::enable_if_t<
 
 template<class T>
 struct endian_helper<T, std::enable_if_t<
-  instantiation_of<std::optional, T>::value || instantiation_of<Optional, T>::value
+  instantiation_of_v<std::optional, T> || instantiation_of_v<Optional, T>
   >> {
   static inline T little(T x) {
     if(!x) return x;

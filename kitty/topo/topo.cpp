@@ -26,15 +26,15 @@ using country_t    = std::tuple<std::string, std::string, std::optional<std::str
 using ip_block_t   = std::tuple<std::uint32_t, std::uint32_t, std::optional<std::int64_t>, std::optional<std::int64_t>, bool, bool>;
 using coordinate_t = std::tuple<std::string, double, double>;
 
-util::copy_types<country_t, sqlite::Model>::type country_m(sqlite::Database &database) {
+util::copy_types<country_t, sqlite::Model> country_m(sqlite::Database &database) {
   return database.mk_model<country_t>();
 }
 
-util::copy_types<ip_block_t, sqlite::Model>::type ip_block_m(sqlite::Database &database) {
+util::copy_types<ip_block_t, sqlite::Model> ip_block_m(sqlite::Database &database) {
   return database.mk_model<ip_block_t>();
 }
 
-util::copy_types<coordinate_t, sqlite::Model>::type coord_m(sqlite::Database &database) {
+util::copy_types<coordinate_t, sqlite::Model> coord_m(sqlite::Database &database) {
   return database.mk_model<coordinate_t>();
 }
 

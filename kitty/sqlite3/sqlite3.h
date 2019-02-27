@@ -34,17 +34,17 @@ enum comp_t : int {
 extern const char *comp_to_string[];
 
 template<class ...Args>
-class Filter {
+class __filter_t {
 public:
   typedef std::tuple<std::optional<std::pair<comp_t, Args>>...> tuple_optional;
 
-  Filter() = default;
-  Filter(Filter &&) noexcept = default;
+  __filter_t() = default;
+  __filter_t(__filter_t &&) noexcept = default;
 
   tuple_optional tuple;
 
   template<std::size_t elem, class ...ConstructArgs>
-  Filter &set(comp_t comp, ConstructArgs &&... args) {
+  __filter_t &set(comp_t comp, ConstructArgs &&... args) {
     // Get the undelying element type from the optional
     typedef typename std::tuple_element<elem, tuple_optional>::type::value_type elem_t;
 
@@ -56,33 +56,33 @@ public:
 
 // Add room for id
 template<class Tuple>
-using model_t = typename util::append_types<Tuple, sqlite3_int64>::type;
+using model_t = typename util::__append_types<Tuple, sqlite3_int64>::type;
 
-// Type aliasing without make std::is_same<T, Unique<T>> true
+// Type aliasing without make std::is_same<T, unique_t<T>> true
 template<class T, class V = void>
-class Unique : public T {
+class unique_t : public T {
 public:
   typedef T elem_t;
   using T::T;
 
   template<class ...Args>
-  Unique(Args &&... args) : T { std::forward<Args>(args)... } { }
+  unique_t(Args &&... args) : T { std::forward<Args>(args)... } { }
 
-  Unique(const Unique &) = default;
+  unique_t(const unique_t &) = default;
 
-  Unique(Unique &&) noexcept = default;
+  unique_t(unique_t &&) noexcept = default;
 
-  Unique &operator=(const Unique &) = default;
+  unique_t &operator=(const unique_t &) = default;
 
-  Unique &operator=(Unique &&) noexcept = default;
+  unique_t &operator=(unique_t &&) noexcept = default;
 
-  Unique &operator=(const T &other) {
+  unique_t &operator=(const T &other) {
     _this() = other;
 
     return *this;
   }
 
-  Unique &operator=(T &&other) {
+  unique_t &operator=(T &&other) {
     _this() = std::move(other);
 
     return *this;
@@ -92,26 +92,26 @@ private:
   T &_this() { return *reinterpret_cast<T *>(this); }
 };
 
-// Type aliasing without make std::is_same<T, Unique<T>> true
+// Type aliasing without make std::is_same<T, unique_t<T>> true
 template<class T>
-class Unique<T, std::enable_if_t<!std::is_class<T>::value>> {
+class unique_t<T, std::enable_if_t<!std::is_class<T>::value>> {
   T _t;
 public:
   typedef T elem_t;
 
-  Unique() = default;
+  unique_t() = default;
 
-  Unique(const Unique &) = default;
+  unique_t(const unique_t &) = default;
 
-  Unique(Unique &&) noexcept = default;
+  unique_t(unique_t &&) noexcept = default;
 
-  Unique &operator=(const Unique &) = default;
+  unique_t &operator=(const unique_t &) = default;
 
-  Unique &operator=(Unique &&) noexcept = default;
+  unique_t &operator=(unique_t &&) noexcept = default;
 
-  Unique(const T &other) : _t { other } { }
+  unique_t(const T &other) : _t { other } { }
 
-  Unique(T &&other) : _t { std::move(other) } { }
+  unique_t(T &&other) : _t { std::move(other) } { }
 
   operator elem_t &() { return _t; }
 
@@ -119,7 +119,15 @@ public:
 };
 
 template<class T>
-using optional_unique_t = std::optional<Unique<T>>;
+struct range_t {
+  using value_type = T;
+
+  T lower;
+  T upper;
+};
+
+template<class T>
+using optional_unique_t = std::optional<unique_t<T>>;
 
 template<class T>
 struct type_value;
@@ -190,13 +198,18 @@ struct type_value<std::vector<T>> {
 };
 
 template<class T>
-struct type_value<Unique<T>> {
+struct type_value<unique_t<T>> {
   using type = literal::concat_t<typename type_value<T>::type, literal::literal_t<'U', 'n', 'i', 'q', 'u', 'e'>>;
 };
 
 template<class T>
 struct type_value<std::optional<T>> {
   using type = literal::concat_t<typename type_value<T>::type, literal::literal_t<'o', 'p', 't', 'i', 'o', 'n', 'a', 'l'>>;
+};
+
+template<class T>
+struct type_value<range_t<T>> {
+  using type = literal::concat_t<typename type_value<T>::type, literal::literal_t<'r','a','n','g','e','_','t'>>;
 };
 
 template<class T>
@@ -232,26 +245,27 @@ struct fold_columns_update<I, literal::literal_t<Args...>> {
   >;
 };
 
-template<class tuple_t, std::size_t offset, class _ = void>
+template<class tuple_t, std::size_t tuple_index, class _ = void>
 class __SQL {
   static constexpr std::size_t tuple_size = std::tuple_size_v<tuple_t>;
 
-  using elem_t = std::tuple_element_t<offset, tuple_t>;
-  using filter_t = typename util::copy_types<tuple_t, Filter>::type;
+  using elem_t = std::tuple_element_t<tuple_index, tuple_t>;
+  using filter_t = util::copy_types<tuple_t, __filter_t>;
 public:
+  template<std::size_t table_offset>
   static constexpr auto init() {
-    auto constexpr sql_begin =
-      literal::string_literal_quote_t<offset>::to_string() + " " +
-      __elem_funcs<elem_t>::not_null();
+    auto constexpr sql_begin = __elem_funcs<elem_t>::template table<table_offset>();
 
-    if constexpr (!(offset < tuple_size -1)) {
-      return sql_begin + __elem_funcs<elem_t>::constraint();
+    if constexpr (!(tuple_index < tuple_size -1)) {
+      return sql_begin + __elem_funcs<elem_t>::template constraint<table_offset>();
     }
     else {
+      constexpr auto table_offset_new = util::contains_instantiation_of_v<range_t, elem_t> ? table_offset +1 : table_offset;
+
       constexpr auto sql_middle = sql_begin + "," +
-                                  __SQL<tuple_t, offset + 1>::init() +
-                                  __elem_funcs<elem_t>::constraint();
-      if constexpr (offset == 0) {
+                                  __SQL<tuple_t, tuple_index + 1>::template init<table_offset_new>() +
+                                  __elem_funcs<elem_t>::template constraint<table_offset>();
+      if constexpr (tuple_index == 0) {
         return sql_middle + ");";
       } else {
         return sql_middle;
@@ -259,58 +273,54 @@ public:
     }
   }
 
-  static void bind(sStatement &statement, const tuple_t &tuple) {
-    __elem_funcs<elem_t>::bind(statement, std::get<offset>(tuple));
+  static void bind(int bound, sStatement &statement, const tuple_t &tuple) {
+    __elem_funcs<elem_t>::bind(bound, statement, std::get<tuple_index>(tuple));
 
-    __SQL<tuple_t, offset + 1>::bind(statement, tuple);
+    __SQL<tuple_t, tuple_index +1>::bind(bound +1, statement, tuple);
   }
 
   template<class ...Columns>
   static tuple_t row(sStatement &statement, Columns &&... columns) {
-    return __SQL<tuple_t, offset +1>::row(statement, std::forward<Columns>(columns)...,
+    return __SQL<tuple_t, tuple_index +1>::row(statement, std::forward<Columns>(columns)...,
                                        __elem_funcs<elem_t>::get(statement));
   }
 
   static std::string filter(const filter_t &filter, bool empty = true) {
-    auto &optional_value = std::get<offset>(filter.tuple);
+    auto &optional_value = std::get<tuple_index>(filter.tuple);
 
     std::string sql;
     if(optional_value) {
       if(empty) {
-        sql = "(" + literal::string_literal_quote_t<offset>::to_string().native() + " " + comp_to_string[optional_value->first] + " ? ";
+        sql = "(" + literal::string_literal_quote_t<tuple_index>::to_string().native() + " " + comp_to_string[optional_value->first] + " ? ";
       } else {
-        sql = "AND " + literal::string_literal_quote_t<offset>::to_string().native() + " " + comp_to_string[optional_value->first] + " ? ";
+        sql = "AND " + literal::string_literal_quote_t<tuple_index>::to_string().native() + " " + comp_to_string[optional_value->first] + " ? ";
       }
     }
 
-    return sql + __SQL<tuple_t, offset +1>::filter(filter, optional_value ? false : empty);
+    return sql + __SQL<tuple_t, tuple_index +1>::filter(filter, optional_value ? false : empty);
   }
 
   static int optional_bind(int bound, sStatement &statement, const filter_t &filter) {
-    auto &optional_value = std::get<offset>(filter.tuple);
+    auto &optional_value = std::get<tuple_index>(filter.tuple);
 
     if(optional_value) {
-      _optional_bind_helper(bound, statement, optional_value->second);
+      __elem_funcs<decltype(optional_value->second)>::bind(bound, statement, optional_value->second);
 
-      return __SQL<tuple_t, offset +1>::optional_bind(bound + 1, statement, filter);
+      return __SQL<tuple_t, tuple_index +1>::optional_bind(bound + 1, statement, filter);
     } else {
-      return __SQL<tuple_t, offset +1>::optional_bind(bound, statement, filter);
+      return __SQL<tuple_t, tuple_index +1>::optional_bind(bound, statement, filter);
     }
   }
 
   /* very */ private:
-  template<class T>
-  static void _optional_bind_helper(int bound, sStatement &statement, const T &value) {
-    __elem_funcs<T>::bind(statement, value, bound);
-  }
-
   template<class T, class S = void>
   struct __elem_funcs {
     typedef decltype(*std::begin(std::declval<T>())) raw_type;
     typedef std::decay_t<raw_type> base_type;
 
-    static constexpr auto not_null() {
-      return type() + " NOT NULL";
+    template<std::size_t table_offset>
+    static constexpr auto table() {
+      return literal::string_literal_quote_t<tuple_index + table_offset>::to_string() + " " + type() + " NOT NULL";
     }
 
 
@@ -318,6 +328,7 @@ public:
       return literal::string_t { std::is_same<char, base_type>::value ? "TEXT" : "BLOB" };
     }
 
+    template<std::size_t table_offset>
     static constexpr auto constraint() {
       return literal::string_t {};
     }
@@ -326,7 +337,7 @@ public:
       delete[] reinterpret_cast<base_type *>(ptr);
     }
 
-    static void bind(sStatement &statement, const T &value, int element = offset) {
+    static void bind(int element, sStatement &statement, const T &value) {
       auto begin = std::begin(value);
       auto end = std::end(value);
 
@@ -348,13 +359,13 @@ public:
     static T get(sStatement &statement) {
       const base_type *begin;
       if constexpr (std::is_same_v<base_type, char>) {
-        begin = reinterpret_cast<const base_type *>(sqlite3_column_text(statement.get(), offset));
+        begin = reinterpret_cast<const base_type *>(sqlite3_column_text(statement.get(), tuple_index));
       }
       else {
-        begin = reinterpret_cast<const base_type *>(sqlite3_column_blob(statement.get(), offset));
+        begin = reinterpret_cast<const base_type *>(sqlite3_column_blob(statement.get(), tuple_index));
       }
 
-      const base_type *end = begin + sqlite3_column_bytes(statement.get(), offset);
+      const base_type *end = begin + sqlite3_column_bytes(statement.get(), tuple_index);
 
       return { begin, end };
     }
@@ -362,47 +373,51 @@ public:
 
   template<class T>
   struct __elem_funcs<T, std::enable_if_t<std::is_integral<T>::value>> {
-    static constexpr auto not_null() {
-      return type() + " NOT NULL";
+    template<std::size_t table_offset>
+    static constexpr auto table() {
+      return literal::string_literal_quote_t<tuple_index + table_offset>::to_string() + " " + type() + " NOT NULL";
     }
 
     static constexpr auto  type() {
       return literal::string_t { "INTEGER" };
     }
 
+    template<std::size_t table_offset>
     static constexpr auto constraint() {
       return literal::string_t {};
     }
 
-    static void bind(sStatement &statement, const T &value, int element = offset) {
-      sqlite3_bind_int64(statement.get(), element + 1, value);
+    static void bind(int element, sStatement &statement, const T &value) {
+      sqlite3_bind_int64(statement.get(), element +1, value);
     }
 
     static T get(sStatement &statement) {
-      return (T) sqlite3_column_int64(statement.get(), offset);
+      return (T) sqlite3_column_int64(statement.get(), tuple_index);
     }
   };
 
   template<class T>
   struct __elem_funcs<T, std::enable_if_t<std::is_floating_point<T>::value>> {
-    static constexpr auto not_null() {
-      return literal::string_t { "REAL NOT NULL" };
+    template<std::size_t table_offset>
+    static constexpr auto table() {
+      return literal::string_literal_quote_t<tuple_index + table_offset>::to_string() + " " + type() + " NOT NULL";
     }
 
     static constexpr auto type() {
       return literal::string_t { "REAL" };
     }
 
+    template<std::size_t table_offset>
     static constexpr auto constraint() {
       return literal::string_t {};
     }
 
-    static void bind(sStatement &statement, const T &value, int element = offset) {
-      sqlite3_bind_double(statement.get(), element + 1, value);
+    static void bind(int element, sStatement &statement, const T &value) {
+      sqlite3_bind_double(statement.get(), element +1, value);
     }
 
     static T get(sStatement &statement) {
-      return sqlite3_column_double(statement.get(), offset);
+      return sqlite3_column_double(statement.get(), tuple_index);
     }
   };
 
@@ -412,31 +427,43 @@ public:
   };
 
   template<class T>
-  struct __elem_funcs<T, std::enable_if_t<util::instantiation_of<std::optional, T>::value>> {
+  struct __elem_funcs<T, std::enable_if_t<util::instantiation_of_v<std::optional, T>>> {
     typedef typename T::value_type elem_t;
 
-    static_assert(!util::contains_instantiation_of<std::optional, elem_t>::value,
+    static_assert(!util::contains_instantiation_of_v<std::optional, elem_t>,
                   "std::optional<std::optional<T>> detected.");
 
-    static constexpr auto not_null() {
+    template<std::size_t table_offset>
+    static constexpr auto table() {
+      if constexpr (util::contains_instantiation_of_v<range_t, T>) {
+        return
+          literal::string_literal_quote_t<tuple_index + table_offset>::to_string()    + " " + type() + "," +
+          literal::string_literal_quote_t<tuple_index + table_offset +1>::to_string() + " " + type();
+      }
+      else {
+        return literal::string_literal_quote_t<tuple_index + table_offset>::to_string() + " " + type();
+      }
+    }
+
+    static constexpr auto type() {
       return __elem_funcs<elem_t>::type();
     }
 
+    template<std::size_t table_offset>
     static constexpr auto constraint() {
-      return __elem_funcs<elem_t>::constraint();
+      return __elem_funcs<elem_t>::template constraint<table_offset>();
     }
 
-    static void bind(sStatement &statement, const T &value, int element = offset) {
+    static void bind(int element, sStatement &statement, const T &value) {
       if(value) {
-        __elem_funcs<elem_t>::bind(statement, *value, element);
+        __elem_funcs<elem_t>::bind(element, statement, *value);
       } else {
-        sqlite3_bind_null(statement.get(), element + 1);
+        sqlite3_bind_null(statement.get(), element +1);
       }
     }
 
     static T get(sStatement &statement) {
-      auto p = sqlite3_column_type(statement.get(), offset);
-      if(p == SQLITE_NULL) {
+      if(sqlite3_column_type(statement.get(), tuple_index) == SQLITE_NULL) {
         return std::nullopt;
       }
 
@@ -445,27 +472,70 @@ public:
   };
 
   template<class T>
-  struct __elem_funcs<T, std::enable_if_t<util::instantiation_of<Unique, T>::value>> {
-    typedef typename T::elem_t elem_t;
+  struct __elem_funcs<T, std::enable_if_t<util::instantiation_of_v<range_t, T>>> {
+    using elem_t = typename T::value_type;
 
-    static_assert(!util::contains_instantiation_of<std::optional, elem_t>::value,
+    static_assert(!util::contains_instantiation_of_v<std::optional, elem_t>,
                   "std::optional should be the top constraint.");
-    static_assert(!util::contains_instantiation_of<Unique, elem_t>::value, "Unique<Unique<T>> detected.");
+    static_assert(!util::contains_instantiation_of_v<unique_t, elem_t>, "unique_t should be the top constraint.");
 
-    static constexpr auto not_null() {
-      return __elem_funcs<elem_t>::not_null();
+    static_assert(!util::contains_instantiation_of_v<range_t, elem_t>,
+                  "range_t<range_t<T>> detected");
+
+    template<std::size_t table_offset>
+    static constexpr auto table() {
+      return
+        literal::string_literal_quote_t<tuple_index + table_offset>::to_string() + " "    + type() + " NOT NULL," +
+        literal::string_literal_quote_t<tuple_index + table_offset +1>::to_string() + " " + type() + " NOT NULL";
     }
 
     static constexpr auto type() {
       return __elem_funcs<elem_t>::type();
     }
 
+    template<std::size_t table_offset>
     static constexpr auto constraint() {
-      return __elem_funcs<elem_t>::constraint() + ",UNIQUE (" + literal::string_literal_quote_t<offset>::to_string() + ")";
+      return literal::string_t {};
+    }
+  };
+
+  template<class T>
+  struct __elem_funcs<T, std::enable_if_t<util::instantiation_of_v<unique_t, T>>> {
+    typedef typename T::elem_t elem_t;
+
+    static_assert(!util::contains_instantiation_of_v<std::optional, elem_t>,
+                  "std::optional should be the top constraint.");
+    static_assert(!util::contains_instantiation_of_v<unique_t, elem_t>, "unique_t<unique_t<T>> detected.");
+
+    template<std::size_t table_offset>
+    static constexpr auto table() {
+      if constexpr (util::contains_instantiation_of_v<range_t, T>) {
+        return
+          literal::string_literal_quote_t<tuple_index + table_offset>::to_string()    + " " + type() + "," +
+          literal::string_literal_quote_t<tuple_index + table_offset +1>::to_string() + " " + type();
+      }
+      else {
+        return literal::string_literal_quote_t<tuple_index + table_offset>::to_string() + " " + type();
+      }
     }
 
-    static void bind(sStatement &statement, const T &value, int element = offset) {
-      __elem_funcs<elem_t>::bind(statement, value, element);
+    static constexpr auto type() {
+      return __elem_funcs<elem_t>::type();
+    }
+
+    template<std::size_t table_offset>
+    static constexpr auto constraint() {
+      if constexpr (util::contains_instantiation_of_v<range_t, T>) {
+        return ",UNIQUE (" + literal::string_literal_quote_t<tuple_index + table_offset>::to_string() + "," +
+          literal::string_literal_quote_t<tuple_index + table_offset +1>::to_string() + ")";
+      }
+      else {
+        return ",UNIQUE (" + literal::string_literal_quote_t<tuple_index + table_offset>::to_string() + ")";
+      }
+    }
+
+    static void bind(int element, sStatement &statement, const T &value) {
+      __elem_funcs<elem_t>::bind(element, statement, value);
     }
 
     static T get(sStatement &statement) {
@@ -474,14 +544,14 @@ public:
   };
 };
 
-template<class tuple_t, int offset>
-class __SQL<tuple_t, offset, std::enable_if_t<(offset == std::tuple_size<tuple_t>::value)>> {
+template<class tuple_t, std::size_t tuple_index>
+class __SQL<tuple_t, tuple_index, std::enable_if_t<(tuple_index == std::tuple_size<tuple_t>::value)>> {
 public:
-  using filter_t = typename util::copy_types<tuple_t, Filter>::type;
+  using filter_t = util::copy_types<tuple_t, __filter_t>;
 
   static constexpr auto init() { return literal::string_t {}; }
 
-  static void bind(sStatement &statement, const tuple_t &tuple) { }
+  static void bind(int, sStatement&, const tuple_t &) { }
 
   template<class ...Columns>
   static tuple_t row(sStatement &statement, Columns &&... columns) {
@@ -521,25 +591,31 @@ struct hash_t<hash, std::tuple<>> {
 template<std::size_t hash, class...Args>
 struct hash_t<hash, std::tuple<Args...>> {
   static constexpr std::size_t value = hash_t<
-    apply_t<hash, type_value_t<typename util::head_types<std::tuple<Args...>>::type>>::value,
-    typename util::tail_types<std::tuple<Args...>>::type
+    apply_t<hash, type_value_t<typename util::__head_types<std::tuple<Args...>>::type>>::value,
+    typename util::__tail_types<std::tuple<Args...>>::type
   >::value;
 };
 
 template<class T>
 static constexpr std::size_t hash_v = hash_t<14695981039346656037ul, T>::value;
 
+template<class T>
+struct __CountPred {
+  static constexpr bool value = util::contains_instantiation_of_v<range_t, T>;
+};
+
 template<class ...Args>
 class Model {
 public:
-  typedef std::tuple<Args...> tuple_t;
-  typedef Filter<Args...> filter_t;
+  using tuple_t = std::tuple<Args...>;
+  using filter_t = __filter_t<Args...>;
 
   static constexpr std::size_t tuple_size = std::tuple_size<tuple_t>::value;
 private:
-  using _index_t = literal::index_sequence_t<tuple_size -1>;
+  static constexpr auto _range_count = util::count_if_v<tuple_t, __CountPred>;
 
-  static constexpr auto _table = literal::string_literal_quote_t<hash_v<tuple_t>>::to_string();
+  using _index_t = literal::index_sequence_t<tuple_size + _range_count -1>;
+  using _table = literal::string_literal_quote_t<hash_v<tuple_t>>;
 
   sStatement _transaction_start;
   sStatement _transaction_end;
@@ -658,7 +734,7 @@ public:
       sqlite3_bind_int64(statement.get(), (int)std::tuple_size_v<tuple_t> +1, custom_id);
     }
 
-    __SQL<tuple_t, 0>::bind(statement, tuple);
+    __SQL<tuple_t, 0>::bind(0, statement, tuple);
 
     while(true) {
       auto err = sqlite3_step(statement.get());
@@ -719,14 +795,14 @@ public:
   }
 
   constexpr static auto _sql_init() {
-    return "CREATE TABLE IF NOT EXISTS " + _table + " (ID INTEGER PRIMARY KEY," + __SQL<tuple_t, 0>::init();
+    return "CREATE TABLE IF NOT EXISTS " + _table::to_string() + " (ID INTEGER PRIMARY KEY," + __SQL<tuple_t, 0>::template init<0>();
   }
 
   template<bool custom_id>
   auto static constexpr _sql_insert() {
-    using last_literal_t = literal::string_literal_quote_t<tuple_size -1>;
+    using last_literal_t = literal::string_literal_quote_t<tuple_size + _range_count -1>;
 
-    constexpr literal::string_t sql_begin  = "INSERT INTO " + _table + " (" + literal::fold_t<_index_t, fold_columns_name, last_literal_t>::to_string();
+    constexpr literal::string_t sql_begin  = "INSERT INTO " + _table::to_string() + " (" + literal::fold_t<_index_t, fold_columns_name, last_literal_t>::to_string();
     constexpr literal::string_t sql_middle = literal::fold_t<_index_t, fold_columns_bind, literal::literal_t<>>::to_string();
 
     if constexpr (custom_id) {
@@ -738,15 +814,15 @@ public:
   }
 
   static constexpr auto _sql_update() {
-    using last_literal_t = literal::concat_t<literal::string_literal_quote_t<tuple_size -1>, literal::literal_t<'=','?'>>;
+    using last_literal_t = literal::concat_t<literal::string_literal_quote_t<tuple_size + _range_count -1>, literal::literal_t<'=','?'>>;
 
-    return "UPDATE " + _table + " SET " +
+    return "UPDATE " + _table::to_string() + " SET " +
       literal::fold_t<_index_t, fold_columns_update, last_literal_t>::to_string() +
       " WHERE ID=?;";
   }
 
   static constexpr auto _sql_delete() {
-    return "DELETE FROM " + _table + " WHERE ID=?;";
+    return "DELETE FROM " + _table::to_string() + " WHERE ID=?;";
   }
 
   static constexpr auto _sql_select() {
@@ -755,7 +831,7 @@ public:
     return
       "SELECT " +
       literal::fold_t<_index_t, fold_columns_name, last_literal_t>::to_string() +
-      "ID FROM " + _table;
+      ",ID FROM " + _table::to_string();
   }
 
   std::string _sql_where(const std::vector<filter_t> &filters) {
@@ -783,7 +859,7 @@ public:
 };
 
 template<class Tuple>
-using model_controller_t = typename util::copy_types<Tuple, Model>::type;
+using model_controller_t = util::copy_types<Tuple, Model>;
 
 class Database {
   sDatabase _db;

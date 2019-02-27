@@ -136,7 +136,7 @@ namespace util {
   
   template<class Container, class Type>
   auto split(Container &&container, const Type &val) {
-    std::vector<typename to_view<std::decay_t<Container>>::type> vecContainer;
+    std::vector<typename __to_view<std::decay_t<Container>>::type> vecContainer;
     
     auto begin = std::begin(container);
     auto end = begin;
@@ -210,8 +210,8 @@ namespace util {
   }
   
   template<class... Args, std::size_t N = sizeof... (Args)>
-  std::array<typename head_types<Args...>::type, N> make_array(Args&& ... args) {
-    typedef std::array<typename head_types<Args...>::type, N> Array;
+  std::array<typename __head_types<Args...>::type, N> make_array(Args&& ... args) {
+    typedef std::array<typename __head_types<Args...>::type, N> Array;
     
     Array arr;
     return _make_array<std::tuple_size<Array>::value - 1>(arr, std::forward<Args>(args)...);  

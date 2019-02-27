@@ -29,7 +29,7 @@ int load(file::FD<Stream> &fd) {
 
 template<class Stream, class T, class... Args>
 int load(file::FD<Stream> &fd, T &param, Args&... args) {
-  if constexpr (util::instantiation_of<std::tuple, T>::value) {
+  if constexpr (util::instantiation_of_v<std::tuple, T>) {
     auto err = std::apply([&fd](auto &&...args) {
       return load(fd, std::forward<decltype(args)>(args)...);
     }, param);
@@ -40,7 +40,7 @@ int load(file::FD<Stream> &fd, T &param, Args&... args) {
 
     return load(fd, args...);
   }
-  else if constexpr (util::instantiation_of<std::optional, T>::value) {
+  else if constexpr (util::instantiation_of_v<std::optional, T>) {
     auto ch = fd.next();
     if(!ch) {
       return -1;
@@ -54,7 +54,7 @@ int load(file::FD<Stream> &fd, T &param, Args&... args) {
       return load(fd, *param, args...);
     }
   }
-  else if constexpr (util::instantiation_of<std::vector, T>::value) {
+  else if constexpr (util::instantiation_of_v<std::vector, T>) {
     auto size_opt = util::endian::little(file::read_struct<std::uint16_t>(fd));
 
     if(!size_opt) {
@@ -128,8 +128,8 @@ template<class Stream, class T, class... Args>
 int _load_raw(file::FD<Stream> &fd, std::vector<std::uint8_t> &vec) {
   std::size_t size;
 
-  if constexpr (util::instantiation_of<std::tuple, T>::value) {
-    auto err = util::copy_types<T, _load_raw_helper>::type::run(fd, vec);
+  if constexpr (util::instantiation_of_v<std::tuple, T>) {
+    auto err = util::copy_types<T, _load_raw_helper>::run(fd, vec);
 
     if(err) {
       return -1;
@@ -137,7 +137,7 @@ int _load_raw(file::FD<Stream> &fd, std::vector<std::uint8_t> &vec) {
 
     size = 0;
   }
-  else if constexpr (util::instantiation_of<std::optional, T>::value) {
+  else if constexpr (util::instantiation_of_v<std::optional, T>) {
     auto ch = fd.next();
     if(!ch) {
       return -1;
@@ -152,7 +152,7 @@ int _load_raw(file::FD<Stream> &fd, std::vector<std::uint8_t> &vec) {
 
     size = 0;
   }
-  else if constexpr (util::instantiation_of<std::vector, T>::value) {
+  else if constexpr (util::instantiation_of_v<std::vector, T>) {
     auto size_opt = file::read_struct<std::uint16_t>(fd);
 
     if(!size_opt) {
@@ -217,7 +217,7 @@ int push(file::FD<Stream> &fd) {
 
 template<class Stream, class T, class... Args>
 int push(file::FD<Stream> &fd, const T &param, const Args&... args) {
-  if constexpr (util::instantiation_of<std::tuple, T>::value) {
+  if constexpr (util::instantiation_of_v<std::tuple, T>) {
     auto err = std::apply([&](auto&&... args) {
       return push(fd, std::forward<decltype(args)>(args)...);
     }, param);
@@ -228,10 +228,10 @@ int push(file::FD<Stream> &fd, const T &param, const Args&... args) {
 
     return push(fd, args...);
   }
-  else if constexpr (util::instantiation_of<file::raw_t, T>::value) {
+  else if constexpr (util::instantiation_of_v<file::raw_t, T>) {
     return push(fd.append(param.val), args...);
   }
-  else if constexpr (util::instantiation_of<std::optional, T>::value) {
+  else if constexpr (util::instantiation_of_v<std::optional, T>) {
     if(param) {
       fd.append('\x01').append(*param);
     }
@@ -241,7 +241,7 @@ int push(file::FD<Stream> &fd, const T &param, const Args&... args) {
 
     return push(fd, args...);
   }
-  else if constexpr (util::instantiation_of<std::vector, T>::value) {
+  else if constexpr (util::instantiation_of_v<std::vector, T>) {
     fd.append(file::raw(util::endian::little((std::uint16_t)param.size())));
 
     for(auto &el : param) {

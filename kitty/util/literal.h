@@ -230,20 +230,20 @@ template<class T, template<auto> class X>
 using map_t = typename __map<T, X>::type;
 
 template<class T, template<auto, class> class X, class D>
-struct __fold;
+struct __fold_t;
 
 template<template<auto...> class T, template<auto, class> class X, class D>
-struct __fold<T<>, X, D> {
+struct __fold_t<T<>, X, D> {
   using type = D;
 };
 
 template<template<auto...> class T, template<auto, class> class X, class D, auto V, auto...Args>
-struct __fold<T<V, Args...>, X, D> {
-  using type = typename X<V, typename __fold<T<Args...>, X, D>::type>::type;
+struct __fold_t<T<V, Args...>, X, D> {
+  using type = typename X<V, typename __fold_t<T<Args...>, X, D>::type>::type;
 };
 
 template<class T, template<auto, class> class X, class D>
-using fold_t = typename __fold<T, X, D>::type;
+using fold_t = typename __fold_t<T, X, D>::type;
 
 template<class T>
 struct __from_index_sequence;

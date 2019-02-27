@@ -260,7 +260,7 @@ private:
   };
 
   template<class T>
-  struct AppendFunc<T, std::enable_if_t<util::instantiation_of<raw_t, T>::value>> {
+  struct AppendFunc<T, std::enable_if_t<util::instantiation_of_v<raw_t, T>>> {
     static void run(std::vector<uint8_t> &cache, const T& _struct) {
       constexpr size_t data_len = sizeof(typename T::value_type);
 
@@ -372,7 +372,7 @@ std::optional<std::string> read_line(FD<T> &socket, std::string buf = std::strin
 
 template<class T, class X>
 class poll_t {
-  static_assert(util::instantiation_of<FD, T>::value, "template parameter T must be an instantiation of file::FD");
+  static_assert(util::instantiation_of_v<FD, T>, "template parameter T must be an instantiation of file::FD");
 public:
   using file_t = T;
   using user_t = X;

@@ -157,7 +157,7 @@ public:
     }
   }
     
-  util::Optional<__task> pop() {
+  std::optional<__task> pop() {
     std::lock_guard<std::mutex> lg(_task_mutex);
     
     if(!_tasks.empty()) {
@@ -173,7 +173,7 @@ public:
       return std::move(task);
     }
     
-    return {};
+    return std::nullopt;
   }
 
   bool ready() {
