@@ -11,10 +11,33 @@ namespace literal {
 
 struct __concat_impl_t {};
 struct __string_impl_t {};
+struct __empty_impl_t  {};
 
 template<std::size_t N, class T>
 struct string_t;
 
+template<>
+struct string_t<0, __empty_impl_t> {
+  const char *begin() const {
+    return nullptr;
+  }
+
+  const char *end() const {
+    return nullptr;
+  }
+
+  constexpr auto size() const {
+    return (std::size_t)0;
+  }
+
+  std::string native() const {
+    return std::string { };
+  }
+
+  constexpr std::string_view to_view() const {
+    return std::string_view { nullptr, size() };
+  }
+};
 
 template<std::size_t N>
 struct string_t<N, __string_impl_t> {
@@ -85,14 +108,33 @@ struct string_t<N, __concat_impl_t> {
   }
 };
 
-template<std::size_t I>
-using static_string_t = string_t<I, __string_impl_t>;
 template<std::size_t N>
 string_t(const char (&data)[N]) -> string_t<N -1, __string_impl_t>;
+string_t() -> string_t<0, __empty_impl_t>;
 
 template<std::size_t N1, std::size_t N2, class T1, class T2>
 constexpr auto operator +(const string_t<N1, T1> &l, const string_t<N2, T2> &r) {
   return string_t<N1 + N2, __concat_impl_t>(l, r);
+}
+
+template<std::size_t N1, class T1>
+constexpr auto operator +(const string_t<N1, T1> &l, const string_t<0, __empty_impl_t> &r) {
+  return l;
+}
+
+template<std::size_t N2, class T2>
+constexpr auto operator +(const string_t<0, __empty_impl_t> &l, const string_t<N2, T2> &r) {
+  return r;
+}
+
+template<std::size_t N2>
+constexpr auto operator +(const string_t<0, __empty_impl_t>&, const char (&r)[N2]) {
+  return string_t { r };
+}
+
+template<std::size_t N1>
+constexpr auto operator +(const char (&l)[N1], const string_t<0, __empty_impl_t>&) {
+  return string_t { l };
 }
 
 template<std::size_t N1, std::size_t N2, class T1>
@@ -120,8 +162,8 @@ struct literal_t {
 
 template<>
 struct literal_t<> {
-  constexpr static string_t<0, __concat_impl_t> to_string() {
-    return string_t<0, __concat_impl_t> {{}};
+  constexpr static string_t<0, __empty_impl_t> to_string() {
+    return string_t<0, __empty_impl_t> {};
   }
 };
 

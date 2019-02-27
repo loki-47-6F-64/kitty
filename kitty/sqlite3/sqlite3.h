@@ -10,7 +10,7 @@
 
 #include <kitty/util/utility.h>
 #include <kitty/util/template_helper.h>
-#include <kitty/util/string.h>
+#include <kitty/util/literal.h>
 
 namespace sqlite {
 typedef util::safe_ptr_v2<sqlite3, int, sqlite3_close> sDatabase;
@@ -240,11 +240,22 @@ class __SQL {
   using filter_t = typename util::copy_types<tuple_t, Filter>::type;
 public:
   static constexpr auto init() {
-    if constexpr (offset == tuple_size - 1) {
-      return literal::string_literal_quote_t<offset>::to_string() + " " + __elem_funcs<elem_t>::not_null() + __SQL<tuple_t, offset +1>::init();
-    } else {
-      return literal::string_literal_quote_t<offset>::to_string() + " " + __elem_funcs<elem_t>::not_null() + "," +
-             __SQL<tuple_t, offset +1>::init();
+    auto constexpr sql_begin =
+      literal::string_literal_quote_t<offset>::to_string() + " " +
+      __elem_funcs<elem_t>::not_null();
+
+    if constexpr (!(offset < tuple_size -1)) {
+      return sql_begin + __elem_funcs<elem_t>::constraint();
+    }
+    else {
+      constexpr auto sql_middle = sql_begin + "," +
+                                  __SQL<tuple_t, offset + 1>::init() +
+                                  __elem_funcs<elem_t>::constraint();
+      if constexpr (offset == 0) {
+        return sql_middle + ");";
+      } else {
+        return sql_middle;
+      }
     }
   }
 
@@ -307,6 +318,10 @@ public:
       return literal::string_t { std::is_same<char, base_type>::value ? "TEXT" : "BLOB" };
     }
 
+    static constexpr auto constraint() {
+      return literal::string_t {};
+    }
+
     static void deleter(void *ptr) {
       delete[] reinterpret_cast<base_type *>(ptr);
     }
@@ -355,6 +370,10 @@ public:
       return literal::string_t { "INTEGER" };
     }
 
+    static constexpr auto constraint() {
+      return literal::string_t {};
+    }
+
     static void bind(sStatement &statement, const T &value, int element = offset) {
       sqlite3_bind_int64(statement.get(), element + 1, value);
     }
@@ -372,6 +391,10 @@ public:
 
     static constexpr auto type() {
       return literal::string_t { "REAL" };
+    }
+
+    static constexpr auto constraint() {
+      return literal::string_t {};
     }
 
     static void bind(sStatement &statement, const T &value, int element = offset) {
@@ -397,6 +420,10 @@ public:
 
     static constexpr auto not_null() {
       return __elem_funcs<elem_t>::type();
+    }
+
+    static constexpr auto constraint() {
+      return __elem_funcs<elem_t>::constraint();
     }
 
     static void bind(sStatement &statement, const T &value, int element = offset) {
@@ -426,11 +453,15 @@ public:
     static_assert(!util::contains_instantiation_of<Unique, elem_t>::value, "Unique<Unique<T>> detected.");
 
     static constexpr auto not_null() {
-      return __elem_funcs<elem_t>::not_null() + " UNIQUE";
+      return __elem_funcs<elem_t>::not_null();
     }
 
     static constexpr auto type() {
-      return __elem_funcs<elem_t>::type() + " UNIQUE";
+      return __elem_funcs<elem_t>::type();
+    }
+
+    static constexpr auto constraint() {
+      return __elem_funcs<elem_t>::constraint() + ",UNIQUE (" + literal::string_literal_quote_t<offset>::to_string() + ")";
     }
 
     static void bind(sStatement &statement, const T &value, int element = offset) {
@@ -448,7 +479,7 @@ class __SQL<tuple_t, offset, std::enable_if_t<(offset == std::tuple_size<tuple_t
 public:
   using filter_t = typename util::copy_types<tuple_t, Filter>::type;
 
-  static constexpr auto init() { return literal::string_t { ");" }; }
+  static constexpr auto init() { return literal::string_t {}; }
 
   static void bind(sStatement &statement, const tuple_t &tuple) { }
 
@@ -688,7 +719,7 @@ public:
   }
 
   constexpr static auto _sql_init() {
-    return "CREATE TABLE IF NOT EXISTS " + _table + " (ID INTEGER PRIMARY KEY, " + __SQL<tuple_t, 0>::init();
+    return "CREATE TABLE IF NOT EXISTS " + _table + " (ID INTEGER PRIMARY KEY," + __SQL<tuple_t, 0>::init();
   }
 
   template<bool custom_id>
