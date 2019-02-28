@@ -33,27 +33,6 @@ enum comp_t : int {
 
 extern const char *comp_to_string[];
 
-template<class ...Args>
-class __filter_t {
-public:
-  typedef std::tuple<std::optional<std::pair<comp_t, Args>>...> tuple_optional;
-
-  __filter_t() = default;
-  __filter_t(__filter_t &&) noexcept = default;
-
-  tuple_optional tuple;
-
-  template<std::size_t elem, class ...ConstructArgs>
-  __filter_t &set(comp_t comp, ConstructArgs &&... args) {
-    // Get the undelying element type from the optional
-    typedef typename std::tuple_element<elem, tuple_optional>::type::value_type elem_t;
-
-    std::get<elem>(tuple) = elem_t { comp, { std::forward<ConstructArgs>(args)... }};
-
-    return *this;
-  }
-};
-
 // Add room for id
 template<class Tuple>
 using model_t = typename util::__append_types<Tuple, sqlite3_int64>::type;
@@ -128,6 +107,55 @@ struct range_t {
 
 template<class T>
 using optional_unique_t = std::optional<unique_t<T>>;
+
+template<class ...Args>
+class __filter_t {
+  template<class T>
+  struct __to_optional {
+    template<class X, class V = void>
+    struct __to_optional_helper {
+      using type = std::optional<std::pair<comp_t, X>>;
+    };
+
+
+    template<class X>
+    struct __to_optional_helper<X, std::enable_if_t<util::contains_instantiation_of_v<range_t, X>>> {
+      using type = std::optional<X>;
+    };
+
+    using type = typename __to_optional_helper<T>::type;
+  };
+
+public:
+  // using tuple_optional = std::tuple<std::optional<std::pair<comp_t, Args>>...>;
+  using tuple_optional = util::map_types<std::tuple<Args...>, __to_optional>;
+
+  __filter_t() = default;
+  __filter_t(__filter_t &&) noexcept = default;
+
+  tuple_optional tuple;
+
+  template<std::size_t elem, class ...ConstructArgs>
+  __filter_t &set(comp_t comp, ConstructArgs &&... args) {
+    // Get the undelying element type from the optional
+    using elem_t = typename std::tuple_element_t<elem, tuple_optional>::value_type;
+    static_assert(!util::contains_instantiation_of_v<range_t, elem_t>, "Don't pass a comp_t to a range_t");
+
+    std::get<elem>(tuple) = elem_t { comp, { std::forward<ConstructArgs>(args)... }};
+
+    return *this;
+  }
+
+  template<std::size_t elem, class... ConstructArgs>
+  __filter_t &set(ConstructArgs&&... args) {
+    using elem_t = typename std::tuple_element_t<elem, tuple_optional>::value_type;
+    static_assert(util::contains_instantiation_of_v<range_t, elem_t>, "Pass a comp_t for any non-range_t type");
+
+    std::get<elem>(tuple) = elem_t { std::forward<ConstructArgs>(args)... };
+
+    return *this;
+  }
+};
 
 template<class T>
 struct type_value;
@@ -274,37 +302,65 @@ public:
   }
 
   static void bind(int bound, sStatement &statement, const tuple_t &tuple) {
+    int bound_new = util::contains_instantiation_of_v<range_t, elem_t> ? bound +2 : bound +1;
+
     __elem_funcs<elem_t>::bind(bound, statement, std::get<tuple_index>(tuple));
 
-    __SQL<tuple_t, tuple_index +1>::bind(bound +1, statement, tuple);
+    __SQL<tuple_t, tuple_index +1>::bind(bound_new, statement, tuple);
   }
 
   template<class ...Columns>
-  static tuple_t row(sStatement &statement, Columns &&... columns) {
-    return __SQL<tuple_t, tuple_index +1>::row(statement, std::forward<Columns>(columns)...,
-                                       __elem_funcs<elem_t>::get(statement));
+  static tuple_t row(int table_offset, sStatement &statement, Columns &&... columns) {
+    int table_offset_new = util::contains_instantiation_of_v<range_t, elem_t> ? table_offset +1 : table_offset;
+
+    return __SQL<tuple_t, tuple_index +1>::row(table_offset_new, statement, std::forward<Columns>(columns)...,
+                                       __elem_funcs<elem_t>::get(tuple_index + table_offset, statement));
   }
 
+  template<std::size_t table_offset>
   static std::string filter(const filter_t &filter, bool empty = true) {
     auto &optional_value = std::get<tuple_index>(filter.tuple);
 
+    constexpr auto has_range = util::contains_instantiation_of_v<range_t, elem_t>;
     std::string sql;
     if(optional_value) {
-      if(empty) {
-        sql = "(" + literal::string_literal_quote_t<tuple_index>::to_string().native() + " " + comp_to_string[optional_value->first] + " ? ";
-      } else {
-        sql = "AND " + literal::string_literal_quote_t<tuple_index>::to_string().native() + " " + comp_to_string[optional_value->first] + " ? ";
+      if constexpr (has_range) {
+        if(empty) {
+          sql = ("((? BETWEEN " +
+            literal::string_literal_quote_t<tuple_index + table_offset>::to_string() + " AND " +
+            literal::string_literal_quote_t<tuple_index + table_offset +1>::to_string() + ") ").native();
+        }
+        else {
+          sql = ("AND (BETWEEN " +
+                literal::string_literal_quote_t<tuple_index + table_offset>::to_string() + " AND " +
+                literal::string_literal_quote_t<tuple_index + table_offset +1>::to_string() + ")) ").native();
+        }
+      }
+      else {
+        if(empty) {
+          sql = "(" + literal::string_literal_quote_t<tuple_index + table_offset>::to_string().native() + " " +
+                comp_to_string[optional_value->first] + " ? ";
+        } else {
+          sql = "AND " + literal::string_literal_quote_t<tuple_index + table_offset>::to_string().native() + " " +
+                comp_to_string[optional_value->first] + " ? ";
+        }
       }
     }
 
-    return sql + __SQL<tuple_t, tuple_index +1>::filter(filter, optional_value ? false : empty);
+    return sql + __SQL<tuple_t, tuple_index +1>::template
+      filter<has_range ? table_offset +1 : table_offset>(filter, optional_value ? false : empty);
   }
 
   static int optional_bind(int bound, sStatement &statement, const filter_t &filter) {
     auto &optional_value = std::get<tuple_index>(filter.tuple);
 
     if(optional_value) {
-      __elem_funcs<decltype(optional_value->second)>::bind(bound, statement, optional_value->second);
+      if constexpr (util::contains_instantiation_of_v<range_t, elem_t>) {
+        __elem_funcs<std::decay_t<decltype(*optional_value)>>::bind(bound, statement, *optional_value);
+      }
+      else {
+        __elem_funcs<decltype(optional_value->second)>::bind(bound, statement, optional_value->second);
+      }
 
       return __SQL<tuple_t, tuple_index +1>::optional_bind(bound + 1, statement, filter);
     } else {
@@ -356,16 +412,16 @@ public:
       }
     }
 
-    static T get(sStatement &statement) {
+    static T get(int table_offset, sStatement &statement) {
       const base_type *begin;
       if constexpr (std::is_same_v<base_type, char>) {
-        begin = reinterpret_cast<const base_type *>(sqlite3_column_text(statement.get(), tuple_index));
+        begin = reinterpret_cast<const base_type *>(sqlite3_column_text(statement.get(), table_offset));
       }
       else {
-        begin = reinterpret_cast<const base_type *>(sqlite3_column_blob(statement.get(), tuple_index));
+        begin = reinterpret_cast<const base_type *>(sqlite3_column_blob(statement.get(), table_offset));
       }
 
-      const base_type *end = begin + sqlite3_column_bytes(statement.get(), tuple_index);
+      const base_type *end = begin + sqlite3_column_bytes(statement.get(), table_offset);
 
       return { begin, end };
     }
@@ -391,8 +447,8 @@ public:
       sqlite3_bind_int64(statement.get(), element +1, value);
     }
 
-    static T get(sStatement &statement) {
-      return (T) sqlite3_column_int64(statement.get(), tuple_index);
+    static T get(int table_offset, sStatement &statement) {
+      return (T) sqlite3_column_int64(statement.get(), table_offset);
     }
   };
 
@@ -416,8 +472,8 @@ public:
       sqlite3_bind_double(statement.get(), element +1, value);
     }
 
-    static T get(sStatement &statement) {
-      return sqlite3_column_double(statement.get(), tuple_index);
+    static T get(int table_offset, sStatement &statement) {
+      return sqlite3_column_double(statement.get(), table_offset);
     }
   };
 
@@ -459,15 +515,18 @@ public:
         __elem_funcs<elem_t>::bind(element, statement, *value);
       } else {
         sqlite3_bind_null(statement.get(), element +1);
+        if constexpr (util::contains_instantiation_of_v<range_t, elem_t>) {
+          sqlite3_bind_null(statement.get(), element +2);
+        }
       }
     }
 
-    static T get(sStatement &statement) {
-      if(sqlite3_column_type(statement.get(), tuple_index) == SQLITE_NULL) {
+    static T get(int table_offset, sStatement &statement) {
+      if(sqlite3_column_type(statement.get(), tuple_index + table_offset) == SQLITE_NULL) {
         return std::nullopt;
       }
 
-      return __elem_funcs<elem_t>::get(statement);
+      return __elem_funcs<elem_t>::get(table_offset, statement);
     }
   };
 
@@ -496,6 +555,18 @@ public:
     template<std::size_t table_offset>
     static constexpr auto constraint() {
       return literal::string_t {};
+    }
+
+    static void bind(int element, sStatement &statement, const T &value) {
+      __elem_funcs<elem_t>::bind(element, statement, value.lower);
+      __elem_funcs<elem_t>::bind(element +1, statement, value.upper);
+    }
+
+    static T get(int table_offset, sStatement &statement) {
+      return {
+        __elem_funcs<elem_t>::get(table_offset, statement),
+        __elem_funcs<elem_t>::get(table_offset +1, statement),
+      };
     }
   };
 
@@ -538,8 +609,8 @@ public:
       __elem_funcs<elem_t>::bind(element, statement, value);
     }
 
-    static T get(sStatement &statement) {
-      return __elem_funcs<elem_t>::get(statement);
+    static T get(int table_offset, sStatement &statement) {
+      return __elem_funcs<elem_t>::get(table_offset, statement);
     }
   };
 };
@@ -554,10 +625,11 @@ public:
   static void bind(int, sStatement&, const tuple_t &) { }
 
   template<class ...Columns>
-  static tuple_t row(sStatement &statement, Columns &&... columns) {
+  static tuple_t row(int, sStatement&, Columns &&... columns) {
     return std::make_tuple(std::forward<Columns>(columns)...);
   }
 
+  template<std::size_t>
   static std::string filter(const filter_t &filter, bool empty = true) { return ")"; }
 
   // Return the amount of values bound
@@ -706,7 +778,7 @@ public:
 
   template<class Callable>
   int load(const std::vector<filter_t> &filters, Callable &&f) {
-    auto statement = mk_statement(sqlite3_db_handle(_insert.get()), (_sql_select().begin() + _sql_where(filters)).c_str());
+    auto statement = mk_statement(sqlite3_db_handle(_insert.get()), (_sql_select().begin() + sql_where(filters)).c_str());
     return _output(statement, filters, std::forward<Callable>(f));
   }
 
@@ -722,8 +794,6 @@ public:
   int delete_(const model_t<tuple_t> &tuple) {
     return _input(_delete, std::make_tuple(std::get<tuple_size>(tuple)));
   }
-
-  filter_t mk_filter() { return filter_t {}; }
 
   template<class T>
   int _input(sStatement &statement, const T &tuple, sqlite3_int64 custom_id) {
@@ -771,7 +841,7 @@ public:
 
   template<class Callable>
   int _exec(sStatement &statement, Callable &&f) {
-    static_assert(std::is_same_v<err::code_t, std::decay_t<decltype(f(__SQL<tuple_t, 0>::row(statement)))>>, "The function must return an err::code_t");
+    static_assert(std::is_same_v<err::code_t, std::decay_t<decltype(f(__SQL<tuple_t, 0>::row(0, statement)))>>, "The function must return an err::code_t");
 
     while(true) {
       auto err = sqlite3_step(statement.get());
@@ -786,7 +856,7 @@ public:
         return 0;
       }
 
-      auto return_val = f(__SQL<model_t<tuple_t>, 0>::row(statement));
+      auto return_val = f(__SQL<model_t<tuple_t>, 0>::row(0, statement));
 
       if(return_val != err::OK) {
         return return_val == err::BREAK ? 0 : -1;
@@ -826,30 +896,30 @@ public:
   }
 
   static constexpr auto _sql_select() {
-    using last_literal_t = literal::string_literal_quote_t<tuple_size -1>;
+    using last_literal_t = literal::string_literal_quote_t<tuple_size + _range_count -1>;
 
     return
       "SELECT " +
       literal::fold_t<_index_t, fold_columns_name, last_literal_t>::to_string() +
       ",ID FROM " + _table::to_string();
   }
-
-  std::string _sql_where(const std::vector<filter_t> &filters) {
+public:
+  static std::string sql_where(const std::vector<filter_t> &filters) {
     if(filters.empty()) {
       return std::string {};
     }
 
     const filter_t &first = filters[0];
 
-    std::string sql = " WHERE " + __SQL<tuple_t, 0>::filter(first);
+    std::string sql = " WHERE " + __SQL<tuple_t, 0>::template filter<0>(first);
 
     std::for_each(std::begin(filters) + 1, std::end(filters), [&](const filter_t &filter) {
-      sql.append(" OR " + __SQL<tuple_t, 0>::filter(filter));
+      sql.append(" OR " + __SQL<tuple_t, 0>::template filter<0>(filter));
     });
 
-    return sql;
+    return sql + ';';
   }
-public:
+
   static constexpr literal::string_t sql_init           = _sql_init();
   static constexpr literal::string_t sql_select         = _sql_select();
   static constexpr literal::string_t sql_insert         = _sql_insert<false>();

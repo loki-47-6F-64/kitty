@@ -23,7 +23,7 @@ constexpr auto MAX_INSERT = 2048;
 #define DISABLE_IF(x) (x)
 #endif
 using country_t    = std::tuple<std::string, std::string, std::optional<std::string>, std::optional<std::string>>;
-using ip_block_t   = std::tuple<std::uint32_t, std::uint32_t, std::optional<std::int64_t>, std::optional<std::int64_t>, bool, bool>;
+using ip_block_t   = std::tuple<sqlite::range_t<std::uint32_t>, std::optional<std::int64_t>, std::optional<std::int64_t>, bool, bool>;
 using coordinate_t = std::tuple<std::string, double, double>;
 
 util::copy_types<country_t, sqlite::Model> country_m(sqlite::Database &database) {
@@ -67,8 +67,7 @@ auto parse_line_ip_block(const std::string &line) {
   auto _ip_block = ip_block(values[0]);
 
   return ip_block_t {
-    std::get<0>(_ip_block),
-    std::get<1>(_ip_block),
+    { std::get<0>(_ip_block), std::get<1>(_ip_block) },
     id_str_c.empty() ? std::nullopt : std::optional<std::int64_t> { util::from_chars(id_str_c.data(), id_str_c.data() + id_str_c.size()) },
     id_str_r.empty() ? std::nullopt : std::optional<std::int64_t> { util::from_chars(id_str_r.data(), id_str_r.data() + id_str_r.size()) },
     ano_proxy,
@@ -321,19 +320,12 @@ std::string country_code(sqlite::Database &database, const file::ip_addr_t &ip_a
 
   auto ip_block_model = ip_block_m(database);
 
-  auto filter = ip_block_model.mk_filter();
-
-  auto ip_pack = ip_addr.pack();
-  filter
-    .set<0>(sqlite::comp_t::st, std::get<0>(ip_pack))
-    .set<1>(sqlite::comp_t::gt, std::get<0>(ip_pack));
-
-  std::vector<decltype(ip_block_model)::filter_t> filters;
-  filters.emplace_back(std::move(filter));
+  std::vector<decltype(ip_block_model)::filter_t> filters(1);
+  filters[0].set<0>(std::get<0>(ip_addr.pack()));
 
   ip_block_model.load(filters, [&](auto &&val) {
-    std::optional opt_reg = std::move(std::get<2>(val));
-    std::optional opt_rep = std::move(std::get<3>(val));
+    std::optional opt_reg = std::move(std::get<1>(val));
+    std::optional opt_rep = std::move(std::get<2>(val));
 
     std::int64_t country_id {};
     if(opt_reg) {
