@@ -100,6 +100,22 @@ void handle_quest(file::io &client) {
 
       push(peer->second, to, from, quest, file::raw(*raw));
     }
+
+    else if(quest == "decline") {
+      auto raw = load_raw<
+        file::io::stream_t, p2p::pj::status_t, std::string
+      >(client);
+
+      if(!raw) {
+        // The intended recipient is not on the list
+        print(error, "Could not load the quest: ", err::current());
+
+        quest_error(client, "Could not load the quest: "s + err::current());
+        return;
+      }
+
+      push(peer->second, to, from, quest, file::raw(*raw));
+    }
   }
 
 }
