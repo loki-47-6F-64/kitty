@@ -174,7 +174,7 @@ private:
   
   template<class Function>
   std::unique_ptr<_ImplBase> toRunnable(Function &&f) {
-    return util::mk_uniq<_Impl<Function>>(std::forward<Function&&>(f));
+    return std::make_unique<_Impl<Function>>(std::forward<Function&&>(f));
   }
 };
 }

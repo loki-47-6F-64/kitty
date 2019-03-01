@@ -1,3 +1,5 @@
+#include <memory>
+
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
@@ -20,7 +22,7 @@ util::Optional<bluetooth::Client> bluetooth::_accept() {
 
   auto dev = bt::device(client_addr.l2_bdaddr, 0);
   return Client {
-    util::mk_uniq<file::blueth>(std::chrono::seconds(3), client_fd, *_member, dev),
+    std::make_unique<file::blueth>(std::chrono::seconds(3), client_fd, *_member, dev),
     dev,
     23,
     nullptr,
