@@ -1,3 +1,5 @@
+#include <memory>
+
 #include <kitty/ssl/ssl_client.h>
 #include <kitty/ssl/ssl.h>
 #include <kitty/util/utility.h>
@@ -24,7 +26,7 @@ util::Optional<ssl::Client> ssl::_accept() {
   }
   
   return Client {
-    util::mk_uniq<file::ssl>(std::move(socket)),
+    std::make_unique<file::ssl>(std::move(socket)),
     ip_buf
   };
 }
