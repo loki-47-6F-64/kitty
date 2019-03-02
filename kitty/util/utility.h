@@ -194,15 +194,6 @@ std::optional<T> from_hex(const std::string_view &hex) {
   return *reinterpret_cast<T *>(buf);
 }
 
-template<class T, class... Args>
-std::unique_ptr<T> mk_uniq(Args && ... args) {
-  typedef T elem_type;
-
-  return std::unique_ptr<elem_type> {
-    new elem_type { std::forward<Args>(args)... }
-  };
-}
-
 template<class T>
 using Error = Optional<T>;
 

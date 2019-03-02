@@ -31,7 +31,6 @@ set(KITTY_LIBRARIES
   kitty-err
   kitty-file
   kitty-log
-  kitty-utils
 )
 
 string(TOUPPER ${CMAKE_BUILD_TYPE} BUILD_TYPE)

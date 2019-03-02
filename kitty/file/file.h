@@ -1,6 +1,16 @@
 #ifndef DOSSIER_FILE_H
 #define DOSSIER_FILE_H
 
+// TODO: This should be in a seperate header
+#if __APPLE__
+#define KITTY_POLLIN POLLIN
+#define KITTY_POLLOUT POLLOUT
+#define POLLRDHUP (POLLHUP | POLLNVAL)
+#elif __linux__
+#define KITTY_POLLIN  (POLLIN  | POLLRDHUP)
+#define KITTY_POLLOUT (POLLOUT | POLLRDHUP) 
+#endif
+
 #include <functional>
 #include <vector>
 #include <chrono>
@@ -364,19 +374,19 @@ public:
   void read(file_t &fd, user_t user_val) {
     std::lock_guard<std::mutex> lg(_mutex_add);
 
-    _queue_add.emplace_back(user_val, &fd, pollfd {fd.getStream().fd(), POLLRDHUP | POLLIN, 0});
+    _queue_add.emplace_back(user_val, &fd, pollfd {fd.getStream().fd(), KITTY_POLLIN, 0});
   }
 
   void write(file_t &fd, user_t user_val) {
     std::lock_guard<std::mutex> lg(_mutex_add);
 
-    _queue_add.emplace_back(user_val, &fd, {fd.getStream().fd(), POLLRDHUP | POLLOUT, 0});
+    _queue_add.emplace_back(user_val, &fd, {fd.getStream().fd(), KITTY_POLLOUT, 0});
   }
 
   void read_write(file_t &fd, user_t user_val) {
     std::lock_guard<std::mutex> lg(_mutex_add);
 
-    _queue_add.emplace_back(user_val, &fd, {fd.getStream().fd(), POLLRDHUP | POLLIN | POLLOUT, 0});
+    _queue_add.emplace_back(user_val, &fd, {fd.getStream().fd(), KITTY_POLLIN | KITTY_POLLOUT, 0});
   }
 
   void remove(file_t &fd) {
