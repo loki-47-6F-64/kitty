@@ -1,6 +1,8 @@
+#include <memory>
+#include <variant>
+
 #include <kitty/server/server.h>
 #include <kitty/util/utility.h>
-#include <variant>
 
 namespace server {
 template<>
@@ -48,7 +50,7 @@ std::variant<err::code_t, tcp::client_t> tcp::_accept() {
   inet_ntop(AF_INET6, &client_addr.sin6_addr, ip_buf, INET6_ADDRSTRLEN);
 
   return client_t {
-    util::mk_uniq<file::io>(std::chrono::seconds(3), client_fd), {
+    std::make_unique<file::io>(std::chrono::seconds(3), client_fd), {
       ip_buf
     }
   };
