@@ -14,6 +14,8 @@
 #include <kitty/p2p/uuid.h>
 #include <kitty/p2p/data_types.h>
 #include <kitty/p2p/p2p.h>
+#include "p2p.h"
+
 
 using namespace std::literals;
 namespace p2p {
@@ -36,61 +38,14 @@ int init() {
 file::p2p quest_t::_send_accept(uuid_t recipient, const pj::remote_buf_t &remote) {
   util::Alarm<std::optional<decline_t>> alarm { std::nullopt };
 
-  auto peer = _peer_create(recipient, alarm,
-    [&](pj::ICECall call, pj::status_t status) {
-      auto guard {
-        util::fail_guard([&]() {
-
-          _peer_remove(recipient);
-          alarm.status() = decline_t {
-            decline_t::ERROR,
-            err::current()
-          };
-
-          alarm.ring();
-          return;
-        })
-      };
-
-      if(status != pj::success) {
-        err::set("failed initialization");
-
-        return;
-      }
-
-      if(auto err = call.init_ice(pj::ice_sess_role_t::PJ_ICE_SESS_ROLE_CONTROLLED)) {
-        err::set("ice_trans->init_ice(): "s + pj::err(err));
-
-        return;
-      }
-
-      auto candidates = call.get_candidates();
-      if(candidates.empty()) {
-        err::set("no candidates");
-
-        return;
-      }
-
-
-      auto err = server::proxy::push(server, recipient, uuid, "accept"sv,
-        data::pack(call.credentials(), candidates));
-
-      if(err) {
-        print(error, "Couldn't push data: ", err::current());
-
-        return;
-      }
-
-      guard.failure = false;
+  auto peer = _peer_create(recipient, alarm, pj::ice_sess_role_t::PJ_ICE_SESS_ROLE_CONTROLLED,
+    [&remote](pj::ICECall call) {
       call.start_ice(remote);
-      return;
     }
   );
 
   if(!peer) {
-    _send_decline(recipient, {
-      decline_t::DECLINE, err::current()
-    });
+    _send_decline(recipient, { decline_t::DECLINE });
 
     return {};
   }
@@ -106,21 +61,21 @@ file::p2p quest_t::_send_accept(uuid_t recipient, const pj::remote_buf_t &remote
   return file::p2p { std::move(*peer) };
 }
 
-void quest_t::_handle_decline(uuid_t sender) {
-  auto ice_trans = _peer(sender);
+void quest_t::_handle_decline(uuid_t sender, decline_t decline) {
+  auto pending = _peer(sender);
 
-  if(ice_trans) {
-    ice_trans->on_connect()({}, decline_t::DECLINE);
+  if(pending) {
+    (*pending)(decline);
   }
 }
 
-void quest_t::_send_decline(uuid_t recipient, decline_t decline) {
-  server::proxy::push(server, recipient, uuid, "decline"sv, decline.reason, decline.msg);
+void quest_t::_send_decline(uuid_t recipient, const decline_t &decline) {
+  server::proxy::push(server, recipient, uuid, "decline"sv, decline.reason);
 }
 
-void quest_t::_handle_accept(uuid_t sender, const pj::remote_buf_t &remote) {
-  auto ice_trans = _peer(sender);
-  if(!ice_trans) {
+void quest_t::_handle_accept(uuid_t sender, pj::remote_buf_t &&remote) {
+  auto pending = _peer(sender);
+  if(!pending) {
     print(error, "Could not find a transport for peer[", util::hex(sender), "] :: ", err::current());
     _send_error(sender, "Could not find a transport for peer[" + util::hex(sender).to_string() + "] :: " + err::current());
 
@@ -128,7 +83,7 @@ void quest_t::_handle_accept(uuid_t sender, const pj::remote_buf_t &remote) {
   }
 
   // Attempt connection
-  ice_trans->start_ice(remote);
+  (*pending)(accept_t { std::move(remote) });
 }
 
 std::variant<int, file::p2p> quest_t::process_quest() {
@@ -179,11 +134,18 @@ std::variant<int, file::p2p> quest_t::process_quest() {
 
     // tell both peers to start negotiation
 
-    _handle_accept(from, remote);
+    _handle_accept(from, std::move(remote));
   }
 
-  if(quest == "decline") {
-    _handle_decline(from);
+  else if(quest == "decline") {
+    decline_t decline;
+    if(server::proxy::load(server, decline.reason)) {
+      print(error, "Couldn't load quest [decline]: ", err::current());
+
+      return 0;
+    }
+
+    _handle_decline(from, decline);
   }
   return 0;
 }
@@ -212,58 +174,82 @@ int quest_t::send_register() {
   return 0;
 }
 
-std::optional<file::p2p> quest_t::_peer_create(const uuid_t &uuid, util::Alarm<std::optional<decline_t>> &alarm,
-                                               pj::Pool::on_ice_create_f &&on_create) {
+std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Alarm<std::optional<decline_t>> &alarm,
+                                               pj::ice_sess_role_t role,
+                                               std::function<void(pj::ICECall)> &&on_create) {
 
-  if(_peers.size() < _max_peers && _peers.find(uuid) == std::end(_peers)) {
+  if(_peers.size() < _max_peers && _peers.find(peer_uuid) == std::end(_peers)) {
     auto pipe = std::make_shared<file::stream::pipe_t>();
 
     auto on_data = [pipe](pj::ICECall call, std::string_view data) {
       pipe->push(data);
     };
 
-    auto on_connect = [this, pipe, &alarm, &uuid] (pj::ICECall call, pj::status_t status) {
+    auto _on_create = [this, on_create = std::move(on_create), role, &alarm, &peer_uuid](pj::ICECall call, pj::status_t status) {
       auto guard {
         util::fail_guard([&]() {
-          alarm.status() = {
-            decline_t::ERROR,
-            err::current()
-          };
+          _peer_remove(peer_uuid);
 
-          _peer_remove(uuid);
-
+          alarm.status() = { decline_t::ERROR };
           alarm.ring();
 
           return;
         })
       };
 
-      if(status == decline_t::DECLINE) {
-        alarm.status() = {
-          decline_t::DECLINE,
-          "Invitee declined invitation"
-        };
+      if(status != pj::success) {
+        err::set("failed initialization");
 
-
-        guard.failure = false;
-        alarm.ring();
         return;
       }
 
+      if(auto err = call.init_ice(role)) {
+        err::set("ice_trans->init_ice(): "s + pj::err(err));
+
+        return;
+      }
+
+      const auto quest = role == pj::ice_sess_role_t::PJ_ICE_SESS_ROLE_CONTROLLING ? "invite"sv : "accept"sv;
+
+      auto candidates = call.get_candidates();
+      if(candidates.empty()) {
+        err::set("no candidates");
+
+        return;
+      }
+
+      if(server::proxy::push(server, peer_uuid, uuid, quest,
+                          data::pack(call.credentials(), candidates))) {
+        return;
+      }
+
+      guard.failure = false;
+
+      if(on_create) {
+        on_create(call);
+      }
+    };
+
+    auto on_connect = [this, pipe, &alarm, &peer_uuid] (pj::ICECall call, pj::status_t status) {
       if(status != pj::success) {
         err::set("failed negotiation");
+
+        alarm.status() = { decline_t::ERROR };
+
+        _peer_remove(peer_uuid);
+
+        alarm.ring();
 
         return;
       }
 
       pipe->set_call(call);
-
-      guard.failure = false;
       alarm.ring();
     };
 
-    _peers.emplace(uuid, std::make_shared<pj::ICETrans>(
-      pool.ice_trans(std::move(on_data), std::move(on_create), std::move(on_connect))
+    _peers.emplace(peer_uuid, std::make_unique<pending_t>(
+      pool.ice_trans(std::move(on_data), std::move(_on_create), std::move(on_connect)),
+      alarm
       ));
 
     return file::p2p { 3s, pipe };
@@ -277,69 +263,28 @@ void quest_t::_peer_remove(const p2p::uuid_t &uuid) {
   _peers.erase(uuid);
 }
 
-std::shared_ptr<pj::ICETrans> quest_t::_peer(const p2p::uuid_t &uuid) {
+pending_t *quest_t::_peer(const p2p::uuid_t &uuid) {
   auto it = _peers.find(uuid);
 
   if(it == std::end(_peers)) {
     return nullptr;
   }
 
-  return it->second;
+  return it->second.get();
 }
 
 std::variant<decline_t, file::p2p> quest_t::invite(uuid_t recipient) {
   util::Alarm<std::optional<decline_t>> alarm { std::nullopt };
 
-  auto peer = _peer_create(recipient, alarm,
-    [&](pj::ICECall call, pj::status_t status) {
-      auto guard {
-        util::fail_guard([&]() {
-          _peer_remove(recipient);
-
-          alarm.status() = {
-            decline_t::ERROR,
-            err::current()
-          };
-
-          alarm.ring();
-
-          return;
-        })
-      };
-
-      if(status != pj::success) {
-        err::set("failed initialization");
-
-        return;
-      }
-
-      auto err = call.init_ice(pj::ice_sess_role_t::PJ_ICE_SESS_ROLE_CONTROLLING);
-      if(err) {
-        err::set("ice_trans->init_ice(): "s + pj::err(err));
-
-        return;
-      }
-
-      auto candidates = call.get_candidates();
-      if(candidates.empty()) {
-        err::set("no candidates");
-
-        return;
-      }
-
-      server::proxy::push(server, recipient, uuid, "invite"sv,
-        data::pack(call.credentials(), candidates));
-
-      guard.failure = false;
-      return;
-    }
+  auto peer = _peer_create(
+    recipient,
+    alarm,
+    pj::ice_sess_role_t::PJ_ICE_SESS_ROLE_CONTROLLING,
+    nullptr
   );
 
   if(!peer) {
-    return decline_t {
-      decline_t::ERROR,
-      err::current()
-    };
+    return decline_t { decline_t::ERROR };
   }
 
   alarm.wait([&]() { return alarm.status() || peer->is_open(); });
@@ -352,6 +297,23 @@ std::variant<decline_t, file::p2p> quest_t::invite(uuid_t recipient) {
 }
 
 quest_t::quest_t(quest_t::accept_cb &&pred, const uuid_t &uuid) : uuid { uuid }, _accept_cb { std::move(pred) } {}
+
+void pending_t::operator()(answer_t &&answer) {
+  if(std::holds_alternative<accept_t>(answer)) {
+    auto &accept = std::get<accept_t>(answer);
+
+    _ice_trans.start_ice(accept.remote);
+  }
+  else {
+    auto &decline = std::get<decline_t>(answer);
+    _alarm.status() = decline;
+  }
+
+  _alarm.ring();
+}
+
+pending_t::pending_t(pj::ICETrans &&ice_trans, util::Alarm<std::optional<decline_t>> &alarm) noexcept :
+_ice_trans { std::move(ice_trans) }, _alarm { alarm } {}
 
 }
 

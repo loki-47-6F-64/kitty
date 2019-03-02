@@ -103,7 +103,7 @@ void handle_quest(file::io &client) {
 
     else if(quest == "decline") {
       auto raw = load_raw<
-        file::io::stream_t, p2p::pj::status_t, std::string
+        file::io::stream_t, int
       >(client);
 
       if(!raw) {

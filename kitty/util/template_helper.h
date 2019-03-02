@@ -7,6 +7,21 @@
 
 namespace util {
 
+template<class T>
+struct __print_type;
+
+template<class T>
+void print_type(T& type) {
+  __print_type<T> pt;
+  __print_type<decltype(type)> ppt;
+}
+
+template<class T>
+void print_uni_type(T&& type) {
+  __print_type<T> pt;
+  __print_type<decltype(type)> ppt;
+}
+
 template<class T, template<class...> class X>
 struct __copy_types;
 

@@ -8,6 +8,7 @@
 
 #include <sqlite3.h>
 
+#include <kitty/log/log.h>
 #include <kitty/util/utility.h>
 #include <kitty/util/template_helper.h>
 #include <kitty/util/literal.h>
@@ -723,9 +724,12 @@ public:
       sqlite3_reset(_transaction_end.get());
       auto err = sqlite3_step(_transaction_end.get());
 
+      // TODO: Failure in a destructor should not be possible
       if(err == SQLITE_ERROR || err == SQLITE_MISUSE || err == SQLITE_CONSTRAINT) {
         err::set(sqlite3_errmsg(sqlite3_db_handle(_transaction_end.get())));
 
+        print(error, err::current());
+        std::abort();
         return;
       }
     };

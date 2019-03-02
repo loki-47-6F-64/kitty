@@ -15,12 +15,36 @@
 #include <kitty/p2p/p2p_stream.h>
 
 namespace p2p {
+using namespace std::literals;
 struct decline_t {
-  enum : pj::status_t {
-    DECLINE = PJ_ERRNO_START_SYS +1,
+  enum : int {
+    DECLINE,
     ERROR
   } reason;
-  std::string_view msg;
+
+  std::string_view to_string_view() {
+    switch (reason) {
+      case DECLINE:
+        return "Peer declined"sv;
+      case ERROR:
+        return "Peer had an error"sv;
+    }
+  }
+};
+
+struct accept_t {
+  pj::remote_buf_t remote;
+};
+
+using answer_t = std::variant<decline_t, accept_t>;
+
+class pending_t {
+  pj::ICETrans _ice_trans;
+  util::Alarm<std::optional<decline_t>> &_alarm;
+public:
+  pending_t(pj::ICETrans &&, util::Alarm<std::optional<decline_t>> &) noexcept;
+
+  void operator()(answer_t &&);
 };
 
 class quest_t {
@@ -65,30 +89,30 @@ private:
    * Notify inviter that you're declining connection
    * @param recipient
    */
-  void _send_decline(uuid_t recipient, decline_t decline);
+  void _send_decline(uuid_t recipient, const decline_t &decline);
 
   /**
    * Handles connecting to the invitee
    * @param sender the invitee
    * @param remote the remote candidates
    */
-  void _handle_accept(uuid_t sender, const pj::remote_buf_t &remote);
+  void _handle_accept(uuid_t sender, pj::remote_buf_t &&remote);
 
   /**
    * Handles declining the connection
    * @param recipient the invitee
    */
-  void _handle_decline(uuid_t recipient);
+  void _handle_decline(uuid_t recipient, decline_t decline);
 
   /**
    * Allocate a transport
    * @param uuid the recipient of the invitation
    * @param alarm the alarm to ring when finished
-   * @param on_create callback when candidates are gathered
+   * @param _on_create callback when candidates are gathered
    * @return an fd on successfully allocating a transport
    */
   std::optional<file::p2p> _peer_create(const uuid_t &uuid, util::Alarm<std::optional<decline_t>> &alarm,
-                                        pj::Pool::on_ice_create_f &&on_create);
+                                        pj::ice_sess_role_t role, std::function<void(pj::ICECall)> &&);
 
   /**
    * remove a transport from peers
@@ -96,7 +120,7 @@ private:
    */
   void _peer_remove(const uuid_t &uuid);
 
-  std::shared_ptr<pj::ICETrans> _peer(const uuid_t &uuid);
+  pending_t *_peer(const uuid_t &uuid);
 
   void _send_error(uuid_t recipient, const std::string_view &err_str);
 public:
@@ -118,7 +142,7 @@ private:
    */
   std::size_t _max_peers;
 
-  std::map<uuid_t, std::shared_ptr<pj::ICETrans>> _peers;
+  std::map<uuid_t, std::unique_ptr<pending_t>> _peers;
 };
 
 struct config_t {
