@@ -46,7 +46,8 @@ raw_t<T> raw(const T& val) {
 
 struct buffer_t {
   std::vector<uint8_t> cache;
-  std::vector<uint8_t>::size_type data_p;
+  std::vector<uint8_t>::value_type *data_p;
+  std::vector<uint8_t>::value_type *data_end;
 };
 /* Represents file in memory, storage or socket */
 template <class Stream>
@@ -58,10 +59,9 @@ private:
   stream_t _stream;
 
   // Change of cacheSize only affects next load
-  static constexpr std::vector<uint8_t>::size_type _cacheSize = 1024;
-  
+  static constexpr std::vector<uint8_t>::size_type _cacheSize = 1024 << 3;
+
   duration_t _timeout;
-  
 
   buffer_t _in;
   buffer_t _out;
@@ -116,25 +116,11 @@ public:
     return -1;
   }
 
-  // Useful when fine control is necessary
-  std::optional<std::uint8_t> next() {
-    // Load new _cache if end of buffer is reached
-    if (_endOfBuffer()) {
-      if (_load(_cacheSize)) {
-        return std::nullopt;
-      }
-    }
-
-    // If cache.empty() return '\0'
-    return _in.cache.empty() ? std::nullopt : std::optional<std::uint8_t> { _in.cache[_in.data_p++] };
-  }
-
   template<class Function>
   int eachByte(Function &&f, std::uint64_t max = std::numeric_limits<std::uint64_t>::max()) {
     while(!eof() && max) {
-      if(_endOfBuffer()) {
-
-        if(_load(_cacheSize)) {
+      if(_end_of_buffer()) {
+        if(_load()) {
           return -1;
         }
 
@@ -143,13 +129,35 @@ public:
 
       --max;
 
-      if (err::code_t err = f(_in.cache[_in.data_p++])) {
-        // Return err::OK if err_code != err::BREAK
-        return err == err::BREAK ? 0 : -1;
-      }
+      f(*_in.data_p++);
     }
 
     return err::OK;
+  }
+
+  /**
+   * This is faster if you don't need to process byte by byte
+   * @param in the input buffer
+   * @param size
+   * @return 0 on success
+   */
+  int read(std::uint8_t *in, std::size_t size) {
+    while(!eof() && size) {
+      if(_end_of_buffer()) {
+        if(_load()) {
+          return -1;
+        }
+
+        continue;
+      }
+
+      auto _size = std::min(_in.cache.size(), size);
+      std::copy_n(_in.data_p, size, in);
+      in += _size;
+      size -= _size;
+    }
+
+    return 0;
   }
 
   template<class T>
@@ -161,15 +169,16 @@ public:
 
   FD &write_clear() {
     _out.cache.clear();
-    _out.data_p = 0;
-
+    _out.data_p = _out.cache.data();
+    _out.data_end = _out.data_p + _out.cache.size();
 
     return *this;
   }
 
   FD &read_clear() {
     _in.cache.clear();
-    _in.data_p = 0;
+    _in.data_p = _in.cache.data();
+    _in.data_end = _in.data_p + _in.cache.size();
 
     return *this;
   }
@@ -207,16 +216,16 @@ public:
     auto &cache = out.get_write_cache();
 
     while (!eof() && max) {
-      if(_endOfBuffer()) {
-        if(_load(_cacheSize)) {
+      if(_end_of_buffer()) {
+        if(_load()) {
           return -1;
         }
 
         continue;
       }
 
-      while (!_endOfBuffer()) {
-        cache.push_back(_in.cache[_in.data_p++]);
+      while (!_end_of_buffer()) {
+        cache.push_back(*_in.data_p++);
 
         if(!max) {
           break;
@@ -238,28 +247,29 @@ public:
    * @param mode either READ or WRITE
    * @return non-zero on timeout or error
    */
-  int wait_for(const int mode) {
+  int wait_for(const int mode) const {
     return _stream.select(_timeout, mode);
   }
 
 private:
   // Load file into _in.cache.data(), replaces old _in.cache.data()
-  int _load(std::vector<uint8_t>::size_type max_bytes) {
+  int _load() {
     if(wait_for(READ)) {
       return -1;
     }
     
-    _in.cache.resize(max_bytes);
-    
+    _in.cache.resize(_cacheSize);
     if(_stream.read(_in.cache) < 0)
       return -1;
-    
-    _in.data_p = 0;
+
+    _in.data_p   = _in.cache.data();
+    _in.data_end = _in.data_p + _in.cache.size();
+
     return err::OK;
   }
   
-  bool _endOfBuffer() {
-    return _in.data_p == _in.cache.size();
+  bool _end_of_buffer() const {
+    return _in.data_p == _in.data_end;
   }
   
   template<class T, class S = void>
@@ -325,13 +335,7 @@ std::optional<T> read_struct(FD<Stream> &io) {
   constexpr size_t data_len = sizeof(T);
   uint8_t buf[data_len];
 
-  auto *x = buf;
-  int err = io.eachByte([&](uint8_t ch) {
-    *x++ = ch;
-
-    return err::OK;
-  }, data_len);
-
+  auto err = io.read(buf, data_len);
   auto *val = (T*)buf;
 
   if(err) {
@@ -342,14 +346,10 @@ std::optional<T> read_struct(FD<Stream> &io) {
 }
 
 template<class T>
-std::optional<std::string> read_string(FD<T> &socket, std::size_t size) {
-  std::string buf;
+std::optional<std::string> read_string(FD<T> &io, std::size_t size) {
+  std::string buf; buf.resize(size);
 
-  auto err = socket.eachByte([&buf](std::uint8_t byte) {
-    buf += byte;
-
-    return err::OK;
-  }, size);
+  auto err = io.read(buf.data(), size);
 
   if(err) {
     return std::nullopt;

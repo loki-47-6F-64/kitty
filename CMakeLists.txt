@@ -7,6 +7,7 @@ option(KITTY_BUILD_SSL     "Compile kitty/ssl" OFF)
 option(KITTY_BUILD_SQLITE3 "Compile the wrapper for sqlite3 kitty/sqlite" OFF)
 option(KITTY_BUILD_TOPO    "Compile kitty/topo" OFF) 
 option(KITTY_BUILD_P2P     "Compile kitty/p2p --incomplete-- " OFF)
+option(KITTY_BENCHMARK     "Benchmark kitty")
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -33,7 +34,7 @@ endif()
 set(KITTY_LIBRARIES kitty)
 
 string(TOUPPER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
-if(${BUILD_TYPE} STREQUAL "DEBUG")
+if("x${BUILD_TYPE}" STREQUAL "xDEBUG")
   add_definitions( -DKITTY_DEBUG=1 )
 
   # For std::assert
@@ -113,6 +114,10 @@ add_library(kitty STATIC ${KITTY_TARGET_FILES})
 target_link_libraries(kitty ${SQLITE3_LIBRARIES} ${OPENSSL_LIBRARIES} ${BLUEZ_LIBRARIES} stdc++fs)
 
 set(KITTY_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR} KITTY_INCLUDE_DIR)
+
+if(KITTY_BENCHMARK)
+add_subdirectory(benchmark)
+endif()
 
 get_directory_property(has_parent PARENT_DIRECTORY)
 if(has_parent)

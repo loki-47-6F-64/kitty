@@ -47,19 +47,19 @@ io& io::operator=(io&& stream) noexcept {
 }
 
 int io::read(std::vector<unsigned char> &buf) {
-  ssize_t bytes_read;
-
-  if((bytes_read = ::read(_fd, buf.data(), buf.size())) < 0) {
-    err::code = err::LIB_SYS;
-    return -1;
+  if(ssize_t bytes_read; (bytes_read = ::read(_fd, buf.data(), buf.size())) > 0) {
+    // Update number of bytes in buf
+    buf.resize((std::size_t)bytes_read);
+    return 0;
   }
   else if(!bytes_read) {
     _eof = true;
+
+    return 0;
   }
 
-  // Update number of bytes in buf
-  buf.resize((std::size_t)bytes_read);
-  return 0;
+  err::code = err::LIB_SYS;
+  return -1;
 }
 
 int io::write(const std::vector<unsigned char> &buf) {
