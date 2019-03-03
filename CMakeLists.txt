@@ -2,20 +2,16 @@ cmake_minimum_required(VERSION 2.8)
 
 project(Kitty)
 
-set(KITTY_MAJOR_VERSION 1)
-set(KITTY_MINOR_VERSION 0)
-set(KITTY_PATCH_VERSION 0)
+option(KITTY_BUILD_SERVER  "Compile kitty/server" OFF)
+option(KITTY_BUILD_SSL     "Compile kitty/ssl" OFF)
+option(KITTY_BUILD_SQLITE3 "Compile the wrapper for sqlite3 kitty/sqlite" OFF)
+option(KITTY_BUILD_TOPO    "Compile kitty/topo" OFF) 
+option(KITTY_BUILD_P2P     "Compile kitty/p2p --incomplete-- " OFF)
 
-set(KITTY_VERSION
-  ${KITTY_MAJOR_VERSION}.${KITTY_MINOR_VERSION}.${KITTY_PATCH_VERSION}
-)
+set(CMAKE_CXX_STANDARD 17)
 
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-missing-braces -std=c++17")
-
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
-
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-missing-braces")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -pedantic -g")
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -34,11 +30,7 @@ if(KITTY_BUILD_TOPO)
   set(KITTY_BUILD_SQLITE3 ON)
 endif()
 
-set(KITTY_LIBRARIES
-  kitty-err
-  kitty-file
-  kitty-log
-)
+set(KITTY_LIBRARIES kitty)
 
 string(TOUPPER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
 if(${BUILD_TYPE} STREQUAL "DEBUG")
@@ -83,45 +75,51 @@ include_directories(
   ${SQLITE3_INCLUDE_DIRS}
 )
 
-add_subdirectory(kitty/err)
-add_subdirectory(kitty/util)
-add_subdirectory(kitty/file)
-add_subdirectory(kitty/log)
+macro(kitty_add dir)
+  file(GLOB KITTY_TARGETS "kitty/${dir}/*.[c,h]*")
+  set(KITTY_TARGET_FILES ${KITTY_TARGET_FILES} ${KITTY_TARGETS})
+endmacro()
+
+kitty_add(err)
+kitty_add(util)
+kitty_add(file)
+kitty_add(log)
 
 if(KITTY_BUILD_SQLITE3)
-  set(KITTY_LIBRARIES ${KITTY_LIBRARIES} kitty-sqlite3)
-  add_subdirectory(kitty/sqlite3)
+  kitty_add(sqlite3)
 endif()
 
 if(KITTY_BUILD_SERVER)
-  set(KITTY_LIBRARIES ${KITTY_LIBRARIES} kitty-server)
-  add_subdirectory(kitty/server)
+  kitty_add(server)
 endif()
 
 if(KITTY_BUILD_SSL)
-  set(KITTY_LIBRARIES ${KITTY_LIBRARIES} kitty-ssl)
-  add_subdirectory(kitty/ssl)
+  kitty_add(ssl)
 endif()
 
 if(KITTY_BUILD_BLUETOOTH)  
-  set(KITTY_LIBRARIES ${KITTY_LIBRARIES} kitty-bluetooth)
-  add_subdirectory(kitty/blueth)
+  kitty_add(blueth)
 endif()
 
 if(KITTY_BUILD_TOPO)
-  set(KITTY_LIBRARIES ${KITTY_LIBRARIES} kitty-topo)
-  add_subdirectory(kitty/topo)
+  kitty_add(topo)
 endif()
 
 if(KITTY_BUILD_P2P)
-  set(KITTY_LIBRARIES ${KITTY_LIBRARIES} kitty-p2p)
-  add_subdirectory(kitty/p2p)
+  kitty_add(p2p)
 endif()
 
+add_library(kitty STATIC ${KITTY_TARGET_FILES})
+target_link_libraries(kitty ${SQLITE3_LIBRARIES} ${OPENSSL_LIBRARIES} ${BLUEZ_LIBRARIES} stdc++fs)
+
 set(KITTY_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR} KITTY_INCLUDE_DIR)
-set(KITTY_INCLUDE_DIR ${KITTY_INCLUDE_DIR} PARENT_SCOPE)
 
-set(KITTY_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR})
-set(KITTY_INCLUDE_DIRS ${KITTY_INCLUDE_DIRS} PARENT_SCOPE)
-
-set(KITTY_LIBRARIES ${KITTY_LIBRARIES} PARENT_SCOPE)
+get_directory_property(has_parent PARENT_DIRECTORY)
+if(has_parent)
+  set(KITTY_INCLUDE_DIR ${KITTY_INCLUDE_DIR} PARENT_SCOPE)
+  
+  set(KITTY_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR})
+  set(KITTY_INCLUDE_DIRS ${KITTY_INCLUDE_DIRS} PARENT_SCOPE)
+  
+  set(KITTY_LIBRARIES ${KITTY_LIBRARIES} PARENT_SCOPE)
+endif()
