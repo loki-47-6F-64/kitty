@@ -22,8 +22,8 @@ public:
 
   ssl& operator=(ssl&& stream) noexcept;
 
-  int read(std::vector<unsigned char>& buf);
-  int write(std::vector<unsigned char>& buf);
+  int read(std::uint8_t *data, std::size_t size) ;
+  int write(std::vector<std::uint8_t>& buf);
 
   bool is_open() const;
   bool eof() const;

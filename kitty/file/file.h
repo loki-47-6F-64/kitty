@@ -16,6 +16,7 @@
 #include <chrono>
 #include <string>
 #include <optional>
+#include <memory>
 #include <map>
 
 #include <sys/select.h>
@@ -28,6 +29,7 @@
 #include <kitty/util/template_helper.h>
 
 namespace file {
+using namespace std::literals;
 static constexpr int READ = 0, WRITE = 1;
 
 template<class T>
@@ -44,10 +46,28 @@ raw_t<T> raw(const T& val) {
   };
 }
 
-struct buffer_t {
-  std::vector<uint8_t> cache;
-  std::vector<uint8_t>::value_type *data_p;
-  std::vector<uint8_t>::value_type *data_end;
+struct buffer_in_t {
+  std::uint8_t *data_p;
+  std::uint8_t *data_end;
+
+  buffer_in_t() = default;
+  buffer_in_t(std::size_t capacity) : capacity { capacity }, cache { new std::uint8_t[capacity] } {
+    data_p = data_end = cache.get();
+  }
+
+  std::size_t capacity;
+  std::unique_ptr<std::uint8_t[]> cache;
+
+  std::size_t size() {
+    return (std::size_t)(data_end - data_p);
+  }
+};
+
+struct buffer_out_t {
+  std::uint8_t *data_p;
+  std::uint8_t *data_end;
+
+  std::vector<std::uint8_t> cache;
 };
 /* Represents file in memory, storage or socket */
 template <class Stream>
@@ -59,12 +79,12 @@ private:
   stream_t _stream;
 
   // Change of cacheSize only affects next load
-  static constexpr std::vector<uint8_t>::size_type _cacheSize = 1024 << 3;
+  static constexpr std::size_t _cacheSize = 1024 << 4;
 
   duration_t _timeout;
 
-  buffer_t _in;
-  buffer_t _out;
+  buffer_in_t _in;
+  buffer_out_t _out;
 
 public:
   FD(FD && other) noexcept : _in(std::move(other._in)), _out(std::move(other._out)) {
@@ -85,7 +105,7 @@ public:
 
   template<class T1, class T2, class... Args>
   FD(std::chrono::duration<T1,T2> duration, Args && ... params)
-  : _stream(std::forward<Args>(params)...), _timeout(std::chrono::duration_cast<duration_t>(duration)), _in { {}, 0 }, _out { {}, 0 } {}
+  : _stream(std::forward<Args>(params)...), _timeout(std::chrono::duration_cast<duration_t>(duration)), _in { _cacheSize }, _out { {}, 0 } {}
 
   ~FD() noexcept { seal(); }
 
@@ -102,8 +122,10 @@ public:
     auto size = _stream.write(_out.cache);
     if (size >= 0) {
       // It's possible not all bytes are written
-      if(size < _out.cache.size()) {
-        _out.cache.erase(std::begin(_out.cache), std::begin(_out.cache) +size);
+
+      auto data_p_n = _out.data_p + size;
+      if(data_p_n < _out.data_end) {
+        _out.data_p = data_p_n;
 
         return out();
       }
@@ -118,13 +140,18 @@ public:
 
   template<class Function>
   int eachByte(Function &&f, std::uint64_t max = std::numeric_limits<std::uint64_t>::max()) {
-    while(!eof() && max) {
+    if(!_in.cache) {
+      _in.cache.reset(new std::uint8_t[_cacheSize]);
+    }
+
+    while(max) {
       if(_end_of_buffer()) {
-        if(_load()) {
+        auto bytes_read = _stream.read(_in.data_p, _in.capacity);
+        if(bytes_read <= 0) {
           return -1;
         }
 
-        continue;
+        _in.data_end = _in.data_p + bytes_read;
       }
 
       --max;
@@ -142,19 +169,32 @@ public:
    * @return 0 on success
    */
   int read(std::uint8_t *in, std::size_t size) {
-    while(!eof() && size) {
-      if(_end_of_buffer()) {
-        if(_load()) {
-          return -1;
-        }
+    // eachByte could have been called --> some bytes might have been cached
+    auto cached_bytes = std::min(size, _in.size());
+    if(cached_bytes > 0) {
+      _in.data_p += cached_bytes;
+      std::copy_n(_in.cache.get(), cached_bytes, in);
 
-        continue;
+      in += cached_bytes;
+      size -= cached_bytes;
+    }
+
+    while(size) {
+      if(wait_for(READ)) {
+        return -1;
       }
 
-      auto _size = std::min(_in.cache.size(), size);
-      std::copy_n(_in.data_p, size, in);
-      in += _size;
-      size -= _size;
+      auto bytes_read = _stream.read(in, size);
+
+      /**
+       * On EOF --> eof() is true
+       */
+      if(bytes_read <= 0) {
+        return -1;
+      }
+
+      size -= bytes_read;
+      in += bytes_read;
     }
 
     return 0;
@@ -168,26 +208,22 @@ public:
   }
 
   FD &write_clear() {
-    _out.cache.clear();
-    _out.data_p = _out.cache.data();
-    _out.data_end = _out.data_p + _out.cache.size();
+    _out.data_end = _out.data_p = _out.cache.data();
 
     return *this;
   }
 
   FD &read_clear() {
-    _in.cache.clear();
-    _in.data_p = _in.cache.data();
-    _in.data_end = _in.data_p + _in.cache.size();
+    _in.data_end = _in.data_p = _in.cache.get();
 
     return *this;
   }
 
-  std::vector<uint8_t> &get_read_cache() {
-    return _in.cache;
+  buffer_in_t &get_read_cache() {
+    return _in;
   }
 
-  std::vector<uint8_t> &get_write_cache() {
+  std::vector<std::uint8_t> &get_write_cache() {
     return _out.cache;
   }
 
@@ -205,69 +241,20 @@ public:
     }
   }
 
-  /*
-     Copies max bytes from this to out
-     If max == -1 copy the whole file
-     On failure: return (Error)-1 or (Timeout)1
-     On success: return  0
-   */
-  template<class OutStream>
-  int copy(FD<OutStream> &out, std::uint64_t max = std::numeric_limits<std::uint64_t>::max()) {
-    auto &cache = out.get_write_cache();
-
-    while (!eof() && max) {
-      if(_end_of_buffer()) {
-        if(_load()) {
-          return -1;
-        }
-
-        continue;
-      }
-
-      while (!_end_of_buffer()) {
-        cache.push_back(*_in.data_p++);
-
-        if(!max) {
-          break;
-        }
-
-        --max;
-      }
-      
-      if (out.out()) {
-        return -1;
-      }
-    }
-
-    return err::OK;
-  }
-
   /**
    * Wait for READ/WRITE
    * @param mode either READ or WRITE
    * @return non-zero on timeout or error
    */
   int wait_for(const int mode) const {
+    if(_timeout <= 0ms) {
+      return 0;
+    }
+
     return _stream.select(_timeout, mode);
   }
 
 private:
-  // Load file into _in.cache.data(), replaces old _in.cache.data()
-  int _load() {
-    if(wait_for(READ)) {
-      return -1;
-    }
-    
-    _in.cache.resize(_cacheSize);
-    if(_stream.read(_in.cache) < 0)
-      return -1;
-
-    _in.data_p   = _in.cache.data();
-    _in.data_end = _in.data_p + _in.cache.size();
-
-    return err::OK;
-  }
-  
   bool _end_of_buffer() const {
     return _in.data_p == _in.data_end;
   }
@@ -349,7 +336,7 @@ template<class T>
 std::optional<std::string> read_string(FD<T> &io, std::size_t size) {
   std::string buf; buf.resize(size);
 
-  auto err = io.read(buf.data(), size);
+  auto err = io.read((std::uint8_t*)const_cast<char*>(buf.data()), size);
 
   if(err) {
     return std::nullopt;

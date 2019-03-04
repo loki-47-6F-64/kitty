@@ -32,27 +32,25 @@ io ioWriteAppend(const char *file_path) {
 }
 
 namespace stream {
-io::io() : _eof(false), _fd(-1)  { }
+io::io() : _eof(false), _fd(-1) { }
+
 io::io(int fd) : _eof(false), _fd(fd) {
   if(fd <= 0) {
     err::code = err::LIB_SYS;
   }
 }
 
-io& io::operator=(io&& stream) noexcept {
+io &io::operator=(io &&stream) noexcept {
   std::swap(this->_fd, stream._fd);
   std::swap(this->_eof, stream._eof);
 
   return *this;
 }
 
-int io::read(std::vector<unsigned char> &buf) {
-  if(ssize_t bytes_read; (bytes_read = ::read(_fd, buf.data(), buf.size())) > 0) {
-    // Update number of bytes in buf
-    buf.resize((std::size_t)bytes_read);
-    return 0;
-  }
-  else if(!bytes_read) {
+std::int64_t io::read(std::uint8_t *data, std::size_t size) {
+  if(ssize_t bytes_read; (bytes_read = ::read(_fd, data, size)) > 0) {
+    return bytes_read;
+  } else if(!bytes_read) {
     _eof = true;
 
     return 0;
@@ -71,7 +69,7 @@ int io::write(const std::vector<unsigned char> &buf) {
     return -1;
   }
 
-  return (int)bytes_written;
+  return (int) bytes_written;
 }
 
 void io::seal() {
@@ -97,42 +95,37 @@ io::io(io &&other) noexcept {
 }
 
 int io::select(std::chrono::milliseconds to, const int read) const {
-  if(to.count() > 0) {
-    pollfd pfd;
-    pfd.fd = fd();
+  pollfd pfd;
+  pfd.fd = fd();
 
-    if(read == READ) {
-      pfd.events = POLLIN | POLLRDHUP;
-    }
-    else { /* read == WRITE */
-      pfd.events = POLLOUT;
-    }
+  if(read == READ) {
+    pfd.events = POLLIN | POLLRDHUP;
+  } else { /* read == WRITE */
+    pfd.events = POLLOUT;
+  }
 
-    auto res = poll(&pfd, 1, (int)to.count());
+  auto res = poll(&pfd, 1, (int) to.count());
 
-    if(res > 0) {
-      if(pfd.revents & (POLLHUP | POLLRDHUP | POLLERR)) {
-        err::code = err::code_t::FILE_CLOSED;
-
-        return -1;
-      }
-
-      if(pfd.revents & (POLLIN | POLLOUT)) {
-        return err::OK;
-      }
-    }
-
-    if(res < 0) {
-      err::code = err::LIB_SYS;
+  if(res > 0) {
+    if(pfd.revents & (POLLHUP | POLLRDHUP | POLLERR)) {
+      err::code = err::code_t::FILE_CLOSED;
 
       return -1;
     }
 
-    err::code = err::TIMEOUT;
-    return err::TIMEOUT;
+    if(pfd.revents & (POLLIN | POLLOUT)) {
+      return err::OK;
+    }
   }
 
-  return err::OK;
+  if(res < 0) {
+    err::code = err::LIB_SYS;
+
+    return -1;
+  }
+
+  err::code = err::TIMEOUT;
+  return err::TIMEOUT;
 }
 }
 }

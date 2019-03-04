@@ -7,7 +7,7 @@ add_subdirectory(Celero)
 include_directories(kitty-benchmark Celero/include)
 add_executable(kitty-benchmark
   benchmark.cpp
-  )
+        file/file_read.cpp file/file_write.cpp)
 
 string(TOUPPER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
 if("x${BUILD_TYPE}" STREQUAL "xRELEASE")

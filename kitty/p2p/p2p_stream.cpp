@@ -12,14 +12,21 @@
 namespace file::stream {
 p2p::p2p(std::shared_ptr<pipe_t> bridge) : _pipe { std::move(bridge) } {}
 
-int p2p::read(std::vector<std::uint8_t> &buf) {
+int p2p::read(std::uint8_t *in, std::size_t size) {
   auto data { _pipe->pop() };
   if(!data) {
     return -1;
   }
 
-  buf.resize(0);
-  buf.insert(std::end(buf), std::begin(*data), std::end(*data));
+  auto size_data = data->size();
+
+  auto bytes = std::min(size_data, size);
+  std::copy_n(data->data(), bytes, in);
+
+  if(size_data > size) {
+    data->erase(std::begin(*data), std::begin(*data) + bytes);
+    _pipe->push_front(std::move(*data));
+  }
 
   return 0;
 }

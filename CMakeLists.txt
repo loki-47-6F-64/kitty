@@ -2,6 +2,18 @@ cmake_minimum_required(VERSION 2.8)
 
 project(Kitty)
 
+set(SQLITE3_INCLUDE_DIRS "")
+set(SQLITE3_LIBRARIES "sqlite3")
+set(PJLIB_ROOT ${PROJECT_SOURCE_DIR}/../pjproject)
+set(PJSIP_LIBRARIES
+        ${PJLIB_ROOT}/pjnath/lib/libpjnath-x86_64-unknown-linux-gnu.a
+        ${PJLIB_ROOT}/pjlib-util/lib/libpjlib-util-x86_64-unknown-linux-gnu.a
+        ${PJLIB_ROOT}/pjlib/lib/libpj-x86_64-unknown-linux-gnu.a)
+set(PJSIP_INCLUDE_DIRS
+        ${PJLIB_ROOT}/pjlib/include
+        ${PJLIB_ROOT}/pjlib-util/include
+        ${PJLIB_ROOT}/pjnath/include)
+
 option(KITTY_BUILD_SERVER  "Compile kitty/server" OFF)
 option(KITTY_BUILD_SSL     "Compile kitty/ssl" OFF)
 option(KITTY_BUILD_SQLITE3 "Compile the wrapper for sqlite3 kitty/sqlite" OFF)
@@ -15,6 +27,35 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-missing-braces")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -pedantic -g")
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+if(KITTY_BENCHMARK)
+  if(NOT KITTY_BUILD_SERVER)
+    message("Warning: Implicitly set(KITTY_BUILD_SERVER ON)")
+  endif()
+  if(NOT KITTY_BUILD_SSL)
+    message("Warning: Implicitly set(KITTY_BUILD_SSL ON)")
+  endif()
+  if(NOT KITTY_BUILD_BLUETOOTH)
+    message("Warning: Implicitly set(KITTY_BUILD_BLUETOOTH ON)")
+  endif()
+  if(NOT KITTY_BUILD_SQLITE3)
+    message("Warning: Implicitly set(KITTY_BUILD_SQLITE3 ON)")
+  endif()
+  if(NOT KITTY_BUILD_TOPO)
+    message("Warning: Implicitly set(KITTY_BUILD_TOPO ON)")
+  endif()
+  if(NOT KITTY_BUILD_P2P)
+    message("Warning: Implicitly set(KITTY_BUILD_P2P ON)")
+  endif()
+
+  set(KITTY_BUILD_SERVER    ON)
+  set(KITTY_BUILD_SSL       ON)
+  set(KITTY_BUILD_BLUETOOTH ON)
+  set(KITTY_BUILD_SQLITE3   ON)
+  set(KITTY_BUILD_TOPO      ON)
+  set(KITTY_BUILD_P2P       ON)
+endif()
+
 
 if(KITTY_BUILD_SSL OR KITTY_BUILD_BLUETOOTH OR KITTY_BUILD_P2P)
   if(NOT KITTY_BUILD_SERVER)

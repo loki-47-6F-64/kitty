@@ -629,14 +629,12 @@ std::vector<uint8_t> Profile::_mtu(server::blue_client_t &client) const {
 }
 
 
-void print_request(uint8_t requestType, std::vector<uint8_t> &request) {
+void print_request(uint8_t requestType, file::buffer_in_t &request) {
   std::string req_str { "Request: " };
-  for (auto & ch : request) {
-    for (auto & hex_ch : util::hex(ch)) {
-      req_str.push_back(hex_ch);
-    }
-    req_str.push_back(' ');
-  }
+  std::for_each(request.data_p, request.data_end, [&req_str](auto ch) {
+    auto h { util::hex(ch) };
+    req_str.insert(std::end(req_str), std::begin(h), std::end(h));
+  });
 
   DEBUG_LOG(req_str);
 }
@@ -657,7 +655,7 @@ int Profile::main(server::blue_client_t &client) const {
   std::vector<uint8_t> response;
 
   while (!client.socket->eof()) {
-    auto requestType = client.socket->next();
+    auto requestType = file::read_struct<std::uint8_t>(*client.socket);
 
     if (!requestType) {
       if(err::code == err::TIMEOUT) {

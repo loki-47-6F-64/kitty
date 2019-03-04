@@ -25,34 +25,20 @@ ssl& ssl::operator=(ssl&& stream) noexcept {
   return *this;
 }
 
-int ssl::read(std::vector<unsigned char>& buf) {
-  int bytes_read;
-
-  if((bytes_read = SSL_read(_ssl.get(), buf.data(), (int)buf.size())) < 0) {
-    return -1;
-  }
-  else if(!bytes_read) {
+int ssl::read(std::uint8_t *data, std::size_t size) {
+  if(int bytes_read; (bytes_read = ::SSL_read(_ssl.get(), data, (int)size)) > 0) {
+    return bytes_read;
+  } else if(!bytes_read) {
     _eof = true;
+
+    return 0;
   }
 
-  // Make sure all bytes are read
-  int pending = SSL_pending(_ssl.get());
-
-  // Update number of bytes in buf
-  buf.resize(bytes_read + pending);
-  if(pending) {
-    if((bytes_read = SSL_read(_ssl.get(), &buf.data()[bytes_read], (int)buf.size() - bytes_read)) < 0) {
-      return -1;
-    }
-    else if(!bytes_read) {
-      _eof = true;
-    }
-  }
-
-  return 0;
+  err::code = err::LIB_SSL;
+  return -1;
 }
 
-int ssl::write(std::vector<unsigned char>&buf) {
+int ssl::write(std::vector<std::uint8_t>& buf) {
   return SSL_write(_ssl.get(), buf.data(), (int)buf.size());
 }
 
@@ -79,43 +65,37 @@ bool ssl::eof() const {
 }
 
 int ssl::select(std::chrono::milliseconds to, const int read) const {
-  if(to.count() > 0) {
-    auto dur_micro = (suseconds_t)std::chrono::duration_cast<std::chrono::microseconds>(to).count();
-    timeval tv {
-      0,
-      dur_micro
-    };
+  pollfd pfd;
+  pfd.fd = fd();
 
-    fd_set selected;
+  if(read == READ) {
+    pfd.events = POLLIN | POLLRDHUP;
+  } else { /* read == WRITE */
+    pfd.events = POLLOUT;
+  }
 
-    FD_ZERO(&selected);
-    FD_SET(fd(), &selected);
+  auto res = poll(&pfd, 1, (int) to.count());
 
-    int result;
-    if (read == file::READ) {
-      result = ::select(fd() + 1, &selected, nullptr, nullptr, &tv);
-    }
-    else /*if (read == WRITE)*/ {
-      result = ::select(fd() + 1, nullptr, &selected, nullptr, &tv);
-    }
-
-    if (result < 0) {
-      err::code = err::LIB_SYS;
-
-      if(fd() <= 0) {
-        err::code = err::code_t::FILE_CLOSED;
-      }
+  if(res > 0) {
+    if(pfd.revents & (POLLHUP | POLLRDHUP | POLLERR)) {
+      err::code = err::code_t::FILE_CLOSED;
 
       return -1;
     }
 
-    else if (result == 0) {
-      err::code = err::TIMEOUT;
-      return -1;
+    if(pfd.revents & (POLLIN | POLLOUT)) {
+      return err::OK;
     }
   }
 
-  return err::OK;
+  if(res < 0) {
+    err::code = err::LIB_SYS;
+
+    return -1;
+  }
+
+  err::code = err::TIMEOUT;
+  return err::TIMEOUT;
 }
 
 }

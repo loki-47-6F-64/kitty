@@ -32,7 +32,7 @@ public:
 
       if(!_queue.empty()) {
         auto vec { std::move(_queue.front()) };
-        _queue.pop();
+        _queue.erase(std::begin(_queue));
 
         return vec;
       }
@@ -67,13 +67,20 @@ public:
     }
   }
 
+  void push_front(std::vector<std::uint8_t> &&buf) {
+    {
+      std::lock_guard<std::mutex> lg(_queue_mutex);
+      _queue.emplace(std::begin(_queue), std::move(buf));
+    }
+  }
+
   void push(std::string_view data) {
     std::vector<uint8_t> buf;
     buf.insert(std::begin(buf), std::begin(data), std::end(data));
 
     {
       std::lock_guard<std::mutex> lg(_queue_mutex);
-      _queue.push(std::move(buf));
+      _queue.emplace_back(std::move(buf));
     }
 
     _cv.notify_all();
@@ -103,7 +110,7 @@ private:
 
   ::p2p::pj::ICECall _call;
 
-  std::queue<std::vector<uint8_t>> _queue;
+  std::vector<std::vector<uint8_t>> _queue;
 
   std::condition_variable _cv;
   std::mutex _queue_mutex;
@@ -117,7 +124,7 @@ public:
   p2p(p2p &&) noexcept = default;
   p2p& operator =(p2p&& stream) noexcept = default;
 
-  int read(std::vector<std::uint8_t>& buf);
+  int read(std::uint8_t *in, std::size_t size);
   int write(const std::vector<std::uint8_t> &buf);
 
   bool is_open() const;

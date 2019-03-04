@@ -38,7 +38,7 @@ public:
   template<class... Args>
   Log(std::string&& prepend, Args&&... params) : _stream(std::forward<Args>(params)...), _prepend(std::move(prepend)) {}
 
-  int read(std::vector<unsigned char>& buf) {
+  int read(std::uint8_t*, std::size_t) {
     return -1;
   }
 
@@ -64,10 +64,6 @@ public:
 
   bool eof() const {
     return false;
-  }
-
-  int access(const char *path, std::function<int(Stream &, const char *)> open) {
-    return open(_stream, path);
   }
 
   void seal() {
