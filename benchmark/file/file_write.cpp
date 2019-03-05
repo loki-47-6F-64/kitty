@@ -46,6 +46,7 @@ BENCHMARK(WRITE_SMALL, c_write, 20, 3600) {
   FILE *out = fopen("write_file_small", "w");
 
   fwrite((char*)global.small.data(), 1, global.small.size(), out);
+  fclose(out);
 }
 
 BENCHMARK(WRITE_MEDIUM, std_write, 20, 3600) {
@@ -57,4 +58,5 @@ BENCHMARK(WRITE_MEDIUM, c_write, 20, 3600) {
   FILE *out = fopen("write_file_medium", "w");
 
   fwrite((char*)global.medium.data(), 1, global.medium.size(), out);
+  fclose(out);
 }
