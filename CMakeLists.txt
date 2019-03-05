@@ -2,18 +2,6 @@ cmake_minimum_required(VERSION 2.8)
 
 project(Kitty)
 
-set(SQLITE3_INCLUDE_DIRS "")
-set(SQLITE3_LIBRARIES "sqlite3")
-set(PJLIB_ROOT ${PROJECT_SOURCE_DIR}/../pjproject)
-set(PJSIP_LIBRARIES
-        ${PJLIB_ROOT}/pjnath/lib/libpjnath-x86_64-unknown-linux-gnu.a
-        ${PJLIB_ROOT}/pjlib-util/lib/libpjlib-util-x86_64-unknown-linux-gnu.a
-        ${PJLIB_ROOT}/pjlib/lib/libpj-x86_64-unknown-linux-gnu.a)
-set(PJSIP_INCLUDE_DIRS
-        ${PJLIB_ROOT}/pjlib/include
-        ${PJLIB_ROOT}/pjlib-util/include
-        ${PJLIB_ROOT}/pjnath/include)
-
 option(KITTY_BUILD_SERVER  "Compile kitty/server" OFF)
 option(KITTY_BUILD_SSL     "Compile kitty/ssl" OFF)
 option(KITTY_BUILD_SQLITE3 "Compile the wrapper for sqlite3 kitty/sqlite" OFF)
@@ -148,11 +136,12 @@ if(KITTY_BUILD_TOPO)
 endif()
 
 if(KITTY_BUILD_P2P)
+  kitty_add(p2p/pj)
   kitty_add(p2p)
 endif()
 
 add_library(kitty STATIC ${KITTY_TARGET_FILES})
-target_link_libraries(kitty ${SQLITE3_LIBRARIES} ${OPENSSL_LIBRARIES} ${BLUEZ_LIBRARIES} stdc++fs)
+target_link_libraries(kitty ${CMAKE_THREAD_LIBS_INIT} ${PJSIP_LIBRARIES} ${SQLITE3_LIBRARIES} ${OPENSSL_LIBRARIES} ${BLUEZ_LIBRARIES} stdc++fs)
 
 set(KITTY_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR} KITTY_INCLUDE_DIR)
 

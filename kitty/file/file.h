@@ -246,7 +246,7 @@ public:
    * @param mode either READ or WRITE
    * @return non-zero on timeout or error
    */
-  int wait_for(const int mode) const {
+  int wait_for(const int mode) {
     if(_timeout <= 0ms) {
       return 0;
     }
