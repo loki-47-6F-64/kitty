@@ -69,9 +69,9 @@ int ssl::select(std::chrono::milliseconds to, const int read) const {
   pfd.fd = fd();
 
   if(read == READ) {
-    pfd.events = POLLIN | POLLRDHUP;
+    pfd.events = KITTY_POLLIN;
   } else { /* read == WRITE */
-    pfd.events = POLLOUT;
+    pfd.events = KITTY_POLLOUT;
   }
 
   auto res = poll(&pfd, 1, (int) to.count());

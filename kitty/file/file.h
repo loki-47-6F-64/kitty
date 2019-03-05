@@ -105,7 +105,7 @@ public:
 
   template<class T1, class T2, class... Args>
   FD(std::chrono::duration<T1,T2> duration, Args && ... params)
-  : _stream(std::forward<Args>(params)...), _timeout(std::chrono::duration_cast<duration_t>(duration)), _in { _cacheSize }, _out { {}, 0 } {}
+  : _stream(std::forward<Args>(params)...), _timeout(std::chrono::duration_cast<duration_t>(duration)), _in {}, _out { {}, 0 } {}
 
   ~FD() noexcept { seal(); }
 
