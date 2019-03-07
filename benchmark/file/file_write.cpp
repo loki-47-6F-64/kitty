@@ -37,26 +37,26 @@ BASELINE(WRITE_MEDIUM, kitty_write, 20, 3600) {
   print(out, global.small);
 }
 
-BENCHMARK(WRITE_SMALL, std_write, 20, 3600) {
-  std::ofstream out("write_file_small", std::ios::out | std::ios::binary);
-  out.write((char*)global.small.data(), global.small.size());
-}
-
-BENCHMARK(WRITE_SMALL, c_write, 20, 3600) {
-  FILE *out = fopen("write_file_small", "w");
-
-  fwrite((char*)global.small.data(), 1, global.small.size(), out);
-  fclose(out);
-}
-
-BENCHMARK(WRITE_MEDIUM, std_write, 20, 3600) {
-  std::ofstream out("write_file_medium", std::ios::out | std::ios::binary);
-  out.write((char*)global.medium.data(), global.medium.size());
-}
-
-BENCHMARK(WRITE_MEDIUM, c_write, 20, 3600) {
-  FILE *out = fopen("write_file_medium", "w");
-
-  fwrite((char*)global.medium.data(), 1, global.medium.size(), out);
-  fclose(out);
-}
+//BENCHMARK(WRITE_SMALL, std_write, 20, 3600) {
+//  std::ofstream out("write_file_small", std::ios::out | std::ios::binary);
+//  out.write((char*)global.small.data(), global.small.size());
+//}
+//
+//BENCHMARK(WRITE_SMALL, c_write, 20, 3600) {
+//  FILE *out = fopen("write_file_small", "w");
+//
+//  fwrite((char*)global.small.data(), 1, global.small.size(), out);
+//  fclose(out);
+//}
+//
+//BENCHMARK(WRITE_MEDIUM, std_write, 20, 3600) {
+//  std::ofstream out("write_file_medium", std::ios::out | std::ios::binary);
+//  out.write((char*)global.medium.data(), global.medium.size());
+//}
+//
+//BENCHMARK(WRITE_MEDIUM, c_write, 20, 3600) {
+//  FILE *out = fopen("write_file_medium", "w");
+//
+//  fwrite((char*)global.medium.data(), 1, global.medium.size(), out);
+//  fclose(out);
+//}

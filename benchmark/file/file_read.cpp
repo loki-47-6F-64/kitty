@@ -26,6 +26,15 @@ BASELINE(READ_SMALL, kitty_read, 20, 7200) {
   celero::DoNotOptimizeAway(buf);
 }
 
+BENCHMARK(READ_SMALL, kitty_struct, 20, 7200) {
+  using value_type = std::size_t;
+  auto fd { file::ioRead(READ_FILE(small)) };
+
+  for(std::size_t i = 0; i < (FILE_SIZE_SMALL / sizeof(value_type)); ++i) {
+    celero::DoNotOptimizeAway(file::read_struct<value_type>(fd));
+  }
+}
+
 BASELINE(READ_MEDIUM, kitty_read, 20, 720) {
   std::vector<std::uint8_t> buf;
   buf.resize(FILE_SIZE_MEDIUM);
@@ -34,27 +43,6 @@ BASELINE(READ_MEDIUM, kitty_read, 20, 720) {
   if(fd.read(buf.data(), buf.size()) < 0) {
     throw std::runtime_error(
         "Couldn't read " READ_FILE(medium) ": " + std::string(std::strerror(errno)));
-  }
-
-  celero::DoNotOptimizeAway(buf);
-}
-
-BENCHMARK(READ_SMALL, std_read, 20, 7200) {
-  std::vector<std::uint8_t> buf;
-  buf.resize(FILE_SIZE_SMALL);
-
-  std::ifstream in(READ_FILE(small), std::ios::binary | std::ios::ate);
-
-  if(!in) {
-    throw std::runtime_error(
-        "Couldn't open " READ_FILE(small) ": " + std::string(std::strerror(errno)));
-  }
-
-  in.seekg(0, std::ios::beg);
-
-  if(!in.read((char*)buf.data(), buf.size())) {
-    throw std::runtime_error(
-        "Couldn't read " READ_FILE(small) ": " + std::string(std::strerror(errno)));
   }
 
   celero::DoNotOptimizeAway(buf);
@@ -80,24 +68,4 @@ BENCHMARK(READ_MEDIUM, c_read, 20, 720) {
   fread(buf.data(), 1 << 3, FILE_SIZE_MEDIUM >> 3, in);
 
   fclose(in);
-}
-BENCHMARK(READ_MEDIUM, std_read, 20, 720) {
-  std::vector<std::uint8_t> buf;
-  buf.resize(FILE_SIZE_MEDIUM);
-
-  std::ifstream in(READ_FILE(medium), std::ios::binary | std::ios::ate);
-
-  if(!in) {
-    throw std::runtime_error(
-        "Couldn't open " READ_FILE(medium) ": " + std::string(std::strerror(errno)));
-  }
-
-  in.seekg(0, std::ios::beg);
-
-  if(!in.read((char*)buf.data(), buf.size())) {
-    throw std::runtime_error(
-        "Couldn't read " READ_FILE(medium) ": " + std::string(std::strerror(errno)));
-  }
-
-  celero::DoNotOptimizeAway(buf);
 }
