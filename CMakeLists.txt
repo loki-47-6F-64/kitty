@@ -9,10 +9,7 @@ option(KITTY_BUILD_TOPO    "Compile kitty/topo" OFF)
 option(KITTY_BUILD_P2P     "Compile kitty/p2p --incomplete-- " OFF)
 option(KITTY_BENCHMARK     "Benchmark kitty")
 
-set(CMAKE_CXX_STANDARD 17)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-missing-braces")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -pedantic -g")
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -142,6 +139,16 @@ endif()
 
 add_library(kitty STATIC ${KITTY_TARGET_FILES})
 target_link_libraries(kitty ${CMAKE_THREAD_LIBS_INIT} ${PJSIP_LIBRARIES} ${SQLITE3_LIBRARIES} ${OPENSSL_LIBRARIES} ${BLUEZ_LIBRARIES} stdc++fs)
+
+set_target_properties(kitty PROPERTIES
+  CXX_STANDARD 17
+  CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-missing-braces"
+  CXX_FLAGS_DEBUG "${CMAKE_FLAGS_DEBUG} -O0 -pedantic -g"
+  CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3"
+)
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-missing-braces")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -pedantic -g")
 
 set(KITTY_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR} KITTY_INCLUDE_DIR)
 

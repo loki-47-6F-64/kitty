@@ -140,13 +140,6 @@ public:
 
   template<class Function>
   int eachByte(Function &&f, std::uint64_t max = std::numeric_limits<std::uint64_t>::max()) {
-    if(!_in.cache) {
-      _in.cache.reset(new std::uint8_t[_cache_size]);
-      _in.capacity = _cache_size;
-
-      read_clear();
-    }
-
     while(max) {
       if(_end_of_buffer()) {
         _in.data_p = _in.cache.get();

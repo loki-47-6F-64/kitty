@@ -44,60 +44,55 @@ BENCHMARK(READ_SMALL, kitty_struct, 20, 7200) {
   celero::DoNotOptimizeAway(buf);
 }
 
-BENCHMARK(READ_SMALL, kitty_struct_bulk, 20, 7200) {
-  using value_type = std::size_t;
+BASELINE(READ_STRUCT, kitty_struct_bulk, 20, 7200) {
+  using value_type = std::array<std::size_t, FILE_SIZE_SMALL / sizeof(std::size_t)>;
+  constexpr std::size_t elements = FILE_SIZE_SMALL / sizeof(value_type);
 
-  constexpr auto size = FILE_SIZE_SMALL / sizeof(value_type);
+  static_assert(elements != 0, "CRAP!");
+  value_type values[elements];
 
-  struct test_t {
-    value_type v[size];
-  };
+  auto fd { file::ioRead(READ_FILE(SMALL)) };
 
-  std::vector<value_type> buf;
-  buf.resize(size);
+  for(auto &v : values) {
+    v = *file::read_struct<value_type>(fd);
+  }
 
-
-  auto fd { file::ioRead(READ_FILE(small)) };
-
-  auto p = *file::read_struct<test_t>(fd);
-
-  celero::DoNotOptimizeAway(p);
-  celero::DoNotOptimizeAway(buf);
+  celero::DoNotOptimizeAway(values);
 }
 
 /**
  * This is a lot slower than reading everything in an entire bulk
  */
-BENCHMARK(READ_STRUCT, kitty_struct, 10, 360) {
-  using value_type = std::size_t;
+BENCHMARK(READ_STRUCT, kitty_struct_s, 20, 3600) {
+  using value_type = std::array<std::size_t, 1>;
+  constexpr std::size_t elements = FILE_SIZE_SMALL / sizeof(value_type);
 
-  auto fd { file::ioRead(READ_FILE(medium)) };
+  static_assert(elements != 0, "CRAP!");
+  value_type values[elements];
 
-  auto i = FILE_SIZE_MEDIUM / sizeof(value_type);
-  while(--i) {
-    file::read_struct<value_type>(fd);
+  auto fd { file::ioRead(READ_FILE(SMALL)) };
+
+  for(auto &v : values) {
+    v = *file::read_struct<value_type>(fd);
   }
+
+  celero::DoNotOptimizeAway(values);
 }
 
-BENCHMARK(READ_MEDIUM, kitty_struct_bulk, 10, 360) {
-  using value_type = std::size_t;
+BENCHMARK(READ_STRUCT, kitty_struct_m, 20, 3600) {
+  using value_type = std::array<std::size_t, (256 / sizeof(std::size_t))>;
+  constexpr std::size_t elements = FILE_SIZE_SMALL / sizeof(value_type);
 
-  constexpr auto size = FILE_SIZE_MEDIUM / sizeof(value_type);
+  static_assert(elements != 0, "CRAP!");
+  value_type values[elements];
 
-  struct test_t {
-    value_type v[size];
-  };
+  auto fd { file::ioRead(READ_FILE(SMALL)) };
 
-  std::vector<value_type> buf;
-  buf.resize(size);
+  for(auto &v : values) {
+    v = *file::read_struct<value_type>(fd);
+  }
 
-
-  auto fd { file::ioRead(READ_FILE(medium)) };
-
-  auto p = *file::read_struct<test_t>(fd);
-
-  celero::DoNotOptimizeAway(p);
-  celero::DoNotOptimizeAway(buf);
+  celero::DoNotOptimizeAway(values);
 }
 
 BASELINE(READ_MEDIUM, kitty_read, 20, 720) {
