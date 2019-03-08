@@ -10,7 +10,7 @@
 #include <kitty/ssl/ssl.h>
 // Special exception for gai_strerror
 namespace err {
-extern void set(const char *err);
+extern void set(const std::string_view &);
 }
 
 namespace ssl {
