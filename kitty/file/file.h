@@ -79,7 +79,7 @@ private:
   stream_t _stream;
 
   // Change of cacheSize only affects next load
-  static constexpr std::size_t _cacheSize = 1024 << 4;
+  static constexpr std::size_t _cache_size = 1024;
 
   duration_t _timeout;
 
@@ -105,7 +105,7 @@ public:
 
   template<class T1, class T2, class... Args>
   FD(std::chrono::duration<T1,T2> duration, Args && ... params)
-  : _stream(std::forward<Args>(params)...), _timeout(std::chrono::duration_cast<duration_t>(duration)), _in {}, _out { {}, 0 } {}
+  : _stream(std::forward<Args>(params)...), _timeout(std::chrono::duration_cast<duration_t>(duration)), _in { _cache_size }, _out { {}, 0 } {}
 
   ~FD() noexcept { seal(); }
 
@@ -141,11 +141,15 @@ public:
   template<class Function>
   int eachByte(Function &&f, std::uint64_t max = std::numeric_limits<std::uint64_t>::max()) {
     if(!_in.cache) {
-      _in.cache.reset(new std::uint8_t[_cacheSize]);
+      _in.cache.reset(new std::uint8_t[_cache_size]);
+      _in.capacity = _cache_size;
+
+      read_clear();
     }
 
     while(max) {
       if(_end_of_buffer()) {
+        _in.data_p = _in.cache.get();
         auto bytes_read = _stream.read(_in.data_p, _in.capacity);
         if(bytes_read <= 0) {
           return -1;
@@ -160,6 +164,36 @@ public:
     }
 
     return err::OK;
+  }
+
+  /**
+   * This is faster if you don't need to process byte by byte
+   * @param in the input buffer
+   * @param size
+   * @return 0 on success
+   */
+  int read_cached(std::uint8_t *in, std::size_t size) {
+    while(size) {
+      if(_end_of_buffer()) {
+        _in.data_p = _in.cache.get();
+        auto bytes_read = _stream.read(_in.data_p, _in.capacity);
+        if(bytes_read <= 0) {
+          return -1;
+        }
+
+        _in.data_end = _in.data_p + bytes_read;
+      }
+
+      auto cached_bytes = std::min(size, _in.size());
+      std::copy_n(_in.data_p, cached_bytes, in);
+
+      _in.data_p += cached_bytes;
+      in += cached_bytes;
+      size -= cached_bytes;
+    }
+
+
+    return 0;
   }
 
   /**
@@ -322,13 +356,12 @@ std::optional<T> read_struct(FD<Stream> &io) {
   constexpr size_t data_len = sizeof(T);
   uint8_t buf[data_len];
 
-  auto err = io.read(buf, data_len);
-  auto *val = (T*)buf;
-
+  auto err = io.read_cached(buf, data_len);
   if(err) {
     return std::nullopt;
   }
 
+  auto *val = (T*)buf;
   return *val;
 }
 

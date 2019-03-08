@@ -26,13 +26,78 @@ BASELINE(READ_SMALL, kitty_read, 20, 7200) {
   celero::DoNotOptimizeAway(buf);
 }
 
+/**
+ * This is a lot slower than reading everything in an entire bulk
+ */
 BENCHMARK(READ_SMALL, kitty_struct, 20, 7200) {
   using value_type = std::size_t;
+
+  std::vector<value_type> buf;
+  buf.resize(FILE_SIZE_SMALL / sizeof(value_type));
+
   auto fd { file::ioRead(READ_FILE(small)) };
 
-  for(std::size_t i = 0; i < (FILE_SIZE_SMALL / sizeof(value_type)); ++i) {
-    celero::DoNotOptimizeAway(file::read_struct<value_type>(fd));
+  for(auto &v : buf) {
+    v = *file::read_struct<value_type>(fd);
   }
+
+  celero::DoNotOptimizeAway(buf);
+}
+
+BENCHMARK(READ_SMALL, kitty_struct_bulk, 20, 7200) {
+  using value_type = std::size_t;
+
+  constexpr auto size = FILE_SIZE_SMALL / sizeof(value_type);
+
+  struct test_t {
+    value_type v[size];
+  };
+
+  std::vector<value_type> buf;
+  buf.resize(size);
+
+
+  auto fd { file::ioRead(READ_FILE(small)) };
+
+  auto p = *file::read_struct<test_t>(fd);
+
+  celero::DoNotOptimizeAway(p);
+  celero::DoNotOptimizeAway(buf);
+}
+
+/**
+ * This is a lot slower than reading everything in an entire bulk
+ */
+BENCHMARK(READ_STRUCT, kitty_struct, 10, 360) {
+  using value_type = std::size_t;
+
+  auto fd { file::ioRead(READ_FILE(medium)) };
+
+  auto i = FILE_SIZE_MEDIUM / sizeof(value_type);
+  while(--i) {
+    file::read_struct<value_type>(fd);
+  }
+}
+
+BENCHMARK(READ_MEDIUM, kitty_struct_bulk, 10, 360) {
+  using value_type = std::size_t;
+
+  constexpr auto size = FILE_SIZE_MEDIUM / sizeof(value_type);
+
+  struct test_t {
+    value_type v[size];
+  };
+
+  std::vector<value_type> buf;
+  buf.resize(size);
+
+
+  auto fd { file::ioRead(READ_FILE(medium)) };
+
+  auto p = *file::read_struct<test_t>(fd);
+
+  celero::DoNotOptimizeAway(p);
+  celero::DoNotOptimizeAway(buf);
 }
 
 BASELINE(READ_MEDIUM, kitty_read, 20, 720) {
