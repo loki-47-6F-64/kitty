@@ -16,95 +16,21 @@
 namespace file::stream {
 class pipe_t {
 public:
+  int select(std::chrono::milliseconds to);
+
   /**
    * blocking
    * @return the next data buffer from the queue
    */
-  std::optional<std::vector<uint8_t>> pop() {
-    std::lock_guard<std::mutex> lg(_queue_mutex);
+  std::optional<std::vector<uint8_t>> pop();
+  void push_front(std::vector<std::uint8_t> &&buf);
+  void push(std::string_view data);
 
-    while(true) {
-      if(_sealed) {
-        err::code = err::code_t::FILE_CLOSED;
+  void set_call(::p2p::pj::ICECall call);
+  ::p2p::pj::ICECall &get_call();
 
-        return std::nullopt;
-      }
-
-      if(!_queue.empty()) {
-        auto vec { std::move(_queue.front()) };
-        _queue.erase(std::begin(_queue));
-
-        return vec;
-      }
-
-      // wait until data is available
-      std::unique_lock<std::mutex> ul(_queue_mutex);
-      _cv.wait(ul, [this]() { return !_queue.empty() || _sealed; });
-    }
-  }
-
-  int select(std::chrono::milliseconds to) {
-    std::unique_lock<std::mutex> ul(_queue_mutex);
-    while(true) {
-      if(_sealed) {
-        return err::FILE_CLOSED;
-      }
-
-      if(!_queue.empty()) {
-        return err::OK;
-      }
-
-      // wait for timeout or until data is available
-      if(_cv.wait_for(ul, to, [this]() { return !_queue.empty() || _sealed; })) {
-        if(_sealed) {
-          return err::FILE_CLOSED;
-        }
-
-        return err::OK;
-      }
-
-      return err::TIMEOUT;
-    }
-  }
-
-  void push_front(std::vector<std::uint8_t> &&buf) {
-    {
-      std::lock_guard<std::mutex> lg(_queue_mutex);
-      _queue.emplace(std::begin(_queue), std::move(buf));
-    }
-  }
-
-  void push(std::string_view data) {
-    std::vector<uint8_t> buf;
-    buf.insert(std::begin(buf), std::begin(data), std::end(data));
-
-    {
-      std::lock_guard<std::mutex> lg(_queue_mutex);
-      _queue.emplace_back(std::move(buf));
-    }
-
-    _cv.notify_all();
-  }
-
-  void seal() {
-    std::lock_guard<std::mutex> lg(_queue_mutex);
-
-    _sealed = true;
-  }
-
-  void set_call(::p2p::pj::ICECall call) {
-    _sealed = false;
-
-    _call = call;
-  }
-
-  ::p2p::pj::ICECall &get_call() {
-    return _call;
-  }
-
-  bool is_open() const {
-    return !_sealed;
-  }
+  void seal();
+  bool is_open() const;
 private:
   bool _sealed = true;
 
@@ -124,8 +50,8 @@ public:
   p2p(p2p &&) noexcept = default;
   p2p& operator =(p2p&& stream) noexcept = default;
 
-  int read(std::uint8_t *in, std::size_t size);
-  int write(const std::vector<std::uint8_t> &buf);
+  std::int64_t read(std::uint8_t *in, std::size_t size);
+  int write(std::uint8_t *out, std::size_t size);
 
   bool is_open() const;
   bool eof() const;

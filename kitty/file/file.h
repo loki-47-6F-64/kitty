@@ -1,16 +1,6 @@
 #ifndef DOSSIER_FILE_H
 #define DOSSIER_FILE_H
 
-// TODO: This should be in a seperate header
-#if __APPLE__
-#define KITTY_POLLIN POLLIN
-#define KITTY_POLLOUT POLLOUT
-#define POLLRDHUP (POLLHUP | POLLNVAL)
-#elif __linux__
-#define KITTY_POLLIN  (POLLIN  | POLLRDHUP)
-#define KITTY_POLLOUT (POLLOUT | POLLRDHUP) 
-#endif
-
 #include <functional>
 #include <vector>
 #include <chrono>
@@ -18,9 +8,6 @@
 #include <optional>
 #include <memory>
 #include <map>
-
-#include <sys/select.h>
-#include <poll.h>
 
 #include <type_traits>
 
@@ -63,12 +50,6 @@ struct buffer_in_t {
   }
 };
 
-struct buffer_out_t {
-  std::uint8_t *data_p;
-  std::uint8_t *data_end;
-
-  std::vector<std::uint8_t> cache;
-};
 /* Represents file in memory, storage or socket */
 template <class Stream>
 class FD { /* File descriptor */
@@ -84,7 +65,7 @@ private:
   duration_t _timeout;
 
   buffer_in_t _in;
-  buffer_out_t _out;
+  std::vector<std::uint8_t> _out;
 
 public:
   FD(FD && other) noexcept : _in(std::move(other._in)), _out(std::move(other._out)) {
@@ -105,7 +86,7 @@ public:
 
   template<class T1, class T2, class... Args>
   FD(std::chrono::duration<T1,T2> duration, Args && ... params)
-  : _stream(std::forward<Args>(params)...), _timeout(std::chrono::duration_cast<duration_t>(duration)), _in { _cache_size }, _out { {}, 0 } {}
+  : _stream(std::forward<Args>(params)...), _timeout(std::chrono::duration_cast<duration_t>(duration)), _in { _cache_size }, _out {} {}
 
   ~FD() noexcept { seal(); }
 
@@ -113,29 +94,29 @@ public:
 
   // Write to file
   int out() {
-    if ((wait_for(WRITE))) {
+    if(wait_for(WRITE)) {
       // Don't clear cache on timeout
       return -1;
     }
 
     // On success clear
-    auto size = _stream.write(_out.cache);
-    if (size >= 0) {
-      // It's possible not all bytes are written
+    auto data_p    = _out.data();
+    auto data_size = _out.size();
 
-      auto data_p_n = _out.data_p + size;
-      if(data_p_n < _out.data_end) {
-        _out.data_p = data_p_n;
+    while(data_size) {
+      auto bytes_written = _stream.write(data_p, data_size);
 
-        return out();
+      if(bytes_written < 0) {
+        return -1;
       }
 
-      write_clear();
-      return err::OK;
+      data_p += bytes_written;
+      data_size -= bytes_written;
     }
 
     write_clear();
-    return -1;
+
+    return 0;
   }
 
   template<class Function>
@@ -199,8 +180,8 @@ public:
     // eachByte could have been called --> some bytes might have been cached
     auto cached_bytes = std::min(size, _in.size());
     if(cached_bytes > 0) {
+      std::copy_n(_in.data_p, cached_bytes, in);
       _in.data_p += cached_bytes;
-      std::copy_n(_in.cache.get(), cached_bytes, in);
 
       in += cached_bytes;
       size -= cached_bytes;
@@ -229,13 +210,13 @@ public:
 
   template<class T>
   FD &append(T &&container) {
-    AppendFunc<T>::run(_out.cache, std::forward<T>(container));
+    AppendFunc<T>::run(_out, std::forward<T>(container));
 
     return *this;
   }
 
   FD &write_clear() {
-    _out.data_end = _out.data_p = _out.cache.data();
+    _out.clear();
 
     return *this;
   }
@@ -251,7 +232,7 @@ public:
   }
 
   std::vector<std::uint8_t> &get_write_cache() {
-    return _out.cache;
+    return _out;
   }
 
   bool eof() {
@@ -297,8 +278,6 @@ private:
   struct AppendFunc<T, std::enable_if_t<util::instantiation_of_v<raw_t, T>>> {
     static void run(std::vector<uint8_t> &cache, const T& _struct) {
       constexpr size_t data_len = sizeof(typename T::value_type);
-
-      cache.reserve(data_len);
 
       auto *data = (uint8_t *) & _struct.val;
 
@@ -362,7 +341,7 @@ template<class T>
 std::optional<std::string> read_string(FD<T> &io, std::size_t size) {
   std::string buf; buf.resize(size);
 
-  auto err = io.read((std::uint8_t*)const_cast<char*>(buf.data()), size);
+  auto err = io.read_cached((std::uint8_t*)buf.data(), size);
 
   if(err) {
     return std::nullopt;
@@ -392,109 +371,6 @@ std::optional<std::string> read_line(FD<T> &socket, std::string buf = std::strin
 
   return std::move(buf);
 }
-
-template<class T, class X>
-class poll_t {
-  static_assert(util::instantiation_of_v<FD, T>, "template parameter T must be an instantiation of file::FD");
-public:
-  using file_t = T;
-  using user_t = X;
-
-  template<class FR, class FW, class FH>
-  poll_t(FR &&fr, FW &&fw, FH &&fh) : _read_cb { std::forward<FR>(fr) }, _write_cb { std::forward<FW>(fw) }, _remove_cb { std::forward<FH>(fh) } {}
-
-  poll_t(poll_t&&) = default;
-  poll_t& operator=(poll_t&&) = default;
-
-  void read(file_t &fd, user_t user_val) {
-    std::lock_guard<std::mutex> lg(_mutex_add);
-
-    _queue_add.emplace_back(user_val, &fd, pollfd {fd.getStream().fd(), KITTY_POLLIN, 0});
-  }
-
-  void write(file_t &fd, user_t user_val) {
-    std::lock_guard<std::mutex> lg(_mutex_add);
-
-    _queue_add.emplace_back(user_val, &fd, {fd.getStream().fd(), KITTY_POLLOUT, 0});
-  }
-
-  void read_write(file_t &fd, user_t user_val) {
-    std::lock_guard<std::mutex> lg(_mutex_add);
-
-    _queue_add.emplace_back(user_val, &fd, {fd.getStream().fd(), KITTY_POLLIN | KITTY_POLLOUT, 0});
-  }
-
-  void remove(file_t &fd) {
-    std::lock_guard<std::mutex> lg(_mutex_add);
-
-    _queue_remove.emplace_back(&fd);
-  }
-
-  void poll(std::chrono::milliseconds milli = std::chrono::milliseconds(50)) {
-    _apply_changes();
-
-    auto res = ::poll(_pollfd.data(), _pollfd.size(), milli.count());
-
-    if(res > 0) {
-      for(auto &pollfd : _pollfd) {
-        if(pollfd.revents & (POLLHUP | POLLRDHUP | POLLERR)) {
-          auto it = _fd_to_file.find(pollfd.fd);
-
-          remove(*std::get<1>(it->second));
-          continue;
-        }
-
-        if(pollfd.revents & POLLIN) {
-          auto it = _fd_to_file.find(pollfd.fd);
-          _read_cb(*std::get<1>(it->second), std::get<0>(it->second));
-        }
-
-        if(pollfd.revents & POLLOUT) {
-          auto it = _fd_to_file.find(pollfd.fd);
-          _write_cb(*std::get<1>(it->second), std::get<0>(it->second));
-        }
-      }
-    }
-  }
-private:
-  void _apply_changes() {
-    std::lock_guard<std::mutex> lg(_mutex_add);
-
-    for(auto &el : _queue_add) {
-      _pollfd.emplace_back(std::get<2>(el));
-
-      _fd_to_file.emplace(std::get<1>(el)->getStream().fd(), std::pair<user_t, file_t*> { std::get<0>(el), std::get<1>(el) });
-    }
-
-    for(auto &el : _queue_remove) {
-      auto it = _fd_to_file.find(el->getStream().fd());
-      auto cp = *it;
-
-      _fd_to_file.erase(it);
-      _pollfd.erase(std::remove_if(std::begin(_pollfd), std::end(_pollfd), [&el](const auto &l) {
-        return l.fd == el->getStream().fd();
-      }), std::end(_pollfd));
-
-      _remove_cb(*std::get<1>(cp.second), std::get<0>(cp.second));
-    }
-
-    _queue_add.clear();
-    _queue_remove.clear();
-  }
-
-  std::function<void(file_t &file, user_t)> _read_cb;
-  std::function<void(file_t &file, user_t)> _write_cb;
-  std::function<void(file_t &file, user_t)> _remove_cb;
-
-  std::map<int, std::pair<user_t, file_t*>> _fd_to_file;
-
-  std::vector<std::tuple<user_t, file_t*, pollfd>> _queue_add;
-  std::vector<file_t*> _queue_remove;
-
-  std::vector<pollfd> _pollfd;
-
-  std::mutex _mutex_add;
-};
 
 }
 

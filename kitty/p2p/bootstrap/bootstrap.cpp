@@ -14,7 +14,7 @@ using namespace std::chrono_literals;
 namespace p2p::bootstrap {
 
 void accept_client(server::tcp::client_t &&client) {
-  print(debug, "Accepted client :: ", client.ip_addr);
+  //print(debug, "Accepted client :: ", client.ip_addr);
 
   handle_quest(*client.socket);
 }

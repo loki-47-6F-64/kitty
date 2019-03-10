@@ -6,6 +6,7 @@
 #define T_MAN_QUEST_H
 
 #include <map>
+#include <kitty/file/poll.h>
 #include <kitty/file/io_stream.h>
 #include <kitty/p2p/uuid.h>
 

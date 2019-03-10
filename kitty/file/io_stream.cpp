@@ -1,9 +1,9 @@
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/stat.h>
 
 #include <kitty/file/io_stream.h>
 #include <kitty/file/file.h>
+#include <kitty/file/poll.h>
 #include <kitty/err/err.h>
 #include "io_stream.h"
 
@@ -60,8 +60,8 @@ std::int64_t io::read(std::uint8_t *data, std::size_t size) {
   return -1;
 }
 
-int io::write(const std::vector<unsigned char> &buf) {
-  ssize_t bytes_written = ::write(_fd, buf.data(), buf.size());
+int io::write(std::uint8_t *data, std::size_t size) {
+  ssize_t bytes_written = ::write(_fd, data, size);
 
   if(bytes_written < 0) {
     err::code = err::LIB_SYS;

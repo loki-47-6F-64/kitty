@@ -152,6 +152,10 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -pedantic -g")
 
 set(KITTY_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR} KITTY_INCLUDE_DIR)
 
+if(KITTY_BUILD_P2P)
+  add_subdirectory(kitty/p2p/bootstrap)
+endif()
+
 if(KITTY_BENCHMARK)
 add_subdirectory(benchmark)
 endif()

@@ -19,7 +19,7 @@
 
 namespace file {
 namespace stream {
-constexpr int DATE_BUFFER_SIZE = 21 + 1; // Full string plus '\0'
+constexpr int DATE_BUFFER_SIZE = 21 +1 +1; // Full string plus " \0"
 
 extern THREAD_LOCAL util::ThreadLocal<char[DATE_BUFFER_SIZE]> _date;
 
@@ -42,20 +42,19 @@ public:
     return -1;
   }
 
-  int write(std::vector<unsigned char>& buf) {
+  int write(std::uint8_t *data, std::size_t size) {
     std::time_t t = std::time(nullptr);
-    strftime(_date, DATE_BUFFER_SIZE, "[%Y:%m:%d:%H:%M:%S]", std::localtime(&t));
+    strftime(_date, DATE_BUFFER_SIZE, "[%Y:%m:%d:%H:%M:%S] ", std::localtime(&t));
 
-    buf.insert(buf.begin(), _prepend.cbegin(), _prepend.cend());
+    _stream.write((std::uint8_t*)_prepend.data(), _prepend.size());
+    _stream.write((std::uint8_t*)(&*_date), DATE_BUFFER_SIZE - 1);
 
-    buf.insert(
-      buf.begin(),
-      _date.get(),
-      _date.get() + DATE_BUFFER_SIZE - 1 //omit '\0'
-    );
+    auto bytes_written =  _stream.write(data, size);
 
-    buf.push_back('\n');
-    return _stream.write(buf);
+    std::uint8_t nl { '\n' };
+    _stream.write(&nl, 1);
+
+    return bytes_written;
   }
 
   bool is_open() const {

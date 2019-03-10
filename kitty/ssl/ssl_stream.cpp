@@ -1,6 +1,7 @@
 #include <unistd.h>
 
 #include <openssl/ssl.h>
+#include <kitty/file/poll.h>
 #include <kitty/ssl/ssl_stream.h>
 #include <kitty/ssl/ssl.h>
 

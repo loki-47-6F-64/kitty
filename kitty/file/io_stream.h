@@ -17,7 +17,7 @@ public:
   io& operator =(io&& stream) noexcept;
 
   std::int64_t read(std::uint8_t *data, std::size_t size);
-  int write(const std::vector<std::uint8_t> &buf);
+  int write(std::uint8_t *data, std::size_t size);
 
   bool is_open() const;
   bool eof() const;
