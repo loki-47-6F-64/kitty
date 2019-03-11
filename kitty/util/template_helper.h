@@ -10,6 +10,9 @@ namespace util {
 template<class T>
 struct __print_type;
 
+template<auto V>
+struct __print_value;
+
 template<class T>
 void print_type(T& type) {
   __print_type<T> pt;
@@ -20,6 +23,11 @@ template<class T>
 void print_uni_type(T&& type) {
   __print_type<T> pt;
   __print_type<decltype(type)> ppt;
+}
+
+template<auto V>
+constexpr void print_value() {
+  __print_value<V> pv;
 }
 
 template<class T, template<class...> class X>
@@ -205,5 +213,21 @@ struct __contains_instantiation_of<X, T<Y...>> {
 
 template<template<typename...> class X, class T, class...Y>
 static constexpr auto contains_instantiation_of_v = __contains_instantiation_of<X, T, Y...>::value;
+
+template<bool V, class X, class Y>
+struct __either;
+
+template<class X, class Y>
+struct __either<true, X, Y> {
+  using type = X;
+};
+
+template<class X, class Y>
+struct __either<false, X, Y> {
+  using type = Y;
+};
+
+template<bool V, class X, class Y>
+using either_t = typename __either<V, X, Y>::type;
 }
 #endif

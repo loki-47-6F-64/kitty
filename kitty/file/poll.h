@@ -17,7 +17,9 @@
 
 #include <sys/select.h>
 #include <poll.h>
+#include <variant>
 #include <kitty/file/file.h>
+
 namespace file {
 
 enum class poll_result_t {
@@ -33,7 +35,7 @@ public:
   using fd_t     = int;
   using poll_t   = pollfd;
 
-  static fd_t fd(const stream_t & t) {
+  static fd_t fd(const stream_t &t) {
     return t.fd();
   }
 
@@ -78,7 +80,7 @@ public:
   }
 };
 
-template<class T, class X>
+template<class T, class X = std::monostate>
 class poll_t {
   static_assert(util::instantiation_of_v<FD, T>, "template parameter T must be an instantiation of file::FD");
 public:
@@ -91,35 +93,71 @@ private:
   using __fd_t   = typename poll_traits<__stream_t>::fd_t;
   using __poll_t = typename poll_traits<__stream_t>::poll_t;
 
+  struct __test_poll_traits_has_member {
+    template<class P>
+    static constexpr auto write(P *p) -> std::decay_t<decltype(p->write(__stream_t()), std::true_type())>;
+
+    template<class>
+    static constexpr auto write(...) -> std::false_type;
+
+    template<class P>
+    static constexpr auto remove(P *p) -> std::decay_t<decltype(p->remove(__stream_t()), std::true_type())>;
+
+    template<class>
+    static constexpr auto remove(...) -> std::false_type;
+  };
+
+  template<bool V>
+  inline std::enable_if_t<V> __poll_traits_remove_helper(__fd_t fd) {
+    poll_traits<__stream_t>::remove(fd);
+  }
+
+  template<bool V>
+  inline std::enable_if_t<!V> __poll_traits_remove_helper(__fd_t fd) {}
+
+  static constexpr bool __has_write_v  = std::decay_t<decltype(__test_poll_traits_has_member::template write<poll_traits<__stream_t>>(nullptr))>::value;
+  static constexpr bool __has_remove_v = std::decay_t<decltype(__test_poll_traits_has_member::template remove<poll_traits<__stream_t>>(nullptr))>::value;
+
 public:
+  using func_t = util::either_t<std::is_same_v<std::monostate, user_t>,
+    std::function<void(file_t &file)>,
+    std::function<void(file_t &file, user_t)>
+    >;
 
   template<class FR, class FW, class FH>
-  poll_t(FR &&fr, FW &&fw, FH &&fh) : _read_cb { std::forward<FR>(fr) }, _write_cb { std::forward<FW>(fw) }, _remove_cb { std::forward<FH>(fh) } {}
+  poll_t(FR &&fr, FW &&fw, FH &&fh) : _read_cb { std::forward<FR>(fr) }, _write_cb { std::forward<FW>(fw) }, _remove_cb { std::forward<FH>(fh) } {
+    static_assert(__has_write_v, "poll_traits::write(stream_t&) is not defined.");
+  }
+
+  template<class FR, class FH>
+  poll_t(FR &&fr, FH && fh) : _read_cb { std::forward<FR>(fr) }, _remove_cb { std::forward<FH>(fh) } {
+    static_assert(!__has_write_v, "poll_traits::write(stream_t&) is defined.");
+  }
 
   poll_t(poll_t&&) = default;
   poll_t& operator=(poll_t&&) = default;
 
   void read(file_t &fd, user_t user_val) {
     std::lock_guard<std::mutex> lg(_mutex_add);
-
     _queue_add.emplace_back(user_val, &fd, poll_traits<__stream_t>::read(fd.getStream()));
   }
 
   void write(file_t &fd, user_t user_val) {
-    std::lock_guard<std::mutex> lg(_mutex_add);
+    static_assert(__has_write_v, "poll_traits::write(stream_t&) is not defined.");
 
+    std::lock_guard<std::mutex> lg(_mutex_add);
     _queue_add.emplace_back(user_val, &fd, poll_traits<__stream_t>::write(fd.getStream()));
   }
 
   void read_write(file_t &fd, user_t user_val) {
-    std::lock_guard<std::mutex> lg(_mutex_add);
+    static_assert(__has_write_v, "poll_traits::write(stream_t&) is not defined.");
 
+    std::lock_guard<std::mutex> lg(_mutex_add);
     _queue_add.emplace_back(user_val, &fd, poll_traits<__stream_t>::read_write(fd.getStream()));
   }
 
   void remove(file_t &fd) {
     std::lock_guard<std::mutex> lg(_mutex_add);
-
     _queue_remove.emplace_back(&fd);
   }
 
@@ -128,15 +166,39 @@ public:
 
     poll_traits<__stream_t>::poll(_pollfd, milli, [this](__fd_t fd, poll_result_t result) {
       auto it = _fd_to_file.find(fd);
-      switch(result) {
-        case poll_result_t::IN:
-          _read_cb(*std::get<1>(it->second), std::get<0>(it->second));
-          break;
-        case poll_result_t::OUT:
-          _write_cb(*std::get<1>(it->second), std::get<0>(it->second));
-          break;
-        case poll_result_t::ERROR:
-          remove(*std::get<1>(it->second));
+
+      if constexpr (std::is_same_v<std::monostate, user_t>) {
+        switch(result) {
+          case poll_result_t::IN:
+            _read_cb(*std::get<1>(it->second));
+            break;
+          case poll_result_t::OUT:
+            if constexpr (__has_write_v) {
+              _write_cb(*std::get<1>(it->second));
+            }
+            break;
+          case poll_result_t::ERROR:
+            __poll_traits_remove_helper<__has_remove_v>(fd);
+
+            remove(*std::get<1>(it->second));
+        }
+      }
+
+      else {
+        switch(result) {
+          case poll_result_t::IN:
+            _read_cb(*std::get<1>(it->second), std::get<0>(it->second));
+            break;
+          case poll_result_t::OUT:
+            if constexpr (__has_write_v) {
+              _write_cb(*std::get<1>(it->second), std::get<0>(it->second));
+            }
+            break;
+          case poll_result_t::ERROR:
+            __poll_traits_remove_helper<__has_remove_v>(fd);
+
+            remove(*std::get<1>(it->second));
+        }
       }
     });
   }
@@ -159,16 +221,21 @@ private:
         return poll_traits<__stream_t>::fd(l) == poll_traits<__stream_t>::fd(el->getStream());
       }), std::end(_pollfd));
 
-      _remove_cb(*std::get<1>(cp.second), std::get<0>(cp.second));
+      if constexpr (std::is_same_v<user_t, std::monostate>) {
+        _remove_cb(*std::get<1>(cp.second));
+      }
+      else {
+        _remove_cb(*std::get<1>(cp.second), std::get<0>(cp.second));
+      }
     }
 
     _queue_add.clear();
     _queue_remove.clear();
   }
 
-  std::function<void(file_t &file, user_t)> _read_cb;
-  std::function<void(file_t &file, user_t)> _write_cb;
-  std::function<void(file_t &file, user_t)> _remove_cb;
+  func_t _read_cb;
+  util::either_t<__has_write_v, func_t, std::monostate> _write_cb;
+  func_t _remove_cb;
 
   std::map<__fd_t, std::pair<user_t, file_t*>> _fd_to_file;
 
