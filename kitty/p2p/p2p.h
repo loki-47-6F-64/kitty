@@ -40,9 +40,9 @@ using answer_t = std::variant<decline_t, accept_t>;
 
 class pending_t {
   pj::ICETrans _ice_trans;
-  util::Alarm<std::optional<decline_t>> &_alarm;
+  util::Alarm<decline_t> &_alarm;
 public:
-  pending_t(pj::ICETrans &&, util::Alarm<std::optional<decline_t>> &) noexcept;
+  pending_t(pj::ICETrans &&, util::Alarm<decline_t> &) noexcept;
 
   void operator()(answer_t &&);
 };
@@ -111,7 +111,7 @@ private:
    * @param _on_create callback when candidates are gathered
    * @return an fd on successfully allocating a transport
    */
-  std::optional<file::p2p> _peer_create(const uuid_t &uuid, util::Alarm<std::optional<decline_t>> &alarm,
+  std::optional<file::p2p> _peer_create(const uuid_t &uuid, util::Alarm<decline_t> &alarm,
                                         pj::ice_sess_role_t role, std::function<void(pj::ICECall)> &&);
 
   /**
@@ -150,7 +150,7 @@ struct config_t {
 
   const char *log_file {};
   pj::ip_addr_t server_addr { "localhost", 2345 };
-  pj::ip_addr_t stun_addr   { "stun.l.google.com", 19302 };
+  pj::ip_addr_t stun_addr { "stun.12voip.com"sv, 3478 };  // { "stun.l.google.com", 19302 };
   std::vector<std::string_view> dns { "8.8.8.8" };
 
   std::size_t max_peers = MAX_PEERS;

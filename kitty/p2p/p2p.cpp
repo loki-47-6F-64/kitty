@@ -36,7 +36,7 @@ int init() {
 }
 
 file::p2p quest_t::_send_accept(uuid_t recipient, const pj::remote_buf_t &remote) {
-  util::Alarm<std::optional<decline_t>> alarm { std::nullopt };
+  util::Alarm<decline_t> alarm { std::nullopt };
 
   auto peer = _peer_create(recipient, alarm, pj::ice_sess_role_t::PJ_ICE_SESS_ROLE_CONTROLLED,
     [&remote](pj::ICECall call) {
@@ -50,7 +50,7 @@ file::p2p quest_t::_send_accept(uuid_t recipient, const pj::remote_buf_t &remote
     return {};
   }
 
-  alarm.wait([&]() { return alarm.status() || peer->is_open(); });
+  alarm.wait([&]() { return peer->is_open(); });
 
   if(alarm.status()) {
     _send_decline(recipient, *alarm.status());
@@ -174,7 +174,7 @@ int quest_t::send_register() {
   return 0;
 }
 
-std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Alarm<std::optional<decline_t>> &alarm,
+std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Alarm<decline_t> &alarm,
                                                pj::ice_sess_role_t role,
                                                std::function<void(pj::ICECall)> &&on_create) {
 
@@ -274,7 +274,7 @@ pending_t *quest_t::_peer(const p2p::uuid_t &uuid) {
 }
 
 std::variant<decline_t, file::p2p> quest_t::invite(uuid_t recipient) {
-  util::Alarm<std::optional<decline_t>> alarm { std::nullopt };
+  util::Alarm<decline_t> alarm { std::nullopt };
 
   auto peer = _peer_create(
     recipient,
@@ -287,7 +287,7 @@ std::variant<decline_t, file::p2p> quest_t::invite(uuid_t recipient) {
     return decline_t { decline_t::ERROR };
   }
 
-  alarm.wait([&]() { return alarm.status() || peer->is_open(); });
+  alarm.wait([&]() { return peer->is_open(); });
 
   if(alarm.status()) {
     return *alarm.status();
@@ -312,7 +312,7 @@ void pending_t::operator()(answer_t &&answer) {
   _alarm.ring();
 }
 
-pending_t::pending_t(pj::ICETrans &&ice_trans, util::Alarm<std::optional<decline_t>> &alarm) noexcept :
+pending_t::pending_t(pj::ICETrans &&ice_trans, util::Alarm<decline_t> &alarm) noexcept :
 _ice_trans { std::move(ice_trans) }, _alarm { alarm } {}
 
 }
@@ -324,7 +324,7 @@ namespace server {
 template<>
 int p2p::_init_listen(const file::ip_addr_t &ip_addr) {
   _member.pool = ::p2p::pj::Pool { ::p2p::global.caching_pool, "Loki-ICE" };
-  _member.pool.dns_resolv().set_ns(::p2p::config.dns);
+  _member.pool.dns().set_ns(::p2p::config.dns);
   _member.pool.set_stun(::p2p::config.stun_addr);
 
   _member.server = file::connect(ip_addr);

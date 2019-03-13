@@ -7,6 +7,8 @@
 #include <atomic>
 #include <kitty/p2p/pj/pool.h>
 #include <kitty/log/log.h>
+#include <pjlib-util.h>
+#include "pool.h"
 
 
 namespace p2p::pj {
@@ -43,7 +45,7 @@ ICETrans Pool::ice_trans(std::function<void(ICECall, std::string_view)> &&on_dat
   };
 }
 
-DNSResolv &Pool::dns_resolv() {
+DNSResolv &Pool::dns() {
   return _dns_resolv;
 }
 
@@ -82,5 +84,42 @@ void Pool::iterate(std::chrono::milliseconds max_to) {
 
     std::abort();
   }
+}
+
+void detect_nat_cb(void *data, const stun_nat_type *result) {
+  auto &alarm = *((util::Alarm<stun_nat_type>*)data);
+
+  alarm.status() = *result;
+  alarm.ring();
+}
+
+status_t Pool::detect_nat(util::Alarm<stun_nat_type> &alarm, const sockaddr &addr) {
+  return pj_stun_detect_nat_type2(&addr, &_ice_cfg.stun_cfg, &alarm, &detect_nat_cb);
+}
+
+std::variant<status_t, stun_nat_type> Pool::detect_nat() {
+  util::Alarm<std::variant<::p2p::pj::status_t, ::p2p::pj::sockaddr>> alarm_dns;
+
+  if(auto err = dns().resolv(alarm_dns, string(_ice_cfg.stun.server))) {
+    err::set(::p2p::pj::err(err));
+
+    return err;
+  }
+
+  // Synchronize with dns request
+  alarm_dns.wait();
+  auto &addr = std::get<::p2p::pj::sockaddr>(*alarm_dns.status());
+  addr.ipv4.sin_port = util::endian::big(_ice_cfg.stun.port);
+
+  util::Alarm<::p2p::pj::stun_nat_type> alarm;
+  if(auto err = detect_nat(alarm, addr); err != ::p2p::pj::success) {
+    err::set(::p2p::pj::err(err));
+
+    return err;
+  }
+
+  // Synchronize with nat detect request
+  alarm.wait();
+  return *alarm.status();
 }
 }

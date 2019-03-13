@@ -5,6 +5,7 @@
 #ifndef T_MAN_DNSRESOLV_H
 #define T_MAN_DNSRESOLV_H
 
+#include <variant>
 #include <kitty/p2p/pj/nath.h>
 #include <kitty/p2p/pj/io_queue.h>
 #include <kitty/p2p/pj/timer_heap.h>
@@ -17,6 +18,7 @@ public:
   DNSResolv(pool_t &pool, TimerHeap &timer_heap, IOQueue &io_queue);
 
   status_t set_ns(const std::vector<std::string_view> &servers);
+  status_t resolv(util::Alarm<std::variant<status_t, sockaddr>> &alarm, std::string_view hostname);
 private:
   dns_resolv_t _dns_resolv;
 };

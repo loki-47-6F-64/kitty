@@ -92,11 +92,13 @@ std::chrono::milliseconds time(const time_val_t& duration) {
 }
 
 std::string err(status_t err_code) {
-  auto err_str = std::make_unique<char[]>(PJ_ERR_MSG_SIZE);
+  std::string err_str;
+  err_str.resize(PJ_ERR_MSG_SIZE);
 
-  pj_strerror(err_code, err_str.get(), PJ_ERR_MSG_SIZE);
+  pj_strerror(err_code, err_str.data(), PJ_ERR_MSG_SIZE);
 
-  return { err_str.release(), PJ_ERR_MSG_SIZE };
+  err_str.resize(PJ_ERR_MSG_SIZE -1);
+  return err_str;
 }
 
 func_err_t get_netos_err = pj_get_netos_error;
