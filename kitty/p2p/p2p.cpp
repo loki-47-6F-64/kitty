@@ -23,14 +23,8 @@ struct {
   pj::caching_pool_t caching_pool;
 } global;
 
-config_t config { };
-
 int init() {
-  if(config.uuid == uuid_t {}) {
-    config.uuid = uuid_t::generate();
-  }
-
-  pj::init(config.log_file);
+  pj::init(nullptr);
   global.caching_pool = pj::Pool::init_caching_pool();
   return 0;
 }
@@ -70,7 +64,7 @@ void quest_t::_handle_decline(uuid_t sender, decline_t decline) {
 }
 
 void quest_t::_send_decline(uuid_t recipient, const decline_t &decline) {
-  server::proxy::push(server, recipient, uuid, "decline"sv, decline.reason);
+  server::proxy::push(bootstrap, recipient, uuid, "decline"sv, decline.reason);
 }
 
 void quest_t::_handle_accept(uuid_t sender, pj::remote_buf_t &&remote) {
@@ -90,7 +84,7 @@ std::variant<int, file::p2p> quest_t::process_quest() {
   uuid_t to, from;
   std::string quest;
 
-  if(server::proxy::load(server, to, from, quest)) {
+  if(server::proxy::load(bootstrap, to, from, quest)) {
     print(error, err::current());
 
     return 0;
@@ -100,7 +94,7 @@ std::variant<int, file::p2p> quest_t::process_quest() {
   if(quest == "error") {
     std::string msg;
 
-    server::proxy::load(server, msg);
+    server::proxy::load(bootstrap, msg);
     print(error, "sender: ", util::hex(from), ": message: ", msg);
 
     return 0;
@@ -109,7 +103,7 @@ std::variant<int, file::p2p> quest_t::process_quest() {
   if(quest == "invite" || quest == "accept") {
 
     data::remote_t remote_d;
-    if(server::proxy::load(server, remote_d)) {
+    if(server::proxy::load(bootstrap, remote_d)) {
       _peer_remove(from);
 
       print(error, "Could not unpack remote: ", err::current());
@@ -139,7 +133,7 @@ std::variant<int, file::p2p> quest_t::process_quest() {
 
   else if(quest == "decline") {
     decline_t decline;
-    if(server::proxy::load(server, decline.reason)) {
+    if(server::proxy::load(bootstrap, decline.reason)) {
       print(error, "Couldn't load quest [decline]: ", err::current());
 
       return 0;
@@ -151,15 +145,15 @@ std::variant<int, file::p2p> quest_t::process_quest() {
 }
 
 void quest_t::_send_error(uuid_t recipient, const std::string_view &err_str) {
-  server::proxy::push(server, recipient, uuid, "error"sv, err_str);
+  server::proxy::push(bootstrap, recipient, uuid, "error"sv, err_str);
 }
 
 int quest_t::send_register() {
-  server::proxy::push(server, uuid_t {}, uuid, "register"sv);
+  server::proxy::push(bootstrap, uuid_t {}, uuid, "register"sv);
 
   std::string quest;
   std::vector<uuid_t> peers;
-  auto err = server::proxy::load(server, quest, peers);
+  auto err = server::proxy::load(bootstrap, quest, peers);
   if(err) {
     err::set("received no list of peers: "s + err::current());
     return -1;
@@ -178,7 +172,7 @@ std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Al
                                                pj::ice_sess_role_t role,
                                                std::function<void(pj::ICECall)> &&on_create) {
 
-  if(_peers.size() < _max_peers && _peers.find(peer_uuid) == std::end(_peers)) {
+  if(_peers.size() < max_peers && _peers.find(peer_uuid) == std::end(_peers)) {
     auto pipe = std::make_shared<file::stream::pipe_t>();
 
     auto on_data = [pipe](pj::ICECall call, std::string_view data) {
@@ -190,7 +184,7 @@ std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Al
         util::fail_guard([&]() {
           _peer_remove(peer_uuid);
 
-          alarm.status() = { decline_t::ERROR };
+          alarm.status() = { decline_t::INTERNAL_ERROR };
           alarm.ring();
 
           return;
@@ -218,7 +212,7 @@ std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Al
         return;
       }
 
-      if(server::proxy::push(server, peer_uuid, uuid, quest,
+      if(server::proxy::push(bootstrap, peer_uuid, uuid, quest,
                           data::pack(call.credentials(), candidates))) {
         return;
       }
@@ -234,7 +228,7 @@ std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Al
       if(status != pj::success) {
         err::set("failed negotiation");
 
-        alarm.status() = { decline_t::ERROR };
+        alarm.status() = { decline_t::INTERNAL_ERROR };
 
         _peer_remove(peer_uuid);
 
@@ -284,7 +278,7 @@ std::variant<decline_t, file::p2p> quest_t::invite(uuid_t recipient) {
   );
 
   if(!peer) {
-    return decline_t { decline_t::ERROR };
+    return decline_t { decline_t::INTERNAL_ERROR };
   }
 
   alarm.wait([&]() { return peer->is_open(); });
@@ -296,7 +290,7 @@ std::variant<decline_t, file::p2p> quest_t::invite(uuid_t recipient) {
   return file::p2p { std::move(*peer) };
 }
 
-quest_t::quest_t(quest_t::accept_cb &&pred, const uuid_t &uuid) : uuid { uuid }, _accept_cb { std::move(pred) } {}
+quest_t::quest_t(quest_t::accept_cb &&pred, const uuid_t &uuid, std::chrono::milliseconds to) : uuid { uuid }, poll_to(to), _accept_cb { std::move(pred) } {}
 
 void pending_t::operator()(answer_t &&answer) {
   if(std::holds_alternative<accept_t>(answer)) {
@@ -319,17 +313,25 @@ _ice_trans { std::move(ice_trans) }, _alarm { alarm } {}
 
 namespace server {
 
-
-
 template<>
-int p2p::_init_listen(const file::ip_addr_t &ip_addr) {
+int p2p::_init_listen(const ::p2p::pj::ip_addr_t &bootstrap, const ::p2p::pj::ip_addr_t &stun, const std::vector<std::string_view> &dns, std::size_t max_peers) {
   _member.pool = ::p2p::pj::Pool { ::p2p::global.caching_pool, "Loki-ICE" };
-  _member.pool.dns().set_ns(::p2p::config.dns);
-  _member.pool.set_stun(::p2p::config.stun_addr);
 
-  _member.server = file::connect(ip_addr);
+  if(!dns.empty()) {
+    _member.pool.dns().set_ns(dns);
+  }
 
-  if(!_member.server.is_open()) {
+  if(!stun.ip.empty()) {
+    _member.pool.set_stun(stun);
+  }
+
+  _member.max_peers = max_peers;
+
+  DEBUG_LOG("init_listen connecting to: ", bootstrap.ip, ":", bootstrap.port);
+  _member.bootstrap = file::connect(bootstrap);
+
+  if(!_member.bootstrap.is_open()) {
+    DEBUG_LOG("init_listen connecting failed");
     return -1;
   }
 
@@ -337,7 +339,7 @@ int p2p::_init_listen(const file::ip_addr_t &ip_addr) {
     auto thread_ptr = ::p2p::pj::register_thread();
 
     _member.auto_run.run([this]() {
-      _member.pool.iterate(500ms);
+      _member.pool.iterate(_member.poll_to);
     });
   });
 
@@ -346,7 +348,7 @@ int p2p::_init_listen(const file::ip_addr_t &ip_addr) {
 
 template<>
 int p2p::_poll() {
-  if(auto result = _member.server.wait_for(file::READ)) {
+  if(auto result = _member.bootstrap.wait_for(file::READ)) {
     if(result == err::TIMEOUT) {
       return 0;
     }

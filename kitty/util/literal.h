@@ -180,6 +180,7 @@ using concat_t = typename __concat_literal<T, X>::type;
 
 template<auto V, char... Elements>
 struct __from_integral_helper {
+  static_assert(V != 0, "this should not be triggered: a problem with specialization");
   using type = typename __from_integral_helper<V / 10, (char)(V % 10) + '0', Elements...>::type;
 };
 

@@ -18,6 +18,7 @@
 #include <sys/select.h>
 #include <poll.h>
 #include <variant>
+#include <thread>
 #include <kitty/file/file.h>
 
 namespace file {
@@ -60,6 +61,12 @@ public:
     std::chrono::milliseconds to,
     const std::function<void(fd_t, poll_result_t)> &f) {
 
+    // When it is empty, calling poll would just be sleeping with extra steps
+    if(polls.empty()) {
+      std::this_thread::sleep_for(to);
+
+      return;
+    }
     auto res = ::poll(polls.data(), polls.size(), to.count());
     if(res > 0) {
       for(auto &poll : polls) {

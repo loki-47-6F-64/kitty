@@ -62,9 +62,6 @@ set(KITTY_LIBRARIES kitty)
 string(TOUPPER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
 if("x${BUILD_TYPE}" STREQUAL "xDEBUG")
   add_definitions( -DKITTY_DEBUG=1 )
-
-  # For std::assert
-  add_definitions( -DNDEBUG )
 endif()
 
 if(KITTY_BUILD_SERVER)
@@ -142,13 +139,10 @@ target_link_libraries(kitty ${CMAKE_THREAD_LIBS_INIT} ${PJSIP_LIBRARIES} ${SQLIT
 
 set_target_properties(kitty PROPERTIES
   CXX_STANDARD 17
-  CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-missing-braces"
-  CXX_FLAGS_DEBUG "${CMAKE_FLAGS_DEBUG} -O0 -pedantic -g"
-  CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3"
+  COMPILE_FLAGS "-fPIC -Wall -Wno-missing-braces"
+  CXX_FLAGS_DEBUG "-O0 -pedantic -ggdb3"
+  CXX_FLAGS_RELEASE "-O3"
 )
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-missing-braces")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -pedantic -g")
 
 set(KITTY_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR} KITTY_INCLUDE_DIR)
 

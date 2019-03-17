@@ -130,13 +130,15 @@ private:
 
 struct tcp_client_t {
   struct member_t {
-    pollfd listenfd {};
+    sa_family_t family;
+
+    pollfd listenfd;
   };
 
   std::unique_ptr<file::io> socket;
   std::string ip_addr;
 };
 
-typedef Server<tcp_client_t, const sockaddr_in6 &> tcp;
+typedef Server<tcp_client_t, const sockaddr *const> tcp;
 }
 #endif

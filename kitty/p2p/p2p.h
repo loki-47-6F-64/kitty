@@ -19,7 +19,8 @@ using namespace std::literals;
 struct decline_t {
   enum : int {
     DECLINE,
-    ERROR
+    ERROR,
+    INTERNAL_ERROR
   } reason;
 
   std::string_view to_string_view() {
@@ -28,6 +29,8 @@ struct decline_t {
         return "Peer declined"sv;
       case ERROR:
         return "Peer had an error"sv;
+      case INTERNAL_ERROR:
+        return err::current();
     }
   }
 };
@@ -51,7 +54,7 @@ class quest_t {
 public:
   using accept_cb = std::function<std::optional<decline_t>(uuid_t)>;
 
-  quest_t(accept_cb &&pred, const uuid_t &uuid);
+  quest_t(accept_cb &&pred, const uuid_t &uuid, std::chrono::milliseconds to = 500ms);
 
   /**
    * register node on the network
@@ -124,42 +127,27 @@ private:
 
   void _send_error(uuid_t recipient, const std::string_view &err_str);
 public:
-  file::io server;
+  /**
+   * The maximum peers connected at any time
+   */
+  std::size_t max_peers;
+  uuid_t uuid;
+
+  std::chrono::milliseconds poll_to;
 
   pj::Pool pool;
 
   std::thread auto_run_thread;
   util::AutoRun<void> auto_run;
 
-  uuid_t uuid;
-
   std::vector<uuid_t> vec_peers;
+
+  file::io bootstrap;
 private:
   accept_cb _accept_cb;
 
-  /**
-   * The maximum peers connected at any time
-   */
-  std::size_t _max_peers;
-
   std::map<uuid_t, std::unique_ptr<pending_t>> _peers;
 };
-
-struct config_t {
-  constexpr static std::size_t MAX_PEERS = 16;
-
-  const char *log_file {};
-  pj::ip_addr_t server_addr { "localhost", 2345 };
-  pj::ip_addr_t stun_addr { "stun.12voip.com"sv, 3478 };  // { "stun.l.google.com", 19302 };
-  std::vector<std::string_view> dns { "8.8.8.8" };
-
-  std::size_t max_peers = MAX_PEERS;
-
-  std::chrono::milliseconds poll_tm { 50 };
-
-  uuid_t uuid {};
-};
-extern config_t config;
 
 int init();
 }
@@ -173,7 +161,7 @@ struct peer_t {
 //  p2p::pj::ip_addr_t ip_addr;
 };
 
-using p2p = Server<peer_t, const file::ip_addr_t &>;
+using p2p = Server<peer_t, const p2p::pj::ip_addr_t &, const p2p::pj::ip_addr_t &, const std::vector<std::string_view> &, std::size_t>;
 }
 
 #endif //T_MAN_QUEST_H

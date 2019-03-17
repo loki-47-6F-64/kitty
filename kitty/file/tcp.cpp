@@ -1,8 +1,11 @@
 #include <unistd.h>
 #include <sys/socket.h>
-
+#include <sys/types.h>
+#include <net/if.h>
+#include <ifaddrs.h>
 #include <netdb.h>
 
+#include <bitset>
 #include <cstring>
 #include <charconv>
 
@@ -84,4 +87,113 @@ ip_addr_t ip_addr_t::unpack(std::vector<char> &buf, std::tuple<std::uint32_t, st
     { buf.data(), size }, std::get<1>(ip_addr)
   };
 }
+
+ip_addr_t ip_addr_t::from_sockaddr(std::vector<char> &buf, const sockaddr *const ip_addr) {
+  buf.resize(INET6_ADDRSTRLEN);
+
+  auto family = ip_addr->sa_family;
+  std::uint16_t port { 0 };
+  if(family == AF_INET6) {
+    inet_ntop(AF_INET6, &((sockaddr_in6*)ip_addr)->sin6_addr, buf.data(), INET6_ADDRSTRLEN);
+
+    port = ((sockaddr_in6*)ip_addr)->sin6_port;
+  }
+
+  if(family == AF_INET) {
+    inet_ntop(AF_INET, &((sockaddr_in*)ip_addr)->sin_addr, buf.data(), INET_ADDRSTRLEN);
+
+    port = ((sockaddr_in*)ip_addr)->sin_port;
+  }
+
+  return ip_addr_t {
+    { buf.data() },
+    util::endian::big(port)
+  };
+}
+
+ip_addr_buf_t ip_addr_buf_t::unpack(std::tuple<std::uint32_t, std::uint16_t> ip_addr) {
+  char data[INET_ADDRSTRLEN];
+
+  auto ip_buf = (std::uint8_t*)&std::get<0>(ip_addr);
+
+  char *ptr = data;
+  std::for_each(std::reverse_iterator { ip_buf + 4 }, std::reverse_iterator { ip_buf + 1 }, [&ptr, &data](std::uint8_t byte) {
+    ptr = std::to_chars(ptr, data +  INET_ADDRSTRLEN, byte).ptr;
+    *ptr++ = '.';
+  });
+
+  std::size_t size = std::to_chars(ptr, data +  INET_ADDRSTRLEN, ip_buf[0]).ptr - data;
+
+  return ip_addr_buf_t {
+    std::string { data, size }, std::get<1>(ip_addr)
+  };
+}
+
+ip_addr_buf_t ip_addr_buf_t::from_sockaddr(const sockaddr *const ip_addr) {
+  char data[INET6_ADDRSTRLEN];
+
+  auto family = ip_addr->sa_family;
+  std::uint16_t port { 0 };
+  if(family == AF_INET6) {
+    inet_ntop(AF_INET6, &((sockaddr_in6*)ip_addr)->sin6_addr, data, INET6_ADDRSTRLEN);
+
+    port = ((sockaddr_in6*)ip_addr)->sin6_port;
+  }
+
+  if(family == AF_INET) {
+    inet_ntop(AF_INET, &((sockaddr_in*)ip_addr)->sin_addr, data, INET_ADDRSTRLEN);
+
+    port = ((sockaddr_in*)ip_addr)->sin_port;
+  }
+
+  return ip_addr_buf_t {
+    std::string { data },
+    util::endian::big(port)
+  };
+}
+
+using ifaddr_t = util::safe_ptr<ifaddrs, freeifaddrs>;
+
+ifaddr_t get_ifaddrs() {
+  ifaddrs *p { nullptr };
+
+  getifaddrs(&p);
+
+  return ifaddr_t { p };
+}
+
+std::vector<file::ip_addr_buf_t> get_broadcast_ips(int family) {
+  std::bitset<2> family_f {};
+
+  if(family == 0) {
+    family_f[0] = true;
+    family_f[1] = true;
+  }
+
+  if(family == INET) {
+    family_f[0] = true;
+  }
+
+  if(family == INET6) {
+    family_f[1] = true;
+  }
+
+
+  std::vector<file::ip_addr_buf_t> ip_addrs;
+
+  auto ifaddr = get_ifaddrs();
+  for(auto pos = ifaddr.get(); pos != nullptr; pos = pos->ifa_next) {
+    if(pos->ifa_flags & IFF_UP && pos->ifa_flags & IFF_BROADCAST) {
+      if(
+        (family_f[0] && pos->ifa_addr->sa_family == AF_INET) ||
+        (family_f[1] && pos->ifa_addr->sa_family == AF_INET6)
+        ){
+
+        ip_addrs.emplace_back(file::ip_addr_buf_t::from_sockaddr(pos->ifa_addr));
+      }
+    }
+  }
+
+  return ip_addrs;
+};
 }

@@ -7,10 +7,11 @@
 namespace server {
 template<>
 int tcp::_poll() {
-  int result {};
+  pollfd &pfd = _member.listenfd;
 
-  if((result = poll(&_member.listenfd, 1, 100)) > 0) {
-    if(_member.listenfd.revents == POLLIN) {
+  KITTY_DEBUG_LOG("polling...", pfd.fd);
+  if(auto result = poll(&pfd, 1, 1000); result != 0) {
+    if(pfd.revents & POLLIN) {
       return 1;
     }
 
@@ -35,10 +36,13 @@ std::variant<err::code_t, tcp::client_t> tcp::_accept() {
     return err::TIMEOUT;
   }
 
-  sockaddr_in6 client_addr {};
-  socklen_t addr_size {sizeof (client_addr)};
 
-  int client_fd = accept(_member.listenfd.fd, (sockaddr *) & client_addr, &addr_size);
+  auto family = _member.family;
+
+  sockaddr_storage client_addr {};
+  socklen_t sockaddr_size = family == AF_INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
+
+  int client_fd = accept(_member.listenfd.fd, (sockaddr *)& client_addr, &sockaddr_size);
 
   if (client_fd < 0) {
     err::code = err::LIB_SYS;
@@ -47,8 +51,17 @@ std::variant<err::code_t, tcp::client_t> tcp::_accept() {
   }
 
   char ip_buf[INET6_ADDRSTRLEN];
-  inet_ntop(AF_INET6, &client_addr.sin6_addr, ip_buf, INET6_ADDRSTRLEN);
 
+  if(family == AF_INET) {
+    auto temp_addr = (sockaddr_in*)&client_addr;
+    inet_ntop(AF_INET, &temp_addr->sin_addr, ip_buf, INET_ADDRSTRLEN);
+  }
+  else {
+    auto temp_addr = (sockaddr_in6*)&client_addr;
+    inet_ntop(AF_INET6, &temp_addr->sin6_addr, ip_buf, INET6_ADDRSTRLEN);
+  }
+
+  //TODO: Use ip_addr_t
   return client_t {
     std::make_unique<file::io>(std::chrono::seconds(3), client_fd), {
       ip_buf
@@ -57,9 +70,13 @@ std::variant<err::code_t, tcp::client_t> tcp::_accept() {
 }
 
 template<>
-int tcp::_init_listen(const sockaddr_in6 &server) {
+int tcp::_init_listen(const sockaddr *const server) {
+  auto family = server->sa_family;
+  socklen_t sockaddr_size = family == AF_INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
+
   pollfd pfd {
-    socket(AF_INET6, SOCK_STREAM, 0),
+    // A lack of sock_nonblock causes epoll error on poll/epoll/accept
+    socket(family, SOCK_STREAM, 0),
     POLLIN,
     0
   };
@@ -75,13 +92,17 @@ int tcp::_init_listen(const sockaddr_in6 &server) {
     return -1;
   }
 
-  if(bind(pfd.fd, (const sockaddr *) &server, sizeof(server)) < 0) {
+  if(bind(pfd.fd, server, sockaddr_size) < 0) {
     err::code = err::LIB_SYS;
     return -1;
   }
 
-  listen(pfd.fd, 1);
+  if(listen(pfd.fd, 128) < 0) {
+    err::code = err::LIB_SYS;
+    return -1;
+  }
 
+  _member.family   = family;
   _member.listenfd = pfd;
 
   return 0;

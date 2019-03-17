@@ -11,10 +11,12 @@
 
 #ifdef KITTY_DEBUG
 #define ON_DEBUG( x ) x                                                                                                                 
-#define DEBUG_LOG( ... ) print(debug, __FILE__, ':', __LINE__,':', __VA_ARGS__)                                                         
+#define DEBUG_LOG( ... ) print(debug, __FILE__, ':', __LINE__,':', __VA_ARGS__)
+#define KITTY_DEBUG_LOG( ... ) print(debug, __FILE__, ':', __LINE__,':', __VA_ARGS__)
 #else                                                                                                                                     
 #define ON_DEBUG( ... )                                                                                                                 
-#define DEBUG_LOG( ... ) do {} while(0)                                                                                                   
+#define DEBUG_LOG( ... ) do {} while(0)
+#define KITTY_DEBUG_LOG( ... ) do {} while(0)
 #endif
 
 namespace file {
