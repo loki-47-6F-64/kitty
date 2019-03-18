@@ -19,40 +19,49 @@ private:
   std::condition_variable _cv;
   std::mutex _lock;
   
-  std::atomic<bool> _continue;
+  bool _continue;
 public:
 
-  ThreadPool(int threads) : _thread(threads), _continue(true) {
+  ThreadPool(int threads) : _thread(threads), _continue { true } {
     for (auto & t : _thread) {
       t = std::thread(&ThreadPool::_main, this);
     }
   }
 
-  ~ThreadPool() {
+  ~ThreadPool() noexcept {
+    if (!_continue) return;
+
+    stop();
     join();
   }
 
   template<class Function, class... Args>
   auto push(Function && newTask, Args &&... args) {
+    std::lock_guard lg(_lock);
     auto future = TaskPool::push(std::forward<Function>(newTask), std::forward<Args>(args)...);
-    
+
     _cv.notify_one();
     return future;
   }
 
   template<class Function, class X, class Y, class... Args>
   auto pushDelayed(Function &&newTask, std::chrono::duration<X, Y> duration, Args &&... args) {
+    std::lock_guard lg(_lock);
     auto future = TaskPool::pushDelayed(std::forward<Function>(newTask), duration, std::forward<Args>(args)...);
 
     // Update all timers for wait_until
     _cv.notify_all();
     return future;
   }
-  
-  void join() {
-    if (!_continue.exchange(false)) return;
-    
+
+  void stop() {
+    std::lock_guard lg(_lock);
+
+    _continue = false;
     _cv.notify_all();
+  }
+
+  void join() {
     for (auto & t : _thread) {
       t.join();
     }
@@ -61,12 +70,21 @@ public:
 public:
 
   void _main() {
-    while (_continue.load()) {
+    while (_continue) {
       if(auto task = this->pop()) {
         (*task)->run();
       }
       else {
-        std::unique_lock<std::mutex> uniq_lock(_lock);
+        std::unique_lock uniq_lock(_lock);
+
+        if(ready()) {
+          continue;
+        }
+
+        if(!_continue) {
+          break;
+        }
+
         if(auto tp = next()) {
           _cv.wait_until(uniq_lock, *tp);
         }
