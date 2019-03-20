@@ -1,6 +1,7 @@
 #ifndef DOSSIER_FILE_H
 #define DOSSIER_FILE_H
 
+#include <cassert>
 #include <functional>
 #include <vector>
 #include <chrono>
@@ -372,18 +373,39 @@ std::optional<std::string> read_line(FD<T> &socket, std::string buf = std::strin
   return std::move(buf);
 }
 
-}
+struct __test_stream_has_lock {
+  template<class P>
+  static constexpr auto lock(P *p) -> std::decay_t<decltype(p->get_lock(), std::true_type())>;
 
+  template<class>
+  static constexpr auto lock(...) -> std::false_type;
+};
+
+template<class T>
+static constexpr bool __has_lock_v = std::decay_t<decltype(__test_stream_has_lock::template lock<T>(nullptr))>::value;
+}
 /*
  * First clear file, then recursively print all params
  */
 template<class Stream, class... Args>
 int print(file::FD<Stream> &file, Args && ... params) {
-  file.write_clear();
+  assert(file.is_open());
 
-  (file.append(std::forward<Args>(params)),...);
+  if constexpr (file::__has_lock_v<Stream>) {
+    std::lock_guard lg(file.getStream().get_lock());
+    file.write_clear();
 
-  return file.out();
+    (file.append(std::forward<Args>(params)),...);
+
+    return file.out();
+  }
+  else {
+    file.write_clear();
+
+    (file.append(std::forward<Args>(params)), ...);
+
+    return file.out();
+  }
 }
 #endif
 

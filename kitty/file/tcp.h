@@ -5,8 +5,8 @@
 #include <kitty/file/io_stream.h>
 
 namespace file {
-constexpr int INET  = AF_INET;
-constexpr int INET6 = AF_INET6;
+constexpr sa_family_t INET  = AF_INET;
+constexpr sa_family_t INET6 = AF_INET6;
 
 struct ip_addr_t {
   std::string_view ip;

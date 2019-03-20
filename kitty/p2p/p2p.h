@@ -16,15 +16,20 @@
 
 namespace p2p {
 using namespace std::literals;
-struct decline_t {
+struct answer_t {
   enum : int {
+    ACCEPT,
     DECLINE,
     ERROR,
     INTERNAL_ERROR
   } reason;
 
+  answer_t() = default;
+  answer_t(const decltype(reason) &reason) : reason { reason } {}
   std::string_view to_string_view() {
     switch (reason) {
+      case ACCEPT:
+        return "Peer accepted"sv;
       case DECLINE:
         return "Peer declined"sv;
       case ERROR:
@@ -39,23 +44,24 @@ struct accept_t {
   pj::remote_buf_t remote;
 };
 
-using answer_t = std::variant<decline_t, accept_t>;
+using __answer_t = std::variant<answer_t, accept_t>;
 
 class pending_t {
   pj::ICETrans _ice_trans;
-  util::Alarm<decline_t> &_alarm;
+  util::Alarm<answer_t> &_alarm;
 public:
-  pending_t(pj::ICETrans &&, util::Alarm<decline_t> &) noexcept;
+  pending_t(pj::ICETrans &&, util::Alarm<answer_t> &) noexcept;
 
-  void operator()(answer_t &&);
+  void operator()(__answer_t &&);
 };
 
 class quest_t {
 public:
-  using accept_cb = std::function<std::optional<decline_t>(uuid_t)>;
+  using accept_cb = std::function<answer_t(uuid_t)>;
 
   quest_t(accept_cb &&pred, const uuid_t &uuid, std::chrono::milliseconds to = 500ms);
 
+  //TODO: create destructor to safely destroy autorun
   /**
    * register node on the network
    * @return non-zero on failure or timeout
@@ -78,7 +84,7 @@ public:
    *    std::holds_alternative<decline_t> -- The reason for declining
    *    std::holds_alternative<file::p2p> -- The connection
    */
-  std::variant<decline_t, file::p2p> invite(uuid_t recipient);
+  std::variant<answer_t, file::p2p> invite(uuid_t recipient);
 private:
   /**
    * start ICE
@@ -92,7 +98,7 @@ private:
    * Notify inviter that you're declining connection
    * @param recipient
    */
-  void _send_decline(uuid_t recipient, const decline_t &decline);
+  void _send_decline(uuid_t recipient, const answer_t &decline);
 
   /**
    * Handles connecting to the invitee
@@ -105,7 +111,7 @@ private:
    * Handles declining the connection
    * @param recipient the invitee
    */
-  void _handle_decline(uuid_t recipient, decline_t decline);
+  void _handle_decline(uuid_t recipient, answer_t decline);
 
   /**
    * Allocate a transport
@@ -114,16 +120,16 @@ private:
    * @param _on_create callback when candidates are gathered
    * @return an fd on successfully allocating a transport
    */
-  std::optional<file::p2p> _peer_create(const uuid_t &uuid, util::Alarm<decline_t> &alarm,
+  std::optional<file::p2p> _peer_create(const uuid_t &uuid, util::Alarm<answer_t> &alarm,
                                         pj::ice_sess_role_t role, std::function<void(pj::ICECall)> &&);
 
   /**
    * remove a transport from peers
    * @param uuid The uuid of the transport
    */
-  void _peer_remove(const uuid_t &uuid);
+  void _pending_peer_remove(const uuid_t &uuid);
 
-  pending_t *_peer(const uuid_t &uuid);
+  pending_t *_pending_peer(const uuid_t &uuid);
 
   void _send_error(uuid_t recipient, const std::string_view &err_str);
 public:
@@ -146,7 +152,7 @@ public:
 private:
   accept_cb _accept_cb;
 
-  std::map<uuid_t, std::unique_ptr<pending_t>> _peers;
+  std::map<uuid_t, std::unique_ptr<pending_t>> _pending_peers;
 };
 
 int init();

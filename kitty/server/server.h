@@ -75,11 +75,12 @@ private:
       auto client = _accept();
       if(std::holds_alternative<client_t>(client)) {
         auto c = util::cmove(std::get<client_t>(client));
+
         tasks().push([_action, c]() mutable {
           _action(c);
         });
       }
-      else if(std::get<err::code_t>(client) != err::TIMEOUT) {
+      else if(auto err = std::get<err::code_t>(client); err != err::TIMEOUT && err != err::OK) {
         failure = true;
 
         _autoRun.stop();

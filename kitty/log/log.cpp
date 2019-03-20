@@ -14,6 +14,8 @@ namespace file {
 
 namespace stream {
 THREAD_LOCAL util::ThreadLocal<char[DATE_BUFFER_SIZE]> _date;
+
+std::mutex __lock;
 }
 
 

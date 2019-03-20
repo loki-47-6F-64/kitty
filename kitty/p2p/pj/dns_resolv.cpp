@@ -26,8 +26,7 @@ void detect_nat_dns_cb(void *data, status_t status, pj_dns_parsed_packet *respon
   auto &alarm = *((util::Alarm<std::variant<status_t, sockaddr>>*)data);
 
   if(status != success) {
-    alarm.status() = status;
-    alarm.ring();
+    alarm.ring(status);
 
     return;
   }
@@ -40,13 +39,12 @@ void detect_nat_dns_cb(void *data, status_t status, pj_dns_parsed_packet *respon
 
     pj_sockaddr_cp(&addr, record.addr);
 
-    alarm.status() = addr;
-    alarm.ring();
+    alarm.ring(addr);
 
     return;
   }
 
-  alarm.status() = status;
+  alarm.ring(status);
 }
 
 status_t DNSResolv::resolv(util::Alarm<std::variant<status_t, sockaddr>> &alarm, std::string_view hostname) {

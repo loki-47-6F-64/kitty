@@ -1,8 +1,6 @@
 project(KittyBootstrap)
 
-add_executable(kitty-bootstrap
-        quest.cpp quest.h
-        bootstrap.cpp)
+add_executable(kitty-bootstrap bootstrap.cpp)
 
 target_link_libraries(kitty-bootstrap ${KITTY_LIBRARIES})
 set_target_properties(kitty-bootstrap PROPERTIES

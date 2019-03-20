@@ -25,6 +25,7 @@ constexpr int DATE_BUFFER_SIZE = 21 +1 +1; // Full string plus " \0"
 
 extern THREAD_LOCAL util::ThreadLocal<char[DATE_BUFFER_SIZE]> _date;
 
+extern std::mutex __lock;
 template<class Stream>
 class Log {
   Stream _stream;
@@ -33,9 +34,14 @@ class Log {
 public:
 
   Log() = default;
-  Log(Log &&other) noexcept = default;
+  Log(Log &&other) noexcept : _stream { std::move(other._stream) }, _prepend { std::move(other._prepend) } {};
 
-  Log &operator =(Log&& stream) noexcept = default;
+  Log &operator =(Log&& other) noexcept {
+    std::swap(_stream, other._stream);
+    std::swap(_prepend, other._prepend);
+
+    return *this;
+  };
 
   template<class... Args>
   Log(std::string&& prepend, Args&&... params) : _stream(std::forward<Args>(params)...), _prepend(std::move(prepend)) {}
@@ -51,7 +57,7 @@ public:
     _stream.write((std::uint8_t*)_prepend.data(), _prepend.size());
     _stream.write((std::uint8_t*)(&*_date), DATE_BUFFER_SIZE - 1);
 
-    auto bytes_written =  _stream.write(data, size);
+    auto bytes_written = _stream.write(data, size);
 
     std::uint8_t nl { '\n' };
     _stream.write(&nl, 1);
@@ -78,12 +84,23 @@ public:
   int fd() const {
     return _stream.fd();
   }
+
+  std::mutex &get_lock() {
+    return __lock;
+  }
 };
 
 }
 extern void log_open(const char *logPath);
 
 typedef FD<stream::Log<stream::io>> Log;
+
+template<class T, class ...Args>
+int log(FD<stream::Log<T>> &fd, Args&&... args) {
+  std::lock_guard lg(fd.lock);
+
+  return print(fd, std::forward<Args>(args)...);
+}
 }
 
 extern file::Log error;

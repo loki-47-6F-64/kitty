@@ -1,9 +1,6 @@
 //
 // Created by loki on 9-2-19.
 //
-
-#include <iostream>
-
 #include <kitty/util/utility.h>
 #include <kitty/log/log.h>
 #include <kitty/server/proxy.h>

@@ -2,8 +2,8 @@
 // Created by loki on 8-2-19.
 //
 
-#ifndef T_MAN_QUEST_H
-#define T_MAN_QUEST_H
+#ifndef T_MAN_BOOTSTRAP_QUEST_H
+#define T_MAN_BOOTSTRAP_QUEST_H
 
 #include <map>
 #include <kitty/file/poll.h>

@@ -16,16 +16,13 @@ typedef util::safe_ptr<SSL_CTX, SSL_CTX_free> Context;
 
 // On failure Context.get() returns nullptr
 Context init_ctx_server(const char *caPath, const char *certPath, const char *keyPath, bool verify = false);
-Context init_ctx_server(std::string& caPath, std::string& certPath, std::string& keyPath, bool verify = false);
-Context init_ctx_server(std::string&& caPath, std::string&& certPath, std::string&& keyPath, bool verify = false);
+Context init_ctx_server(const std::string& caPath, const std::string& certPath, const std::string& keyPath, bool verify = false);
 
 Context init_ctx_client(const char *caPath, const char *certPath, const char *keyPath);
-Context init_ctx_client(std::string& caPath, std::string& certPath, std::string& keyPath);
-Context init_ctx_client(std::string&& caPath, std::string&& certPath, std::string&& keyPath);
+Context init_ctx_client(const std::string& caPath, const std::string& certPath, const std::string& keyPath);
 
 Context init_ctx_client(const char *caPath);
-Context init_ctx_client(std::string& caPath);
-Context init_ctx_client(std::string&& caPath);
+Context init_ctx_client(const std::string& caPath);
 
 // On failure Client.get() returns nullptr
 class sockaddr;

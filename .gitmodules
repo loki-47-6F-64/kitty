@@ -1,3 +1,6 @@
 [submodule "benchmark/Celero"]
 	path = benchmark/Celero
 	url = git@github.com:DigitalInBlue/Celero.git
+[submodule "test/googletest"]
+	path = test/googletest
+	url = git@github.com:google/googletest.git

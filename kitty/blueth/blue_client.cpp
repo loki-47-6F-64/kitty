@@ -9,7 +9,35 @@
 
 namespace server {
 template<>
+int bluetooth::_poll() {
+  int result {};
+
+  if((result = poll(&_member.listenfd, 1, 100)) > 0) {
+    if(_member.listenfd.revents == POLLIN) {
+      return 1;
+    }
+
+    if(result < 0) {
+      err::code = err::LIB_SYS;
+
+      return 0;
+    }
+  }
+
+  return 0;
+}
+
+template<>
 std::variant<err::code_t, bluetooth::client_t> bluetooth::_accept() {
+  int result;
+  if((result = _poll()) <= 0) {
+    if(result < 0) {
+      return err::code;
+    }
+
+    return err::TIMEOUT;
+  }
+
   sockaddr_l2 client_addr {};
 
   socklen_t addr_size = sizeof(client_addr);
@@ -33,7 +61,15 @@ std::variant<err::code_t, bluetooth::client_t> bluetooth::_accept() {
 }
 
 template<>
-int bluetooth::_init_listen(const sockaddr_l2 &server) {
+int bluetooth::_init_listen(const bt::HCI &dev) {
+  constexpr uint16_t ATT_CID = 4;
+
+  sockaddr_l2 server {};
+  server.l2_family      = AF_BLUETOOTH;
+  server.l2_bdaddr      = dev.bdaddr;
+  server.l2_bdaddr_type = BDADDR_LE_PUBLIC;
+  server.l2_cid         = util::endian::little(ATT_CID);
+
   pollfd pfd {
     socket(AF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_L2CAP),
     POLLIN,
@@ -59,25 +95,6 @@ int bluetooth::_init_listen(const sockaddr_l2 &server) {
   listen(pfd.fd, 1);
 
   _member.listenfd = pfd;
-
-  return 0;
-}
-
-template<>
-int bluetooth::_poll() {
-  int result {};
-
-  if((result = poll(&_member.listenfd, 1, 100)) > 0) {
-    if(_member.listenfd.revents == POLLIN) {
-      return 1;
-    }
-
-    if(result < 0) {
-      err::code = err::LIB_SYS;
-
-      return 0;
-    }
-  }
 
   return 0;
 }

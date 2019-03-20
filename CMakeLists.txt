@@ -9,11 +9,11 @@ option(KITTY_BUILD_TOPO    "Compile kitty/topo" OFF)
 option(KITTY_BUILD_P2P     "Compile kitty/p2p --incomplete-- " OFF)
 option(KITTY_BENCHMARK     "Benchmark kitty")
 
-
+add_definitions( -DKITTY_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/asset" )
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-if(KITTY_BENCHMARK)
+if(KITTY_BENCHMARK OR KITTY_TEST)
   if(NOT KITTY_BUILD_SERVER)
     message("Warning: Implicitly set(KITTY_BUILD_SERVER ON)")
   endif()
@@ -150,8 +150,12 @@ if(KITTY_BUILD_P2P)
   add_subdirectory(kitty/p2p/bootstrap)
 endif()
 
+if(KITTY_TEST)
+  add_subdirectory(test)
+endif()
+
 if(KITTY_BENCHMARK)
-add_subdirectory(benchmark)
+  add_subdirectory(benchmark)
 endif()
 
 get_directory_property(has_parent PARENT_DIRECTORY)

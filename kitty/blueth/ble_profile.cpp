@@ -202,7 +202,7 @@ std::vector<uint8_t> Profile::_findByType(server::blue_client_t &client) const {
   }
 
   std::vector<std::pair<uint16_t, uint16_t>> handles;
-  for (int x = req.startHandle - 1; x < req.endHandle && x < _handles.size(); ++x) {
+  for (auto x = req.startHandle -1u; x < req.endHandle && x < _handles.size(); ++x) {
     Service *const service = _handles[x].service;
     if (_handles[x].type == Handle::SERVICE && !uuid.compare(service->uuid)) {
       handles.emplace_back(service->startHandle, service->endHandle);
@@ -373,7 +373,7 @@ std::vector<uint8_t> Profile::_findInfo(server::blue_client_t &client) const {
   }
 
   std::vector<Uuid> uuids;
-  for (int x = req.startHandle - 1; x < req.endHandle && x < _handles.size(); ++x) {
+  for (auto x = req.startHandle -1u; x < req.endHandle && x < _handles.size(); ++x) {
     switch (_handles[x].type) {
     case Handle::SERVICE:
       print(debug, "Found service");
@@ -401,7 +401,7 @@ std::vector<uint8_t> Profile::_findInfo(server::blue_client_t &client) const {
   const size_t num_data = uuids.size() > max_data ? max_data : uuids.size();
 
   response.push_back(ATT_OP_FIND_INFO_RESP);
-  response.push_back(type == (uint8_t)(Uuid::BT_UUID16 ? 0x01 : 0x02));
+  response.push_back(type == (uint8_t)(Uuid::BT_UUID16) ? 0x01 : 0x02);
 
 
   for (uint x = 0; x < num_data; ++x) {

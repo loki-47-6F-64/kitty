@@ -11,61 +11,94 @@
 
 #include <kitty/util/optional.h>
 #include <kitty/err/err.h>
-#include <kitty/util/template_helper.h>
+#include <kitty/util/literal.h>
 
 namespace util {
 
 template<class T>
 class Alarm {
 public:
-  using status_t = either_t<std::is_pointer_v<T>, T, std::optional<T>>;
+  // either bool, pointer or optional, in that order
+  using status_t = either_t<std::is_same_v<T, bool>, bool, either_t<std::is_pointer_v<T>, T, std::optional<T>>>;
 
   template<class... Args>
-  Alarm(Args&& ...args) : _ul(_lock), _status { std::forward<Args>(args)... } {}
+  Alarm() : _ul(_lock), _status { literal::false_v<status_t> } {}
 
-  void ring() {
+  void ring(const status_t &status) {
     std::lock_guard lg(_lock);
 
+    _status = status;
     _cv.notify_one();
   }
 
-  void ring_all() {
+  void ring(status_t &&status) {
     std::lock_guard lg(_lock);
 
-    _cv.notify_all();
+    _status = std::move(status);
+    _cv.notify_one();
   }
 
   template<class Rep, class Period>
   auto wait_for(const std::chrono::duration<Rep, Period>& rel_time) {
-    return _cv.wait_for(_ul, rel_time, [this]() { return (bool)status(); });
+    auto ret = _cv.wait_for(_ul, rel_time, [this]() { return (bool)status(); });
+
+    _ul.unlock();
+
+    return ret;
   }
 
   template<class Rep, class Period, class Pred>
   auto wait_for(const std::chrono::duration<Rep, Period>& rel_time, Pred &&pred) {
-    return _cv.wait_for(_ul, rel_time, [this, &pred]() { return (bool)status() || pred(); });
+    auto ret = _cv.wait_for(_ul, rel_time, [this, &pred]() { return (bool)status() || pred(); });
+
+    _ul.unlock();
+
+    return ret;
   }
 
   template<class Rep, class Period>
   auto wait_until(const std::chrono::duration<Rep, Period>& rel_time) {
-    return _cv.wait_until(_ul, rel_time, [this]() { return (bool)status(); });
+    auto ret = _cv.wait_until(_ul, rel_time, [this]() { return (bool)status(); });
+
+    _ul.unlock();
+
+    return ret;
   }
 
   template<class Rep, class Period, class Pred>
   auto wait_until(const std::chrono::duration<Rep, Period>& rel_time, Pred &&pred) {
-    return _cv.wait_until(_ul, rel_time, [this, &pred]() { return (bool)status() || pred(); });
+    auto ret = _cv.wait_until(_ul, rel_time, [this, &pred]() { return (bool)status() || pred(); });
+
+    _ul.unlock();
+
+    return ret;
   }
 
   auto wait() {
-    return _cv.wait(_ul, [this]() { return (bool)status(); });
+    _cv.wait(_ul, [this]() { return (bool)status(); });
+    _ul.unlock();
   }
 
   template<class Pred>
   auto wait(Pred &&pred) {
-    return _cv.wait(_ul, [this, &pred]() { return (bool)status() || pred(); });
+    _cv.wait(_ul, [this, &pred]() { return (bool)status() || pred(); });
+    _ul.unlock();
+  }
+
+  const status_t &status() const {
+    return _status;
   }
 
   status_t &status() {
     return _status;
+  }
+
+  void reset() {
+    if(!_ul.owns_lock()) {
+      _ul.lock();
+
+      _status = status_t {};
+    }
   }
 private:
   std::mutex _lock;

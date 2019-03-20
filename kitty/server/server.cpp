@@ -9,8 +9,7 @@ template<>
 int tcp::_poll() {
   pollfd &pfd = _member.listenfd;
 
-  KITTY_DEBUG_LOG("polling...", pfd.fd);
-  if(auto result = poll(&pfd, 1, 1000); result != 0) {
+  if(auto result = poll(&pfd, 1, 100); result != 0) {
     if(pfd.revents & POLLIN) {
       return 1;
     }

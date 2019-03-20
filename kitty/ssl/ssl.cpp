@@ -6,13 +6,14 @@
 
 #include <netdb.h>
 
+#include <openssl/err.h>
+
 #include <kitty/err/err.h>
 #include <kitty/ssl/ssl.h>
-// Special exception for gai_strerror
-namespace err {
-extern void set(const std::string_view &);
-}
 
+using namespace std::literals;
+
+// Special exception for gai_strerror
 namespace ssl {
 std::unique_ptr<std::mutex[]> lock;
 
@@ -38,7 +39,7 @@ static int loadCertificates(Context& ctx, const char *caPath, const char *certPa
     }
     
     SSL_CTX_set_verify(ctx.get(), SSL_VERIFY_PEER, nullptr);
-    SSL_CTX_set_verify_depth(ctx.get(), 1);
+    SSL_CTX_set_verify_depth(ctx.get(), 16);
   }
   else {
     SSL_CTX_set_verify(ctx.get(), SSL_VERIFY_NONE, nullptr);
@@ -59,14 +60,9 @@ Context init_ctx_server(const char *caPath, const char *certPath, const char *ke
   return ctx;
 }
 
-Context init_ctx_server(std::string& caPath, std::string& certPath, std::string& keyPath, bool verify) {
+Context init_ctx_server(const std::string& caPath, const std::string& certPath, const std::string& keyPath, bool verify) {
   return init_ctx_server(caPath.c_str(), certPath.c_str(), keyPath.c_str(), verify);
 }
-
-Context init_ctx_server(std::string&& caPath, std::string&& certPath, std::string&& keyPath, bool verify) {
-  return init_ctx_server(caPath, certPath, keyPath, verify);
-}
-
 
 Context init_ctx_client(const char *caPath, const char *certPath, const char *keyPath) {
   Context ctx(SSL_CTX_new(DTLS_client_method()));
@@ -80,12 +76,8 @@ Context init_ctx_client(const char *caPath, const char *certPath, const char *ke
   return ctx;
 }
 
-Context init_ctx_client(std::string &caPath, std::string& certPath, std::string& keyPath) {
+Context init_ctx_client(const std::string &caPath, const std::string& certPath, const std::string& keyPath) {
   return init_ctx_server(caPath.c_str(), certPath.c_str(), keyPath.c_str());
-}
-
-Context init_ctx_client(std::string &&caPath, std::string&& certPath, std::string&& keyPath) {
-  return init_ctx_server(caPath, certPath, keyPath);
 }
 
 Context init_ctx_client(const char *caPath) {
@@ -100,12 +92,8 @@ Context init_ctx_client(const char *caPath) {
   return ctx;
 }
 
-Context init_ctx_client(std::string& caPath) {
+Context init_ctx_client(const std::string& caPath) {
   return init_ctx_client(caPath.c_str());
-}
-
-Context init_ctx_client(std::string&& caPath) {
-  return init_ctx_client(caPath);
 }
 
 file::ssl connect(Context &ctx, const char *hostname, const char* port) {
@@ -150,8 +138,15 @@ file::ssl accept(ssl::Context &ctx, int fd) {
   constexpr std::chrono::seconds timeout { 3 };
 
   file::ssl socket(timeout, ctx, fd);
-  if(SSL_accept(socket.getStream()._ssl.get()) != 1) {
+  if(auto ret = SSL_accept(socket.getStream()._ssl.get()); ret != 1) {
     socket.seal();
+
+    if(ret == 0) {
+      err::set("The TLS/SSL handshake was not successful, but was shut down controlled and by the specifications of the TLS/SSL protocol."sv);
+    }
+    else {
+      err::code = err::LIB_SSL;
+    }
   }
 
   return socket;

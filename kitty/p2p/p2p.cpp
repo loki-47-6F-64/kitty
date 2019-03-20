@@ -30,7 +30,7 @@ int init() {
 }
 
 file::p2p quest_t::_send_accept(uuid_t recipient, const pj::remote_buf_t &remote) {
-  util::Alarm<decline_t> alarm { std::nullopt };
+  util::Alarm<answer_t> alarm;
 
   auto peer = _peer_create(recipient, alarm, pj::ice_sess_role_t::PJ_ICE_SESS_ROLE_CONTROLLED,
     [&remote](pj::ICECall call) {
@@ -39,14 +39,14 @@ file::p2p quest_t::_send_accept(uuid_t recipient, const pj::remote_buf_t &remote
   );
 
   if(!peer) {
-    _send_decline(recipient, { decline_t::DECLINE });
+    _send_decline(recipient, answer_t::DECLINE);
 
     return {};
   }
 
-  alarm.wait([&]() { return peer->is_open(); });
+  alarm.wait();
 
-  if(alarm.status()) {
+  if(alarm.status()->reason != answer_t::ACCEPT) {
     _send_decline(recipient, *alarm.status());
 
     return {};
@@ -55,20 +55,20 @@ file::p2p quest_t::_send_accept(uuid_t recipient, const pj::remote_buf_t &remote
   return file::p2p { std::move(*peer) };
 }
 
-void quest_t::_handle_decline(uuid_t sender, decline_t decline) {
-  auto pending = _peer(sender);
+void quest_t::_handle_decline(uuid_t sender, answer_t decline) {
+  auto pending = _pending_peer(sender);
 
   if(pending) {
     (*pending)(decline);
   }
 }
 
-void quest_t::_send_decline(uuid_t recipient, const decline_t &decline) {
+void quest_t::_send_decline(uuid_t recipient, const answer_t &decline) {
   server::proxy::push(bootstrap, recipient, uuid, "decline"sv, decline.reason);
 }
 
 void quest_t::_handle_accept(uuid_t sender, pj::remote_buf_t &&remote) {
-  auto pending = _peer(sender);
+  auto pending = _pending_peer(sender);
   if(!pending) {
     print(error, "Could not find a transport for peer[", util::hex(sender), "] :: ", err::current());
     _send_error(sender, "Could not find a transport for peer[" + util::hex(sender).to_string() + "] :: " + err::current());
@@ -90,7 +90,7 @@ std::variant<int, file::p2p> quest_t::process_quest() {
     return 0;
   }
 
-  print(debug, "handling quest [", quest, "] from: ", util::hex(from), " to: ", util::hex(to));
+  print(debug, "handling quest [", quest, "] to: ", util::hex(to), " from: ", util::hex(from));
   if(quest == "error") {
     std::string msg;
 
@@ -104,7 +104,7 @@ std::variant<int, file::p2p> quest_t::process_quest() {
 
     data::remote_t remote_d;
     if(server::proxy::load(bootstrap, remote_d)) {
-      _peer_remove(from);
+      _pending_peer_remove(from);
 
       print(error, "Could not unpack remote: ", err::current());
       _send_error(from, "Could not unpack remote: "s + err::current());
@@ -115,10 +115,17 @@ std::variant<int, file::p2p> quest_t::process_quest() {
     auto remote = data::unpack(std::move(remote_d));
 
     if(quest == "invite") {
+      // if already at max connections
+      if(_pending_peers.size() >= max_peers) {
+        _send_decline(from, answer_t::DECLINE);
+
+        return 0;
+      }
+
       // initiate connection between sender and recipient
-      auto decline = _accept_cb(from);
-      if(decline) {
-        _send_decline(from, *decline);
+      auto answer = _accept_cb(from);
+      if(answer.reason != answer_t::ACCEPT) {
+        _send_decline(from, answer);
 
         return 0;
       }
@@ -132,7 +139,7 @@ std::variant<int, file::p2p> quest_t::process_quest() {
   }
 
   else if(quest == "decline") {
-    decline_t decline;
+    answer_t decline;
     if(server::proxy::load(bootstrap, decline.reason)) {
       print(error, "Couldn't load quest [decline]: ", err::current());
 
@@ -168,11 +175,11 @@ int quest_t::send_register() {
   return 0;
 }
 
-std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Alarm<decline_t> &alarm,
+std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Alarm<answer_t> &alarm,
                                                pj::ice_sess_role_t role,
                                                std::function<void(pj::ICECall)> &&on_create) {
 
-  if(_peers.size() < max_peers && _peers.find(peer_uuid) == std::end(_peers)) {
+  if(_pending_peers.size() < max_peers && _pending_peers.find(peer_uuid) == std::end(_pending_peers)) {
     auto pipe = std::make_shared<file::stream::pipe_t>();
 
     auto on_data = [pipe](pj::ICECall call, std::string_view data) {
@@ -182,10 +189,9 @@ std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Al
     auto _on_create = [this, on_create = std::move(on_create), role, &alarm, &peer_uuid](pj::ICECall call, pj::status_t status) {
       auto guard {
         util::fail_guard([&]() {
-          _peer_remove(peer_uuid);
+          _pending_peer_remove(peer_uuid);
 
-          alarm.status() = { decline_t::INTERNAL_ERROR };
-          alarm.ring();
+          alarm.ring(answer_t { answer_t::INTERNAL_ERROR });
 
           return;
         })
@@ -228,20 +234,18 @@ std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Al
       if(status != pj::success) {
         err::set("failed negotiation");
 
-        alarm.status() = { decline_t::INTERNAL_ERROR };
+        _pending_peer_remove(peer_uuid);
 
-        _peer_remove(peer_uuid);
-
-        alarm.ring();
+        alarm.ring(answer_t::INTERNAL_ERROR);
 
         return;
       }
 
       pipe->set_call(call);
-      alarm.ring();
+      alarm.ring(answer_t::ACCEPT);
     };
 
-    _peers.emplace(peer_uuid, std::make_unique<pending_t>(
+    _pending_peers.emplace(peer_uuid, std::make_unique<pending_t>(
       pool.ice_trans(std::move(on_data), std::move(_on_create), std::move(on_connect)),
       alarm
       ));
@@ -253,22 +257,22 @@ std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Al
   return std::nullopt;
 }
 
-void quest_t::_peer_remove(const p2p::uuid_t &uuid) {
-  _peers.erase(uuid);
+void quest_t::_pending_peer_remove(const p2p::uuid_t &uuid) {
+  _pending_peers.erase(uuid);
 }
 
-pending_t *quest_t::_peer(const p2p::uuid_t &uuid) {
-  auto it = _peers.find(uuid);
+pending_t *quest_t::_pending_peer(const p2p::uuid_t &uuid) {
+  auto it = _pending_peers.find(uuid);
 
-  if(it == std::end(_peers)) {
+  if(it == std::end(_pending_peers)) {
     return nullptr;
   }
 
   return it->second.get();
 }
 
-std::variant<decline_t, file::p2p> quest_t::invite(uuid_t recipient) {
-  util::Alarm<decline_t> alarm { std::nullopt };
+std::variant<answer_t, file::p2p> quest_t::invite(uuid_t recipient) {
+  util::Alarm<answer_t> alarm;
 
   auto peer = _peer_create(
     recipient,
@@ -278,12 +282,13 @@ std::variant<decline_t, file::p2p> quest_t::invite(uuid_t recipient) {
   );
 
   if(!peer) {
-    return decline_t { decline_t::INTERNAL_ERROR };
+    return answer_t { answer_t::INTERNAL_ERROR };
   }
 
-  alarm.wait([&]() { return peer->is_open(); });
+  alarm.wait();
+  if(alarm.status()->reason != answer_t::ACCEPT) {
+    _pending_peer_remove(recipient);
 
-  if(alarm.status()) {
     return *alarm.status();
   }
 
@@ -292,21 +297,21 @@ std::variant<decline_t, file::p2p> quest_t::invite(uuid_t recipient) {
 
 quest_t::quest_t(quest_t::accept_cb &&pred, const uuid_t &uuid, std::chrono::milliseconds to) : uuid { uuid }, poll_to(to), _accept_cb { std::move(pred) } {}
 
-void pending_t::operator()(answer_t &&answer) {
+void pending_t::operator()(__answer_t &&answer) {
   if(std::holds_alternative<accept_t>(answer)) {
     auto &accept = std::get<accept_t>(answer);
 
     _ice_trans.start_ice(accept.remote);
+
+    //_alarm.ring(answer_t::ACCEPT);
   }
   else {
-    auto &decline = std::get<decline_t>(answer);
-    _alarm.status() = decline;
+    auto &decline = std::get<answer_t>(answer);
+    _alarm.ring(decline);
   }
-
-  _alarm.ring();
 }
 
-pending_t::pending_t(pj::ICETrans &&ice_trans, util::Alarm<decline_t> &alarm) noexcept :
+pending_t::pending_t(pj::ICETrans &&ice_trans, util::Alarm<answer_t> &alarm) noexcept :
 _ice_trans { std::move(ice_trans) }, _alarm { alarm } {}
 
 }
@@ -374,6 +379,7 @@ std::variant<err::code_t, p2p::client_t> p2p::_accept() {
   if(std::holds_alternative<file::p2p>(remote)) {
     auto &fd = std::get<file::p2p>(remote);
     if(!fd.is_open()) {
+      // TODO: log reason of decline of invitation
       return err::TIMEOUT;
     }
 
@@ -392,7 +398,9 @@ std::variant<err::code_t, p2p::client_t> p2p::_accept() {
 
 template<>
 void p2p::_cleanup() {
-  _member.auto_run.stop();
-  _member.auto_run_thread.join();
+  if(_member.auto_run.isRunning()) {
+    _member.auto_run.stop();
+    _member.auto_run_thread.join();
+  }
 }
 }

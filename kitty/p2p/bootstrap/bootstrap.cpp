@@ -8,7 +8,7 @@
 #include <kitty/server/server.h>
 #include <kitty/log/log.h>
 #include <kitty/p2p/uuid.h>
-#include <kitty/p2p/bootstrap/quest.h>
+#include <kitty/p2p/quest.h>
 #include <cstring>
 
 using namespace std::literals;

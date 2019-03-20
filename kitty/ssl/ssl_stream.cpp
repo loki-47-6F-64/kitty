@@ -39,8 +39,16 @@ int ssl::read(std::uint8_t *data, std::size_t size) {
   return -1;
 }
 
-int ssl::write(std::vector<std::uint8_t>& buf) {
-  return SSL_write(_ssl.get(), buf.data(), (int)buf.size());
+int ssl::write(std::uint8_t *data, std::size_t size) {
+  ssize_t bytes_written = SSL_write(_ssl.get(), data, (int)size);
+
+  if(bytes_written < 0) {
+    err::code = err::LIB_SYS;
+
+    return -1;
+  }
+
+  return (int) bytes_written;
 }
 
 void ssl::seal() {

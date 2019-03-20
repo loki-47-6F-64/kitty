@@ -2,6 +2,8 @@
 #define BLUECLIENT_H
 
 #include <memory>
+
+#include <bluetooth/bluetooth.h>
 #include <bluetooth/l2cap.h>
 
 #include <kitty/blueth/blueth.h>
@@ -31,7 +33,7 @@ struct blue_client_t {
   } security;
 };
 
-typedef Server<blue_client_t, const sockaddr_l2 &> bluetooth;
+typedef Server<blue_client_t, const bt::HCI &> bluetooth;
 }
 
 #endif

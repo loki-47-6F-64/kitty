@@ -89,8 +89,7 @@ void Pool::iterate(std::chrono::milliseconds max_to) {
 void detect_nat_cb(void *data, const stun_nat_type *result) {
   auto &alarm = *((util::Alarm<stun_nat_type>*)data);
 
-  alarm.status() = *result;
-  alarm.ring();
+  alarm.ring(*result);
 }
 
 status_t Pool::detect_nat(util::Alarm<stun_nat_type> &alarm, const sockaddr &addr) {

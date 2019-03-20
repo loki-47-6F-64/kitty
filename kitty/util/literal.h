@@ -6,6 +6,7 @@
 #define KITTY_STRING_H
 
 #include <cstddef>
+#include <kitty/util/template_helper.h>
 
 namespace literal {
 
@@ -72,17 +73,17 @@ struct string_t<N, __concat_impl_t> {
 
   template<std::size_t N1, class X1, class X2>
   constexpr string_t(const string_t<N1, X1> &l, const string_t<N - N1, X2> &r) noexcept : data {} {
-    for(auto x = 0; x < N1; ++x) {
+    for(std::size_t x = 0; x < N1; ++x) {
       data[x] = l.data[x];
     }
 
-    for(auto x = 0; x < N - N1; ++x) {
+    for(std::size_t x = 0; x < N - N1; ++x) {
       data[x + N1] = r.data[x];
     }
   }
 
   constexpr string_t(const std::array<char, N> &array) noexcept : data {} {
-    for(auto x = 0; x < N; ++x) {
+    for(std::size_t x = 0; x < N; ++x) {
       data[x] = array[x];
     }
   }
@@ -178,14 +179,14 @@ struct __concat_literal<literal_t<ElL...>, literal_t<ElR...>> {
 template<class T, class X>
 using concat_t = typename __concat_literal<T, X>::type;
 
-template<auto V, char... Elements>
+template<std::int64_t V, char... Elements>
 struct __from_integral_helper {
   static_assert(V != 0, "this should not be triggered: a problem with specialization");
   using type = typename __from_integral_helper<V / 10, (char)(V % 10) + '0', Elements...>::type;
 };
 
 template<char... Elements>
-struct __from_integral_helper<0, Elements...> {
+struct __from_integral_helper<(std::int64_t)0, Elements...> {
   using type = literal_t<Elements...>;
 };
 
@@ -284,6 +285,27 @@ using quote_t = prepend_t<append_t<T, '"'>, '"'>;
 
 template<auto T>
 using string_literal_quote_t = quote_t<string_literal_t<T>>;
+
+template<class T, class V = void>
+struct __false_v;
+
+template<class T>
+struct __false_v<T, std::enable_if_t<util::instantiation_of_v<std::optional, T>>> {
+  static constexpr std::nullopt_t value = std::nullopt;
+};
+
+template<class T>
+struct __false_v<T, std::enable_if_t<std::is_pointer_v<T>>> {
+  static constexpr std::nullptr_t value = nullptr;
+};
+
+template<class T>
+struct __false_v<T, std::enable_if_t<std::is_same_v<T, bool>>> {
+  static constexpr bool value = false;
+};
+
+template<class T>
+static constexpr auto false_v = __false_v<T>::value;
 }
 
 #endif //KITTY_STRING_H

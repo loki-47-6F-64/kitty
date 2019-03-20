@@ -212,6 +212,7 @@ std::optional<std::vector<uint8_t>> load_raw(file::FD<Stream> &fd) {
 
 template<class Stream>
 int push(file::FD<Stream> &fd) {
+  assert(fd.is_open());
   return fd.out();
 }
 
