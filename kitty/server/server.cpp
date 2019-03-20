@@ -26,16 +26,6 @@ int tcp::_poll() {
 
 template<>
 std::variant<err::code_t, tcp::client_t> tcp::_accept() {
-  int result;
-  if((result = _poll()) <= 0) {
-    if(result < 0) {
-      return err::code;
-    }
-
-    return err::TIMEOUT;
-  }
-
-
   auto family = _member.family;
 
   sockaddr_storage client_addr {};

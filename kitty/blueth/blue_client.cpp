@@ -29,15 +29,6 @@ int bluetooth::_poll() {
 
 template<>
 std::variant<err::code_t, bluetooth::client_t> bluetooth::_accept() {
-  int result;
-  if((result = _poll()) <= 0) {
-    if(result < 0) {
-      return err::code;
-    }
-
-    return err::TIMEOUT;
-  }
-
   sockaddr_l2 client_addr {};
 
   socklen_t addr_size = sizeof(client_addr);

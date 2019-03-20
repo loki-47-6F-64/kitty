@@ -72,17 +72,24 @@ private:
     bool failure = false;
 
     _autoRun.run([&]() {
-      auto client = _accept();
-      if(std::holds_alternative<client_t>(client)) {
-        auto c = util::cmove(std::get<client_t>(client));
+      auto res = _poll();
 
-        tasks().push([_action, c]() mutable {
-          _action(c);
-        });
+      if(res > 0) {
+        auto client = _accept();
+        if(std::holds_alternative<client_t>(client)) {
+          auto c = util::cmove(std::get<client_t>(client));
+
+          tasks().push([_action, c]() mutable {
+            _action(c);
+          });
+        }
+        else if(std::get<err::code_t>(client) != err::OK) {
+          failure = true;
+          _autoRun.stop();
+        }
       }
-      else if(auto err = std::get<err::code_t>(client); err != err::TIMEOUT && err != err::OK) {
+      else if(res < 0) {
         failure = true;
-
         _autoRun.stop();
       }
     });

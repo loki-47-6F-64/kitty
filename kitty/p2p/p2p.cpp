@@ -366,15 +366,6 @@ int p2p::_poll() {
 
 template<>
 std::variant<err::code_t, p2p::client_t> p2p::_accept() {
-  int result = _poll();
-  if(result < 0) {
-    return err::code;
-  }
-
-  if(!result) {
-    return err::TIMEOUT;
-  }
-
   auto remote = _member.process_quest();
   if(std::holds_alternative<file::p2p>(remote)) {
     auto &fd = std::get<file::p2p>(remote);
@@ -388,12 +379,12 @@ std::variant<err::code_t, p2p::client_t> p2p::_accept() {
     };
   }
 
-  result = std::get<int>(remote);
+  auto result = std::get<int>(remote);
   if(result < 0) {
     return err::code;
   }
 
-  return err::TIMEOUT;
+  return err::OK;
 }
 
 template<>
