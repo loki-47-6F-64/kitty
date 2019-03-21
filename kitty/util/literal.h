@@ -6,6 +6,7 @@
 #define KITTY_STRING_H
 
 #include <cstddef>
+#include <optional>
 #include <kitty/util/template_helper.h>
 
 namespace literal {

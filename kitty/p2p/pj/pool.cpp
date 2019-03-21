@@ -80,7 +80,7 @@ void Pool::iterate(std::chrono::milliseconds max_to) {
 
   auto c = io_queue().poll(milli);
   if(c < 0) {
-    print(error, __FILE__, ": ", err(get_netos_err()));
+    print(error, "Cannot poll io_queue: ", err(get_netos_err()));
 
     std::abort();
   }
