@@ -111,6 +111,22 @@ ip_addr_t ip_addr_t::from_sockaddr(std::vector<char> &buf, const sockaddr *const
   };
 }
 
+std::optional<sockaddr_storage> ip_addr_t::to_sockaddr() {
+  std::optional<sockaddr_storage> buf;
+
+  char in[INET6_ADDRSTRLEN];
+  ip.copy(in, ip.size());
+  in[ip.size()] = '\0';
+
+  if(inet_pton(AF_INET, ip.data(), &buf) <= 0) {
+    err::code = err::INPUT_OUTPUT;
+
+    return std::nullopt;
+  }
+
+  return buf;
+}
+
 ip_addr_buf_t ip_addr_buf_t::unpack(std::tuple<std::uint32_t, std::uint16_t> ip_addr) {
   char data[INET_ADDRSTRLEN];
 
@@ -150,6 +166,18 @@ ip_addr_buf_t ip_addr_buf_t::from_sockaddr(const sockaddr *const ip_addr) {
     std::string { data },
     util::endian::big(port)
   };
+}
+
+std::optional<sockaddr_storage> ip_addr_buf_t::to_sockaddr() {
+  std::optional<sockaddr_storage> buf;
+
+  if(inet_pton(AF_INET, ip.c_str(), &buf) <= 0) {
+    err::code = err::INPUT_OUTPUT;
+
+    return std::nullopt;
+  }
+
+  return buf;
 }
 
 using ifaddr_t = util::safe_ptr<ifaddrs, freeifaddrs>;

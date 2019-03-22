@@ -16,6 +16,7 @@ struct ip_addr_t {
   static ip_addr_t unpack(std::vector<char> &buf, std::tuple<std::uint32_t, std::uint16_t>);
 
   static ip_addr_t from_sockaddr(std::vector<char> &buf, const sockaddr *);
+  std::optional<sockaddr_storage> to_sockaddr();
 };
 
 struct ip_addr_buf_t {
@@ -28,6 +29,7 @@ struct ip_addr_buf_t {
   }
 
   static ip_addr_buf_t from_sockaddr(const sockaddr *);
+  std::optional<sockaddr_storage> to_sockaddr();
 
   operator ip_addr_t() const {
     return ip_addr_t {
