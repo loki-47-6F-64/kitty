@@ -5,10 +5,10 @@
 
 #include <kitty/log/log.h>
 
-file::Log error  (std::chrono::seconds(0), "Error: "  , dup(STDERR_FILENO));
-file::Log warning(std::chrono::seconds(0), "Warning: ", dup(STDOUT_FILENO));
-file::Log info   (std::chrono::seconds(0), "Info: "   , dup(STDOUT_FILENO));
-file::Log debug  (std::chrono::seconds(0), "Debug: "  , dup(STDOUT_FILENO));
+file::Log error;
+file::Log warning;
+file::Log info;
+file::Log debug;
 
 namespace file {
 
@@ -29,10 +29,19 @@ Log logWrite(std::string &&prepend, const char *file_path) {
 }
 
 void log_open(const char *logPath) {
-  error   = logWrite("Error: ",   logPath);
-  warning = logWrite("Warning: ", logPath);
-  info    = logWrite("Info: ",    logPath);
-  debug   = logWrite("Debug: ",   logPath);
+  if(!logPath) {
+    file::Log { std::chrono::seconds(0), "Error: ",   dup(STDERR_FILENO) };
+    file::Log { std::chrono::seconds(0), "Warning: ", dup(STDOUT_FILENO) };
+    file::Log { std::chrono::seconds(0), "Info: ",    dup(STDOUT_FILENO) };
+    file::Log { std::chrono::seconds(0), "Debug: ",   dup(STDOUT_FILENO) };
+  }
+
+  else {
+    error   = logWrite("Error: ",   logPath);
+    warning = logWrite("Warning: ", logPath);
+    info    = logWrite("Info: ",    logPath);
+    debug   = logWrite("Debug: ",   logPath);
+  }
 
   info.append("Opened log.\n").out();
 }

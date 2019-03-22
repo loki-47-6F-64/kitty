@@ -23,6 +23,7 @@ void accept_client(server::tcp::client_t &&client) {
 }
 
 int main(int argc, char *argv[]) {
+  file::log_open(nullptr);
   std::uint16_t port = 2345;
   auto family = AF_INET6;
 
