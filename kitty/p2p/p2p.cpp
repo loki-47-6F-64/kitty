@@ -114,6 +114,17 @@ std::variant<int, file::p2p> quest_t::process_quest() {
 
     auto remote = data::unpack(std::move(remote_d));
 
+    if(remote.candidates.empty()) {
+      print(error, "no remote candidates");
+
+      _send_decline(from, answer_t::ERROR);
+    }
+
+    for(auto &cand : remote.candidates) {
+      std::vector<char> buf;
+      print(info, p2p::pj::ip_addr_t::from_sockaddr_t(buf, &cand.addr).ip);
+    }
+
     if(quest == "invite") {
       // if already at max connections
       if(_pending_peers.size() >= max_peers) {
@@ -302,8 +313,6 @@ void pending_t::operator()(__answer_t &&answer) {
     auto &accept = std::get<accept_t>(answer);
 
     _ice_trans.start_ice(accept.remote);
-
-    //_alarm.ring(answer_t::ACCEPT);
   }
   else {
     auto &decline = std::get<answer_t>(answer);
@@ -371,7 +380,7 @@ std::variant<err::code_t, p2p::client_t> p2p::_accept() {
     auto &fd = std::get<file::p2p>(remote);
     if(!fd.is_open()) {
       // TODO: log reason of decline of invitation
-      return err::TIMEOUT;
+      return err::OK;
     }
 
     return client_t {
