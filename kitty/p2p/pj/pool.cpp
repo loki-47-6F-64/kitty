@@ -12,8 +12,6 @@
 
 
 namespace p2p::pj {
-pj_caching_pool raw;
-
 Pool::Pool(caching_pool_t &caching_pool, const char *name) {
   pj_ice_strans_cfg_default(&_ice_cfg);
 
@@ -58,17 +56,11 @@ void Pool::set_stun(ip_addr_t ip_addr) {
 }
 
 caching_pool_t Pool::init_caching_pool() {
-  static std::atomic<bool> called { false };
+  auto cache = std::make_unique<pj_caching_pool>();
 
-  if(called.exchange(true)) {
-    print(error, "Pool::init_caching_pool() called more than once");
+  pj_caching_pool_init(cache.get(), nullptr, 0);
 
-    std::abort();
-  }
-
-  pj_caching_pool_init(&raw, nullptr, 0);
-
-  return caching_pool_t { &raw };
+  return caching_pool_t { std::move(cache) };
 }
 
 void Pool::iterate(std::chrono::milliseconds max_to) {

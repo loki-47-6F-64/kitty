@@ -43,11 +43,32 @@ void dns_resolv_destroy(pj_dns_resolver *);
 
 using thread_ptr        = util::safe_ptr_v2<pj_thread_t, status_t, pj_thread_destroy>;
 using dns_resolv_t      = util::safe_ptr<pj_dns_resolver, dns_resolv_destroy>;
-using caching_pool_t    = util::safe_ptr<pj_caching_pool, pj_caching_pool_destroy>;
 using pool_t            = util::safe_ptr<pj_pool_t, pj_pool_release>;
 using ice_trans_t       = util::safe_ptr_v2<pj_ice_strans, status_t, pj_ice_strans_destroy>;
 using timer_heap_t      = util::safe_ptr<pj_timer_heap_t, pj_timer_heap_destroy>;
 using io_queue_t        = util::safe_ptr_v2<pj_ioqueue_t, status_t, pj_ioqueue_destroy>;
+
+struct caching_pool_t {
+  std::unique_ptr<pj_caching_pool> ptr;
+
+  caching_pool_t() = default;
+  caching_pool_t(caching_pool_t&&) noexcept = default;
+
+  caching_pool_t& operator=(caching_pool_t&&) noexcept = default;
+  pj_caching_pool* operator->() {
+    return ptr.get();
+  }
+
+  const pj_caching_pool* operator->() const {
+    return ptr.get();
+  }
+
+  ~caching_pool_t() {
+    if(ptr) {
+      pj_caching_pool_destroy(ptr.get());
+    }
+  }
+};
 
 struct thread_t {
   std::unique_ptr<std::array<long, THREAD_DESC_SIZE>> descriptor;

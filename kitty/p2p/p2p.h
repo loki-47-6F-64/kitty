@@ -37,6 +37,9 @@ struct answer_t {
       case INTERNAL_ERROR:
         return err::current();
     }
+
+    /* control never reaches here */
+    std::abort();
   }
 };
 

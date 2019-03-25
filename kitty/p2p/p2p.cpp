@@ -19,14 +19,16 @@
 
 using namespace std::literals;
 namespace p2p {
-struct {
-  pj::caching_pool_t caching_pool;
-} global;
+pj::caching_pool_t caching_pool;
 
 int init() {
-  pj::init(nullptr);
-  global.caching_pool = pj::Pool::init_caching_pool();
-  return 0;
+  if(pj::init(nullptr)) {
+    return -1;
+  }
+
+  caching_pool = pj::Pool::init_caching_pool();
+
+  return !(bool)caching_pool.ptr;
 }
 
 file::p2p quest_t::_send_accept(uuid_t recipient, const pj::remote_buf_t &remote) {
@@ -118,12 +120,14 @@ std::variant<int, file::p2p> quest_t::process_quest() {
       print(error, "no remote candidates");
 
       _send_decline(from, answer_t::ERROR);
+
+      return 0;
     }
 
-    for(auto &cand : remote.candidates) {
+    ON_DEBUG(for(auto &cand : remote.candidates) {
       std::vector<char> buf;
       print(info, p2p::pj::ip_addr_t::from_sockaddr_t(buf, &cand.addr).ip);
-    }
+    });
 
     if(quest == "invite") {
       // if already at max connections
@@ -226,6 +230,7 @@ std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Al
       if(candidates.empty()) {
         err::set("no candidates");
 
+        //TODO: send decline when no candidates
         return;
       }
 
@@ -329,7 +334,7 @@ namespace server {
 
 template<>
 int p2p::_init_listen(const ::p2p::pj::ip_addr_t &bootstrap, const ::p2p::pj::ip_addr_t &stun, const std::vector<std::string_view> &dns, std::size_t max_peers) {
-  _member.pool = ::p2p::pj::Pool { ::p2p::global.caching_pool, "Loki-ICE" };
+  _member.pool = ::p2p::pj::Pool { ::p2p::caching_pool, "Loki-ICE" };
 
   if(!dns.empty()) {
     _member.pool.dns().set_ns(dns);

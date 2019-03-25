@@ -30,10 +30,10 @@ Log logWrite(std::string &&prepend, const char *file_path) {
 
 void log_open(const char *logPath) {
   if(!logPath) {
-    file::Log { std::chrono::seconds(0), "Error: ",   dup(STDERR_FILENO) };
-    file::Log { std::chrono::seconds(0), "Warning: ", dup(STDOUT_FILENO) };
-    file::Log { std::chrono::seconds(0), "Info: ",    dup(STDOUT_FILENO) };
-    file::Log { std::chrono::seconds(0), "Debug: ",   dup(STDOUT_FILENO) };
+    error   = file::Log { std::chrono::seconds(0), "Error: ",   dup(STDERR_FILENO) };
+    warning = file::Log { std::chrono::seconds(0), "Warning: ", dup(STDOUT_FILENO) };
+    info    = file::Log { std::chrono::seconds(0), "Info: ",    dup(STDOUT_FILENO) };
+    debug   = file::Log { std::chrono::seconds(0), "Debug: ",   dup(STDOUT_FILENO) };
   }
 
   else {

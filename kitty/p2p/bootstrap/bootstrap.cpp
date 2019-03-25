@@ -23,7 +23,6 @@ void accept_client(server::tcp::client_t &&client) {
 }
 
 int main(int argc, char *argv[]) {
-  file::log_open(nullptr);
   std::uint16_t port = 2345;
   auto family = AF_INET6;
 
@@ -53,6 +52,10 @@ int main(int argc, char *argv[]) {
       file::log_open(arg.data() + n_end +1);
     }
   });
+
+  if(!debug.is_open()) {
+    file::log_open(nullptr);
+  }
 
   if(family == AF_INET6) {
     auto tmp_addr = (sockaddr_in6*)&addr;
