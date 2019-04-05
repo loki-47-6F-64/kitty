@@ -5,7 +5,6 @@
 #include <kitty/log/log.h>
 #include <kitty/server/proxy.h>
 #include <kitty/util/set.h>
-#include <kitty/p2p/pj/nath.h>
 #include <kitty/p2p/data_types.h>
 #include "quest.h"
 

@@ -67,6 +67,7 @@ public:
 
       return;
     }
+
     auto res = ::poll(polls.data(), polls.size(), to.count());
     if(res > 0) {
       for(auto &poll : polls) {
@@ -141,8 +142,30 @@ public:
     static_assert(!__has_write_v, "poll_traits::write(stream_t&) is defined.");
   }
 
-  poll_t(poll_t&&) = default;
-  poll_t& operator=(poll_t&&) = default;
+  poll_t() = default;
+  poll_t(poll_t &&other) noexcept :
+  _read_cb { std::move(other._read_cb) },
+  _write_cb { std::move(other._write_cb) },
+  _remove_cb { std::move(other._remove_cb) }
+  {
+    assert(_fd_to_file.empty());
+    assert(_queue_add.empty());
+    assert(_queue_remove.empty());
+    assert(_pollfd.empty());
+  }
+
+  poll_t& operator=(poll_t &&other) noexcept {
+    std::swap(_read_cb  , other._read_cb);
+    std::swap(_write_cb , other._write_cb);
+    std::swap(_remove_cb, other._remove_cb);
+
+    assert(_fd_to_file.empty());
+    assert(_queue_add.empty());
+    assert(_queue_remove.empty());
+    assert(_pollfd.empty());
+
+    return *this;
+  };
 
   void read(file_t &fd, user_t user_val) {
     std::lock_guard<std::mutex> lg(_mutex_add);

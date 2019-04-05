@@ -7,8 +7,8 @@
 
 #include <tuple>
 #include <vector>
-#include <kitty/p2p/pj/nath.h>
-#include <kitty/p2p/pj/ice_trans.h>
+#include <kitty/p2p/pj_fake/nath.h>
+#include <kitty/p2p/pj_fake/ice_trans.h>
 
 namespace p2p::data {
 

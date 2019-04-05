@@ -9,8 +9,8 @@
 #include <variant>
 #include <kitty/file/io_stream.h>
 #include <kitty/server/server.h>
-#include <kitty/p2p/pj/ice_trans.h>
-#include <kitty/p2p/pj/pool.h>
+#include <kitty/p2p/pj_fake/ice_trans.h>
+#include <kitty/p2p/pj_fake/pool.h>
 #include <kitty/p2p/uuid.h>
 #include <kitty/p2p/p2p_stream.h>
 

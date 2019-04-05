@@ -6,6 +6,7 @@
 
 #include <kitty/p2p/p2p.h>
 #include <kitty/p2p/quest.h>
+#include <kitty/server/proxy.h>
 
 using namespace std::literals;
 
@@ -132,19 +133,19 @@ TEST_F(bootstrap_t, peer_connect) {
   auto f_ret_0 = std::async(std::launch::async, [&]() {
     auto t = p2p::pj::register_thread();
 
-    return peer_0.start([&](auto) {}, { "127.0.0.1", port }, {}, {}, MAX_CONNECTIONS);
+    return peer_0.start([](auto) {}, { "127.0.0.1", port }, {}, {}, MAX_CONNECTIONS);
   });
 
   auto f_ret_1 = std::async(std::launch::async, [&]() {
     auto t = p2p::pj::register_thread();
 
-    return peer_1.start([&](auto) {}, { "127.0.0.1", port }, {}, {}, MAX_CONNECTIONS);
+    return peer_1.start([](auto) {}, { "127.0.0.1", port }, {}, {}, MAX_CONNECTIONS);
   });
 
   auto f_ret_2 = std::async(std::launch::async, [&]() {
     auto t = p2p::pj::register_thread();
 
-    return peer_2.start([&](auto) {}, { "127.0.0.1", port }, {}, {}, 1);
+    return peer_2.start([](auto) {}, { "127.0.0.1", port }, {}, {}, 1);
   });
 
   while(!peer_2.isRunning()) {
@@ -232,6 +233,69 @@ TEST_F(bootstrap_t, peer_connect) {
   peer_2.stop();
 
   EXPECT_LE(0, f_ret_2.get());
+  EXPECT_LE(0, f_ret_1.get());
+  EXPECT_LE(0, f_ret_0.get());
+}
+
+void p2p_accept_client(server::peer_t &&client) {
+  auto &fd = *client.socket;
+  if(!fd.is_open()) {
+    GTEST_FATAL_FAILURE_("client.socket->is_open() is False");
+  }
+
+  std::string in;
+  ASSERT_EQ(0, server::proxy::load(fd, in));
+  ASSERT_EQ("hello test!"sv, in);
+}
+
+TEST_F(bootstrap_t, send_msg) {
+  constexpr static auto MAX_CONNECTIONS = 12;
+
+  auto accept_cb = [] (auto) { return p2p::answer_t::ACCEPT; };
+
+  p2p::uuid_t uuid[2] {
+    p2p::uuid_t::generate(), p2p::uuid_t::generate()
+  };
+
+  server::p2p peer_0(accept_cb, uuid[0]);
+  server::p2p peer_1(accept_cb, uuid[1]);
+
+  auto f_ret_0 = std::async(std::launch::async, [&]() {
+    auto t = p2p::pj::register_thread();
+
+    return peer_0.start([](auto) {}, { "127.0.0.1", port }, {}, {}, MAX_CONNECTIONS);
+  });
+
+  auto f_ret_1 = std::async(std::launch::async, [&]() {
+    auto t = p2p::pj::register_thread();
+
+    return peer_1.start(&p2p_accept_client, { "127.0.0.1", port }, {}, {}, MAX_CONNECTIONS);
+  });
+
+  while(!peer_1.isRunning()) {
+    auto f_stat = f_ret_1.wait_for(1ms);
+    if(f_stat == std::future_status::ready) {
+      break;
+    }
+  }
+
+  while(!peer_0.isRunning()) {
+    auto f_stat = f_ret_0.wait_for(1ms);
+    if(f_stat == std::future_status::ready) {
+      break;
+    }
+  }
+
+  // connect peer_0 --> peer_1
+  auto p2p_fd = peer_0.get_member().invite(uuid[1]);
+
+  ASSERT_TRUE(std::holds_alternative<file::p2p>(p2p_fd));
+
+  server::proxy::push(std::get<file::p2p>(p2p_fd), "hello test!"sv);
+
+  peer_0.stop();
+  peer_1.stop();
+
   EXPECT_LE(0, f_ret_1.get());
   EXPECT_LE(0, f_ret_0.get());
 }

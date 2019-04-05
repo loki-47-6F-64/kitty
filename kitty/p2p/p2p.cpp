@@ -14,7 +14,6 @@
 #include <kitty/p2p/uuid.h>
 #include <kitty/p2p/data_types.h>
 #include <kitty/p2p/p2p.h>
-#include "p2p.h"
 
 
 using namespace std::literals;
@@ -86,6 +85,7 @@ std::variant<int, file::p2p> quest_t::process_quest() {
   uuid_t to, from;
   std::string quest;
 
+  KITTY_DEBUG_LOG("processing...");
   if(server::proxy::load(bootstrap, to, from, quest)) {
     print(error, err::current());
 
@@ -125,8 +125,9 @@ std::variant<int, file::p2p> quest_t::process_quest() {
     }
 
     ON_DEBUG(for(auto &cand : remote.candidates) {
-      std::vector<char> buf;
-      print(info, p2p::pj::ip_addr_t::from_sockaddr_t(buf, &cand.addr).ip);
+      auto remote_ip = pj::ip_addr_buf_t::from_sockaddr((pj::sockaddr_t*)&cand.addr);
+
+      print(info, remote_ip.ip, ':', remote_ip.port);
     });
 
     if(quest == "invite") {
@@ -198,6 +199,8 @@ std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Al
     auto pipe = std::make_shared<file::stream::pipe_t>();
 
     auto on_data = [pipe](pj::ICECall call, std::string_view data) {
+      KITTY_DEBUG_LOG(call.ip_addr.ip, ':', call.ip_addr.port, " :: ", data);
+
       pipe->push(data);
     };
 

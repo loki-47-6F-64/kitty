@@ -92,6 +92,7 @@ public:
   ~FD() noexcept { seal(); }
 
   stream_t &getStream() { return _stream; }
+  const stream_t &getStream() const { return _stream; }
 
   // Write to file
   int out() {
@@ -150,6 +151,10 @@ public:
   int read_cached(std::uint8_t *in, std::size_t size) {
     while(size) {
       if(_end_of_buffer()) {
+        if(wait_for(READ)) {
+          return -1;
+        }
+
         _in.data_p = _in.cache.get();
         auto bytes_read = _stream.read(_in.data_p, _in.capacity);
         if(bytes_read <= 0) {

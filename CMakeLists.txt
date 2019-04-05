@@ -65,29 +65,38 @@ if("x${BUILD_TYPE}" STREQUAL "xDEBUG")
 endif()
 
 if(KITTY_BUILD_SERVER)
-  find_package(Threads)
+  find_package(Threads REQUIRED)
+  list(APPEND KITTY_EXTERNAL_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
 endif()
 
 if(KITTY_BUILD_SSL)
-  find_package(OpenSSL)
-  
+  find_package(OpenSSL REQUIRED)
+  list(APPEND KITTY_EXTERNAL_LIBRARIES ${OPENSSL_LIBRARIES})
+
   add_definitions( -DKITTY_BUILD_SSL=1 )
 endif()
 
 if(KITTY_BUILD_BLUETOOTH)
-  find_package(Bluez)
+  find_package(Bluez REQUIRED)
+  list(APPEND KITTY_EXTERNAL_LIBRARIES ${BLUEZ_LIBRARIES})
 endif()
 
 if(KITTY_BUILD_P2P)
   if(NOT DEFINED PJSIP_INCLUDE_DIRS OR NOT DEFINED PJSIP_LIBRARIES)
     message(FATAL_ERROR "Please specify the root to pjsip -- \${PJSIP_INCLUDE_DIRS} and \${PJSIP_LIBRARIES}")
   endif()
+  list(APPEND KITTY_EXTERNAL_LIBRARIES ${PJSIP_LIBRARIES})
 endif()
 
 if(KITTY_BUILD_SQLITE3)
   if(NOT DEFINED SQLITE3_INCLUDE_DIRS OR NOT DEFINED SQLITE3_LIBRARIES)
     message(FATAL_ERROR "Please specify the root to sqlite3 -- \${SQLITE3_INCLUDE_DIRS} and \${SQLITE3_LIBRARIES}")
   endif()
+  list(APPEND KITTY_EXTERNAL_LIBRARIES ${SQLITE3_LIBRARIES})
+endif()
+
+if(KITTY_BUILD_TOPO)
+  list(APPEND KITTY_EXTERNAL_LIBRARIES stdc++fs)
 endif()
 
 # set up include-directories
@@ -130,12 +139,13 @@ if(KITTY_BUILD_TOPO)
 endif()
 
 if(KITTY_BUILD_P2P)
-  kitty_add(p2p/pj)
+  kitty_add(p2p/pj_fake)
   kitty_add(p2p)
 endif()
 
 add_library(kitty STATIC ${KITTY_TARGET_FILES})
-target_link_libraries(kitty ${CMAKE_THREAD_LIBS_INIT} ${PJSIP_LIBRARIES} ${SQLITE3_LIBRARIES} ${OPENSSL_LIBRARIES} ${BLUEZ_LIBRARIES} stdc++fs)
+#target_link_libraries(kitty ${CMAKE_THREAD_LIBS_INIT} ${PJSIP_LIBRARIES} ${SQLITE3_LIBRARIES} ${OPENSSL_LIBRARIES} ${BLUEZ_LIBRARIES} stdc++fs)
+target_link_libraries(kitty ${KITTY_EXTERNAL_LIBRARIES})
 
 set_target_properties(kitty PROPERTIES
   CXX_STANDARD 17

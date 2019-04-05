@@ -13,6 +13,7 @@
 #include <kitty/err/err.h>
 #include <kitty/util/set.h>
 #include <kitty/util/utility.h>
+#include <kitty/log/log.h>
 #include "tcp.h"
 
 
@@ -111,18 +112,22 @@ ip_addr_t ip_addr_t::from_sockaddr(std::vector<char> &buf, const sockaddr *const
   };
 }
 
-std::optional<sockaddr_storage> ip_addr_t::to_sockaddr() {
-  std::optional<sockaddr_storage> buf;
+std::optional<sockaddr_storage> ip_addr_t::to_sockaddr() const {
+  sockaddr_storage buf;
+  sockaddr_in *addr_in = (sockaddr_in*)&buf;
 
   char in[INET6_ADDRSTRLEN];
   ip.copy(in, ip.size());
   in[ip.size()] = '\0';
 
-  if(inet_pton(AF_INET, ip.data(), &buf) <= 0) {
+  if(inet_pton(AF_INET, ip.data(), &addr_in->sin_addr) <= 0) {
     err::code = err::INPUT_OUTPUT;
 
     return std::nullopt;
   }
+
+  addr_in->sin_family = AF_INET;
+  addr_in->sin_port = util::endian::big(port);
 
   return buf;
 }
@@ -168,14 +173,18 @@ ip_addr_buf_t ip_addr_buf_t::from_sockaddr(const sockaddr *const ip_addr) {
   };
 }
 
-std::optional<sockaddr_storage> ip_addr_buf_t::to_sockaddr() {
-  std::optional<sockaddr_storage> buf;
+std::optional<sockaddr_storage> ip_addr_buf_t::to_sockaddr() const {
+  sockaddr_storage buf;
+  sockaddr_in *addr_in = (sockaddr_in*)&buf;
 
-  if(inet_pton(AF_INET, ip.c_str(), &buf) <= 0) {
+  if(inet_pton(AF_INET, ip.c_str(), &addr_in->sin_addr) <= 0) {
     err::code = err::INPUT_OUTPUT;
 
     return std::nullopt;
   }
+
+  addr_in->sin_family = AF_INET;
+  addr_in->sin_port = util::endian::big(port);
 
   return buf;
 }
@@ -211,7 +220,7 @@ std::vector<file::ip_addr_buf_t> get_broadcast_ips(int family) {
 
   auto ifaddr = get_ifaddrs();
   for(auto pos = ifaddr.get(); pos != nullptr; pos = pos->ifa_next) {
-    if(pos->ifa_flags & IFF_UP && pos->ifa_flags & IFF_BROADCAST) {
+    if(pos->ifa_flags & IFF_UP && !(pos->ifa_flags & IFF_LOOPBACK)) {
       if(
         (family_f[0] && pos->ifa_addr->sa_family == AF_INET) ||
         (family_f[1] && pos->ifa_addr->sa_family == AF_INET6)
@@ -223,5 +232,53 @@ std::vector<file::ip_addr_buf_t> get_broadcast_ips(int family) {
   }
 
   return ip_addrs;
-};
+}
+
+io udp(const ip_addr_t &ip_addr, std::optional<std::uint16_t> port) {
+  auto sock = udp_init(port);
+
+  if(!sock.is_open() || udp_connect(sock, ip_addr) < 0) {
+    err::code = err::LIB_SYS;
+
+    return {};
+  }
+
+  return sock;
+}
+
+io udp_init(std::optional<uint16_t> port) {
+  auto sock = socket(AF_INET, SOCK_DGRAM, 0);
+
+  if(sock < 0) {
+    return {};
+  }
+
+  sockaddr_in in_addr {};
+  in_addr.sin_family = INET;
+
+  if(port) {
+    in_addr.sin_port = util::endian::big(*port);
+  }
+
+  if(bind(sock, (sockaddr*)&in_addr, sizeof(sockaddr)) < 0) {
+    err::code = err::LIB_SYS;
+
+    return {};
+  }
+
+  return file::io { 3s, sock };
+}
+
+int udp_connect(io &sock, const ip_addr_t &ip_addr) {
+  auto sock_fd = sock.getStream().fd();
+
+  auto addr = ip_addr.to_sockaddr();
+  if(connect(sock_fd, (sockaddr*)&addr.value(), sizeof(sockaddr_in)) < 0) {
+    err::code = err::LIB_SYS;
+
+    return -1;
+  }
+
+  return 0;
+}
 }

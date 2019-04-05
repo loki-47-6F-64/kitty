@@ -12,7 +12,7 @@
 #include <bitset>
 #include <kitty/file/file.h>
 #include <kitty/file/poll.h>
-#include <kitty/p2p/pj/ice_trans.h>
+#include <kitty/p2p/pj_fake/ice_trans.h>
 #include <kitty/p2p/uuid.h>
 
 namespace file::stream {

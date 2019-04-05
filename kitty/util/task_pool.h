@@ -59,6 +59,16 @@ protected:
   std::mutex _task_mutex;
 
 public:
+  TaskPool() = default;
+  TaskPool(TaskPool &&other) noexcept : _tasks { std::move(other._tasks) }, _timer_tasks { std::move(other._timer_tasks) } {}
+
+  TaskPool &operator=(TaskPool &&other) noexcept {
+    std::swap(_tasks, other._tasks);
+    std::swap(_timer_tasks, other._timer_tasks);
+
+    return *this;
+  }
+
   template<class Function, class... Args>
   auto push(Function && newTask, Args &&... args) {
     typedef decltype(newTask(std::forward<Args>(args)...)) __return;

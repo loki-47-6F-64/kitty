@@ -51,7 +51,7 @@ ice_sess_cand_t pack(const pj::ice_sess_cand_t &cand) {
   std::vector<char> buf;
   return ice_sess_cand_t {
     cand.type,
-    pack(pj::ip_addr_t::from_sockaddr_t(buf, &cand.addr)),
+    pack(pj::ip_addr_t::from_sockaddr(buf, (sockaddr*)&cand.addr)),
     pj::string(cand.foundation),
     cand.prio,
     cand.comp_id

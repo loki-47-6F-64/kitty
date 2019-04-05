@@ -1,32 +1,60 @@
 //
-// Created by loki on 25-1-19.
+// Created by loki on 21-3-19.
 //
 
-#ifndef T_MAN_ICESTRANS_H
-#define T_MAN_ICESTRANS_H
+#ifndef T_MAN_ICE_TRANS_H
+#define T_MAN_ICE_TRANS_H
 
-#include <memory>
-#include <optional>
-#include <functional>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <kitty/util/utility.h>
 #include <kitty/file/tcp.h>
-#include <kitty/p2p/pj/nath.h>
-#include <pjnath.h>
+#include <kitty/p2p/pj_fake/nath.h>
 
 namespace p2p::pj {
 
-using sockaddr_t = pj_sockaddr_t;
-using sockaddr   = pj_sockaddr;
-using ice_trans_cfg_t = pj_ice_strans_cfg;
-using ice_trans_cb_t  = pj_ice_strans_cb;
+class ICECall;
+using on_data_f       = std::function<void(ICECall, std::string_view)>;
+using on_ice_create_f = std::function<void(ICECall, status_t)>;
+using on_connect_f    = std::function<void(ICECall, status_t)>;
 
-using ice_sess_role_t   = pj_ice_sess_role;
-using ice_trans_op_t    = pj_ice_strans_op;
-using ice_trans_state_t = pj_ice_strans_state;
-
-struct ip_addr_t : public file::ip_addr_t {
-  std::optional<sockaddr> to_sockaddr();
-  static ip_addr_t from_sockaddr_t(std::vector<char> &buf, const sockaddr_t* ip_addr);
+enum class ice_trans_state_t {
+  FAILED,
+  CREATED,
+  INITIALIZED,
+  INITIALIZING,
+  HAS_SESSION,
+  CONNECTING,
+  CONNECTED
 };
+
+struct ice_sess_cand_t {
+  ice_cand_type_t type;
+  sockaddr addr;
+  std::string_view foundation;
+  int prio, comp_id;
+};
+
+enum class ice_sess_role_t {
+  PJ_ICE_SESS_ROLE_CONTROLLED,
+  PJ_ICE_SESS_ROLE_CONTROLLING
+};
+
+struct __ice_trans_t {
+  ice_trans_state_t _state;
+  ice_sess_role_t   _role;
+
+  IOQueue *io_queue_p;
+
+  on_data_f       on_data;
+  on_ice_create_f on_ice_create;
+  on_connect_f    on_connect;
+
+  file::io socket;
+};
+
+using ice_trans_t = std::unique_ptr<__ice_trans_t>;
 
 struct creds_t {
   std::string_view ufrag;
@@ -59,7 +87,7 @@ public:
   explicit ICEState(ice_trans_state_t);
 
   /**
-   * ICE stream transport is not created.
+   * ICE stream transport is created.
    */
   bool created() const;
 
@@ -118,9 +146,7 @@ public:
 
   template<class T>
   status_t send(util::FakeContainer<T> data) {
-    auto sock { *ip_addr.to_sockaddr() };
-
-    return pj_ice_strans_sendto(_ice_trans, 1, data.data(), (std::size_t)std::distance(std::begin(data), std::end(data)), &sock, sizeof(sock));
+    return print(_ice_trans->socket, data);
   }
 
   ip_addr_t ip_addr;
@@ -138,7 +164,7 @@ public:
 
   ICETrans() = default;
 
-  explicit ICETrans(const ice_trans_cfg_t &ice_trans_cfg, func_t &&callback);
+  explicit ICETrans(ICETrans::func_t &&callback, IOQueue *io_queue_p);
 
   status_t init_ice(ice_sess_role_t role = ice_sess_role_t::PJ_ICE_SESS_ROLE_CONTROLLED);
   status_t set_role(ice_sess_role_t role);
@@ -160,31 +186,9 @@ public:
   on_connect_f    & on_connect();
 
 private:
-  func_t _ice_cb;
-
   ice_trans_t _ice_trans;
-
-  /*
- * This is the callback that is registered to the ICE stream transport to
- * receive notification about incoming data. By "data" it means application
- * data such as RTP/RTCP, and not packets that belong to ICE signaling (such
- * as STUN connectivity checks or TURN signaling).
- */
-  friend void cb_on_rx_data(pj_ice_strans *,
-                     unsigned comp_id,
-                     void *data, pj_size_t,
-                     const pj_sockaddr_t *,
-                     unsigned);
-
-  /*
- * This is the callback that is registered to the ICE stream transport to
- * receive notification about ICE state progression.
- */
-  friend void cb_on_ice_complete(pj_ice_strans *,
-                          pj_ice_strans_op,
-                          pj_status_t);
 };
 
 }
 
-#endif //T_MAN_ICESTRANS_H
+#endif //T_MAN_ICE_TRANS_H
