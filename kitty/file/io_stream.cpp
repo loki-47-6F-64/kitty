@@ -79,7 +79,7 @@ void io::seal() {
 
 int io::fd() const {
   return _fd;
-};
+}
 
 bool io::is_open() const {
   return _fd != -1;

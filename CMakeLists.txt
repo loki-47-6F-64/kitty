@@ -60,9 +60,14 @@ endif()
 
 set(KITTY_LIBRARIES kitty)
 
+list(APPEND KITTY_COMPILE_OPTIONS -fPIC -Wall -Wno-missing-braces)
+
 string(TOUPPER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
 if("x${BUILD_TYPE}" STREQUAL "xDEBUG")
-  add_definitions( -DKITTY_DEBUG=1 )
+  list(APPEND KITTY_DEFINITIONS -DKITTY_DEBUG=1)
+  list(APPEND KITTY_COMPILE_OPTIONS -O0 -pedantic -ggdb3)
+elseif("x${BUILD_TYPE}" STREQUAL "xRELEASE")
+  list(APPEND KITTY_COMPILE_OPTIONS -O3)
 endif()
 
 if(KITTY_BUILD_SERVER)
@@ -73,8 +78,7 @@ endif()
 if(KITTY_BUILD_SSL)
   find_package(OpenSSL REQUIRED)
   list(APPEND KITTY_EXTERNAL_LIBRARIES ${OPENSSL_LIBRARIES})
-
-  add_definitions( -DKITTY_BUILD_SSL=1 )
+  list(APPEND KITTY_DEFINITIONS -DKITTY_BUILD_SSL=1)
 endif()
 
 if(KITTY_BUILD_BLUETOOTH)
@@ -145,7 +149,7 @@ if(KITTY_BUILD_P2P)
 endif()
 
 if(KITTY_BUILD_P2P_SIM)
-  add_definitions( -DKITTY_P2P_SIM )
+  list(APPEND KITTY_DEFINITIONS -DKITTY_P2P_SIM=1)
 
   kitty_add(p2p/pj_fake)
   kitty_add(p2p)
@@ -154,17 +158,14 @@ endif()
 add_library(kitty STATIC ${KITTY_TARGET_FILES})
 #target_link_libraries(kitty ${CMAKE_THREAD_LIBS_INIT} ${PJSIP_LIBRARIES} ${SQLITE3_LIBRARIES} ${OPENSSL_LIBRARIES} ${BLUEZ_LIBRARIES} stdc++fs)
 target_link_libraries(kitty ${KITTY_EXTERNAL_LIBRARIES})
+target_compile_definitions(kitty PUBLIC ${KITTY_DEFINITIONS})
+set_target_properties(kitty PROPERTIES CXX_STANDARD 17)
 
-set_target_properties(kitty PROPERTIES
-  CXX_STANDARD 17
-  COMPILE_FLAGS "-fPIC -Wall -Wno-missing-braces"
-  CXX_FLAGS_DEBUG "-O0 -pedantic -ggdb3"
-  CXX_FLAGS_RELEASE "-O3"
-)
+target_compile_options(kitty PRIVATE ${KITTY_COMPILE_OPTIONS})
 
 set(KITTY_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR} KITTY_INCLUDE_DIR)
 
-if(KITTY_BUILD_P2P)
+if(KITTY_BUILD_P2P OR KITTY_BUILD_P2P_SIM)
   add_subdirectory(kitty/p2p/bootstrap)
 endif()
 

@@ -1,11 +1,13 @@
 project(KittyBootstrap)
 
-add_executable(kitty-bootstrap bootstrap.cpp)
+if(KITTY_BUILD_P2P_SIM)
+  list(APPEND CMAKE_MODULE_PATH "$ENV{HOME}/.shadow/share/cmake/Modules")
+  include(ShadowTools)
+  add_shadow_plugin(kitty-bootstrap bootstrap.cpp)
+else()
+  add_executable(kitty-bootstrap bootstrap.cpp)
+endif()
 
 target_link_libraries(kitty-bootstrap ${KITTY_LIBRARIES})
-set_target_properties(kitty-bootstrap PROPERTIES
-        CXX_STANDARD 17
-        COMPILE_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -Wall -Wno-missing-braces"
-        CXX_FLAGS_DEBUG "${CMAKE_FLAGS_DEBUG} -O0 -pedantic -ggdb3"
-        CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3"
-        )
+set_target_properties(kitty-bootstrap PROPERTIES CXX_STANDARD 17)
+target_compile_options(kitty-bootstrap PRIVATE ${KITTY_COMPILE_OPTIONS})
