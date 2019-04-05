@@ -55,7 +55,7 @@ public:
    * Run the internal asynchronous pjnath functionality
    * @param max_to
    */
-  void iterate(std::chrono::milliseconds max_to);
+  void iterate(time_t max_to);
 
   /**
    * Create a caching_pool_t

@@ -30,7 +30,7 @@ using status_t        = pj_status_t;
 using bool_t          = pj_bool_t;
 using ssize_t         = pj_ssize_t;
 using str_t           = pj_str_t;
-using time_val_t      = pj_time_val;
+using time_t          = pj_time_val;
 using ice_sess_cand_t = pj_ice_sess_cand;
 using ice_cand_type_t = pj_ice_cand_type;
 using caching_pool_raw    = pj_caching_pool;
@@ -87,13 +87,25 @@ str_t string(const std::string_view &str);
 std::string_view string(const str_t &str);
 
 template<class T1, class T2>
-time_val_t time(const std::chrono::duration<T1,T2> &duration) {
-  return { 0, (long)std::chrono::ceil<std::chrono::milliseconds>(duration).count() };
+time_t time(const std::chrono::duration<T1,T2> &duration) {
+  auto sec  = std::chrono::floor<std::chrono::seconds>(duration);
+
+  std::chrono::milliseconds msec;
+  if(sec > std::chrono::seconds { 0 }) {
+    msec = std::chrono::ceil<std::chrono::milliseconds>(duration % sec);
+  }
+  else {
+    msec = std::chrono::ceil<std::chrono::milliseconds>(duration);
+  }
+
+  return { (long)sec.count(), (long)msec.count() };
 }
 
-std::chrono::milliseconds time(const time_val_t& duration);
-
 std::string err(status_t err_code);
+}
+
+constexpr bool operator < (const p2p::pj::time_t &l, const p2p::pj::time_t &r) {
+  return l.sec < r.sec || (l.sec == r.sec && l.msec < r.msec);
 }
 
 #endif //T_MAN_NATH_H

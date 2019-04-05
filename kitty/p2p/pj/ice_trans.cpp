@@ -33,7 +33,7 @@ void cb_on_rx_data(pj_ice_strans *ice_st,
   std::vector<char> buf;
   func({
     ice_st, {
-      ip_addr_t::from_sockaddr_t(buf, src_addr)
+      ip_addr_t::from_sockaddr(buf, src_addr)
     }},
     std::string_view { (char*)data, size });
 }
@@ -55,7 +55,7 @@ void cb_on_ice_complete(pj_ice_strans *ice_st,
     std::vector<char> buf;
     std::get<2>(funcs)({
       ice_st, {
-        ip_addr_t::from_sockaddr_t(buf, &cand.addr)
+        ip_addr_t::from_sockaddr(buf, &cand.addr)
       }
     }, status);
 
@@ -70,7 +70,7 @@ void cb_on_ice_complete(pj_ice_strans *ice_st,
     std::vector<char> buf;
     std::get<1>(funcs)({
       ice_st, {
-        ip_addr_t::from_sockaddr_t(buf, &cand.addr)
+        ip_addr_t::from_sockaddr(buf, &cand.addr)
       }
     }, status);
 
@@ -88,9 +88,10 @@ constexpr ice_trans_cb_t ice_trans_cb {
 };
 
 ICETrans::ICETrans(const ice_trans_cfg_t &ice_trans_cfg, func_t &&callbacks) : _ice_cb { std::move(callbacks) } {
-
   pj_ice_strans *ptr;
 
+  // The following call causes hangup in shadow simulation
+  // Plausable cause: non-blocking loop in io_queue
   pj_ice_strans_create(nullptr, &ice_trans_cfg, 1, _ice_cb.get(), &ice_trans_cb, &ptr);
 
   _ice_trans.reset(ptr);
@@ -171,9 +172,9 @@ ICETrans::on_connect_f &ICETrans::on_connect() {
   return std::get<2>(*_ice_cb);
 }
 
-ip_addr_t ip_addr_t::from_sockaddr_t(std::vector<char> &buf, const sockaddr_t *const ip_addr) {
+ip_addr_t ip_addr_t::from_sockaddr(std::vector<char> &buf, const sockaddr_t *const ip_addr) {
   buf.resize(INET6_ADDR_STRING_LEN);
-  pj_sockaddr_print(ip_addr, buf.data(), (int)buf.size(), 0);\
+  pj_sockaddr_print(ip_addr, buf.data(), (int)buf.size(), 0);
 
   return ip_addr_t { buf.data(), pj_sockaddr_get_port(ip_addr) };
 }
@@ -189,6 +190,18 @@ std::optional<sockaddr> ip_addr_t::to_sockaddr() {
   }
 
   return result;
+}
+
+std::optional<sockaddr> ip_addr_buf_t::to_sockaddr() {
+  return ((ip_addr_t)*this).to_sockaddr();
+}
+
+ip_addr_buf_t ip_addr_buf_t::from_sockaddr(const sockaddr_t *ip_addr) {
+  char data[INET6_ADDRSTRLEN];
+
+  pj_sockaddr_print(ip_addr, data, INET6_ADDRSTRLEN, 0);
+
+  return ip_addr_buf_t { data, pj_sockaddr_get_port(ip_addr) };
 }
 
 ICECall::ICECall(ice_trans_t::pointer ice_trans, ip_addr_t ip_addr) : ip_addr(ip_addr), _ice_trans(ice_trans) {}

@@ -17,7 +17,7 @@ public:
   TimerHeap() = default;
   TimerHeap(pool_t &pool, ice_trans_cfg_t &ice_trans_cfg);
 
-  unsigned poll(std::chrono::milliseconds &duration);
+  unsigned poll(time_t &duration);
 
   timer_heap_t::pointer raw() const;
 private:

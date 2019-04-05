@@ -17,14 +17,10 @@ timer_heap_t::pointer pj::TimerHeap::raw() const {
   return _timer_heap.get();
 }
 
-unsigned TimerHeap::poll(std::chrono::milliseconds &duration) {
-  auto timeout = time(duration);
+unsigned TimerHeap::poll(time_t &duration) {
+  auto c = pj_timer_heap_poll(_timer_heap.get(), &duration);
 
-  auto c = pj_timer_heap_poll(_timer_heap.get(), &timeout);
-
-  assert(timeout.msec >= 0 && timeout.sec >= 0);
-
-  duration = time(timeout);
+  assert(duration.msec >= 0 && duration.sec >= 0);
 
   return c;
 }

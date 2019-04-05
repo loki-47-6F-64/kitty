@@ -12,6 +12,8 @@
 
 
 namespace p2p::pj {
+using namespace std::literals;
+
 Pool::Pool(caching_pool_t &caching_pool, const char *name) {
   pj_ice_strans_cfg_default(&_ice_cfg);
 
@@ -63,14 +65,15 @@ caching_pool_t Pool::init_caching_pool() {
   return caching_pool_t { std::move(cache) };
 }
 
-void Pool::iterate(std::chrono::milliseconds max_to) {
-  std::chrono::milliseconds milli { 0 };
+void Pool::iterate(time_t max_to) {
+  auto to = time(0ms);
 
-  timer_heap().poll(milli);
+  timer_heap().poll(to);
 
-  milli = std::min(milli, max_to);
+  to = std::min(to, max_to);
 
-  auto c = io_queue().poll(milli);
+  KITTY_DEBUG_LOG("timeout: ["sv, to.sec, ", "sv, to.msec, ']');
+  auto c = io_queue().poll(to);
   if(c < 0) {
     print(error, "Cannot poll io_queue: ", err(get_netos_err()));
 

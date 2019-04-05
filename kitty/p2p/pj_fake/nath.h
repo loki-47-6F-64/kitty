@@ -13,7 +13,6 @@
 #include <kitty/file/tcp.h>
 #include <kitty/util/task_pool.h>
 #include <kitty/file/poll.h>
-#include <pjnath/ice_strans.h>
 
 namespace p2p::pj {
 

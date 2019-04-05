@@ -87,7 +87,7 @@ void dns_resolv_destroy(pj_dns_resolver *ptr) {
   pj_dns_resolver_destroy(ptr, False);
 }
 
-std::chrono::milliseconds time(const time_val_t& duration) {
+std::chrono::milliseconds time(const time_t& duration) {
   return std::chrono::milliseconds(duration.msec) + std::chrono::seconds(duration.sec);
 }
 

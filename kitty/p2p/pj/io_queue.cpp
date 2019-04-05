@@ -18,14 +18,8 @@ io_queue_t::pointer IOQueue::raw() const {
   return _io_queue.get();
 }
 
-int IOQueue::poll(std::chrono::milliseconds &duration) {
-  auto timeout = time(duration);
-
-  auto c = pj_ioqueue_poll(_io_queue.get(), &timeout);
-
-  duration = time(timeout);
-
-  return c;
+status_t IOQueue::poll(time_t &duration) {
+  return pj_ioqueue_poll(_io_queue.get(), &duration);
 }
 
 }

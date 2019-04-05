@@ -25,7 +25,19 @@ using ice_trans_state_t = pj_ice_strans_state;
 
 struct ip_addr_t : public file::ip_addr_t {
   std::optional<sockaddr> to_sockaddr();
-  static ip_addr_t from_sockaddr_t(std::vector<char> &buf, const sockaddr_t* ip_addr);
+  static ip_addr_t from_sockaddr(std::vector<char> &buf, const sockaddr_t* ip_addr);
+};
+
+struct ip_addr_buf_t : public file::ip_addr_buf_t {
+  std::optional<sockaddr> to_sockaddr();
+  static ip_addr_buf_t from_sockaddr(const sockaddr_t* ip_addr);
+
+  operator ip_addr_t() const {
+    return ip_addr_t {
+      ip,
+      port
+    };
+  }
 };
 
 struct creds_t {

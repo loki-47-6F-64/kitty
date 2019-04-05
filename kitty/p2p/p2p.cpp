@@ -199,8 +199,6 @@ std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Al
     auto pipe = std::make_shared<file::stream::pipe_t>();
 
     auto on_data = [pipe](pj::ICECall call, std::string_view data) {
-      KITTY_DEBUG_LOG(call.ip_addr.ip, ':', call.ip_addr.port, " :: ", data);
-
       pipe->push(data);
     };
 
@@ -361,7 +359,7 @@ int p2p::_init_listen(const ::p2p::pj::ip_addr_t &bootstrap, const ::p2p::pj::ip
     auto thread_ptr = ::p2p::pj::register_thread();
 
     _member.auto_run.run([this]() {
-      _member.pool.iterate(_member.poll_to);
+      _member.pool.iterate(::p2p::pj::time(_member.poll_to));
     });
   });
 
