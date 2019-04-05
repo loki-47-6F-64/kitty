@@ -33,12 +33,18 @@ void poll_traits<stream::p2p>::poll(std::vector<poll_t> &polls, std::chrono::mil
                                     const std::function<void(fd_t, poll_result_t)> &f) {
   std::unique_lock ul(_poll_mutex);
 
-  if(!std::any_of(std::begin(polls), std::end(polls), [](auto &poll) { return poll->empty(); })) {
+  if(polls.empty()) {
+    std::this_thread::sleep_for(to);
+
+    return;
+  }
+
+  if(std::all_of(std::begin(polls), std::end(polls), [](poll_t poll) { return poll->empty(); })) {
     _cv.wait_for(ul, to);
   }
 
   ul.unlock();
-  for(auto &poll : polls) {
+  for(poll_t poll : polls) {
     while(!poll->empty()) {
       f(poll, poll_result_t::IN);
     }
