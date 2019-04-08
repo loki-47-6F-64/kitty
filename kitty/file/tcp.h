@@ -39,6 +39,8 @@ struct ip_addr_buf_t {
   }
 };
 
+std::uint16_t sockport(const file::io &sock);
+
 std::vector<file::ip_addr_buf_t> get_broadcast_ips(int family = 0);
 
 io connect(const char *hostname, const char *port);

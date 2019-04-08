@@ -23,8 +23,11 @@ struct answer_t {
     INTERNAL_ERROR
   } reason;
 
+  std::string msg;
   answer_t() = default;
   answer_t(const decltype(reason) &reason) : reason { reason } {}
+  answer_t(std::string &&msg) : reason { INTERNAL_ERROR }, msg { std::move(msg) } {}
+
   std::string_view to_string_view() {
     switch (reason) {
       case ACCEPT:
@@ -34,7 +37,7 @@ struct answer_t {
       case ERROR:
         return "Peer had an error"sv;
       case INTERNAL_ERROR:
-        return err::current();
+        return msg;
     }
 
     /* control never reaches here */
@@ -61,7 +64,7 @@ class quest_t {
 public:
   using accept_cb = std::function<answer_t(uuid_t)>;
 
-  quest_t(accept_cb &&pred, const uuid_t &uuid, std::chrono::milliseconds to = 500ms);
+  quest_t(accept_cb &&pred, const uuid_t &uuid, std::chrono::milliseconds to = 50ms);
 
   //TODO: create destructor to safely destroy autorun
   /**

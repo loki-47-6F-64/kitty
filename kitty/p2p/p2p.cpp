@@ -240,7 +240,7 @@ std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Al
         return;
       }
 
-      guard.failure = false;
+      guard.disable();
 
       if(on_create) {
         on_create(call);
@@ -249,11 +249,10 @@ std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Al
 
     auto on_connect = [this, pipe, &alarm, &peer_uuid] (pj::ICECall call, pj::status_t status) {
       if(status != pj::success) {
-        err::set("failed negotiation");
-
+        //TODO: test that on_connect actually calls with err code as status
         _pending_peer_remove(peer_uuid);
 
-        alarm.ring(answer_t::INTERNAL_ERROR);
+        alarm.ring("failed negotiation: " + pj::err(status));
 
         return;
       }

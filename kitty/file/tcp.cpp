@@ -220,7 +220,7 @@ std::vector<file::ip_addr_buf_t> get_broadcast_ips(int family) {
 
   auto ifaddr = get_ifaddrs();
   for(auto pos = ifaddr.get(); pos != nullptr; pos = pos->ifa_next) {
-    if(pos->ifa_flags & IFF_UP && !(pos->ifa_flags & IFF_LOOPBACK)) {
+    if(pos->ifa_addr && pos->ifa_flags & IFF_UP && !(pos->ifa_flags & IFF_LOOPBACK)) {
       if(
         (family_f[0] && pos->ifa_addr->sa_family == AF_INET) ||
         (family_f[1] && pos->ifa_addr->sa_family == AF_INET6)
@@ -280,5 +280,19 @@ int udp_connect(io &sock, const ip_addr_t &ip_addr) {
   }
 
   return 0;
+}
+
+std::uint16_t sockport(const file::io &sock) {
+  auto sock_fd = sock.getStream().fd();
+
+  sockaddr_storage addr;
+
+  socklen_t size_addr = sizeof(addr);
+  if(getsockname(sock_fd, (::sockaddr*)&addr, &size_addr) < 0) {
+    return {};
+  }
+
+  auto port = util::endian::big(((::sockaddr_in*)&addr)->sin_port);
+  return port;
 }
 }

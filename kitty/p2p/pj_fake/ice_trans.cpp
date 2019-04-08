@@ -4,6 +4,8 @@
 
 #include <kitty/util/set.h>
 #include <kitty/util/move_by_copy.h>
+#include <kitty/server/proxy.h>
+#include <kitty/log/log.h>
 
 #include "ice_trans.h"
 
@@ -61,7 +63,7 @@ int __connect(file::io &socket, const ip_addr_t &ip) {
   return 0;
 }
 
-std::vector<ip_addr_buf_t> sockname(const file::io &sock) {
+std::vector<ip_addr_buf_t> gen_candidates(const file::io &sock) {
   auto sock_fd = sock.getStream().fd();
 
   sockaddr_storage addr;
@@ -81,20 +83,96 @@ std::vector<ip_addr_buf_t> sockname(const file::io &sock) {
   return ip_addrs;
 }
 
-void __start_ice(ip_addr_buf_t &&ip, __ice_trans_t *ice_trans) {
+void __attempt_connection(ip_addr_buf_t &&ip, __ice_trans_t *ice_trans, int tries) {
+  assert(tries >= 0);
+
   ICECall call { ice_trans, ip };
+  auto &socket = ice_trans->socket;
 
-  auto err = __connect(ice_trans->socket, ip);
-  if(err < 0) {
+  auto g = util::fail_guard([&]() {
+    socket.seal();
+
     ice_trans->_state = ice_trans_state_t::FAILED;
-    ice_trans->on_connect(call, (status_t)err::LIB_SYS );
-  }
-  else {
-    ice_trans->_state = ice_trans_state_t::CONNECTED;
-    ice_trans->on_connect(call, success );
+    ice_trans->on_connect(call, (status_t)err::code);
+  });
 
-    ice_trans->io_queue_p->poll.read(ice_trans->socket, connection_t { ice_trans, ip_addr_buf_t { call.ip_addr.ip.data(), call.ip_addr.port } });
+  if(!tries) {
+    err::code = err::TIMEOUT;
+
+    return;
   }
+
+
+  auto ret = socket.getStream().select(0ms, file::READ);
+  if(!ret) {
+    // Data incoming :)
+    __prepend_e type;
+    server::proxy::load(socket, type);
+
+    switch(type) {
+      case __prepend_e::CONNECTING:
+        print(info, ip.ip, ':', ip.port, " received connection attempt");
+
+        if(server::proxy::push(socket, __prepend_e::CONFIRM)) {
+          err::set("Couldn't send confirmation: "s +  err::current());
+
+          return;
+        }
+
+        break;
+      case __prepend_e::CONFIRM:
+        print(info, ip.ip, ':', ip.port, " confirmed connection");
+
+        break;
+      case __prepend_e::DATA:
+        print(info, ip.ip, ':', ip.port, " confirmed connection by way of data");
+
+        ice_trans->_state = ice_trans_state_t::CONNECTED;
+        ice_trans->on_connect(call, success);
+
+        // TODO: check for error
+        std::vector<char> data;
+        if(server::proxy::load(socket, data)) {
+          err::set("Couldn't load data: "s +  err::current());
+
+          return;
+        }
+
+        ice_trans->on_data(call, std::string_view { data.data(), data.size() } );
+
+        connection_t conn { ice_trans, std::move(ip) };
+        ice_trans->io_queue_p->poll.read(socket, std::move(conn));
+
+        g.disable();
+        return;
+    }
+
+    ice_trans->_state = ice_trans_state_t::CONNECTED;
+    ice_trans->on_connect(call, success);
+
+    connection_t conn { ice_trans, std::move(ip) };
+    ice_trans->io_queue_p->poll.read(socket, std::move(conn));
+
+    g.disable();
+    return;
+  }
+
+  else if(ret == err::TIMEOUT) {
+    print(info, "timeout occurred [", tries, "]--> reattempt connection");
+
+    if(server::proxy::push(socket, __prepend_e::CONNECTING)) {
+      err::set("Couldn't send connection attempt: "s + err::current());
+
+      return;
+    }
+
+    ice_trans->io_queue_p->task_pool.pushDelayed(__attempt_connection, 100ms, util::cmove(ip), ice_trans, tries -1);
+
+    g.disable();
+    return;
+  }
+
+  // Error !!
 }
 
 ICETrans::ICETrans(ICETrans::func_t &&callback, IOQueue *io_queue_p) : _ice_trans { std::make_unique<__ice_trans_t>() } {
@@ -155,7 +233,10 @@ status_t ICETrans::start_ice(const remote_t &remote) {
   _ice_trans->_state = ice_trans_state_t::CONNECTING;
 
   auto ip = file::ip_addr_buf_t::from_sockaddr((::sockaddr*)&candidate.addr);
-  _ice_trans->io_queue_p->task_pool.push(__start_ice, util::cmove(ip), _ice_trans.get());
+
+  file::udp_connect(_ice_trans->socket, ip);
+
+  _ice_trans->io_queue_p->task_pool.push(__attempt_connection, util::cmove(ip), _ice_trans.get(), 10);
 
   return 0;
 }
@@ -166,7 +247,10 @@ status_t ICETrans::start_ice(const remote_buf_t &remote) {
   _ice_trans->_state = ice_trans_state_t::CONNECTING;
 
   auto ip = file::ip_addr_buf_t::from_sockaddr((::sockaddr*)&candidate.addr);
-  _ice_trans->io_queue_p->task_pool.push(__start_ice, util::cmove(ip), _ice_trans.get());
+
+  file::udp_connect(_ice_trans->socket, ip);
+
+  _ice_trans->io_queue_p->task_pool.push(__attempt_connection, util::cmove(ip), _ice_trans.get(), 10);
 
   return 0;
 }
@@ -182,7 +266,7 @@ creds_t ICETrans::credentials() {
 std::vector<ice_sess_cand_t> ICETrans::get_candidates(unsigned int comp_cnt) {
   assert(_ice_trans->socket.is_open());
 
-  auto candidates = sockname(_ice_trans->socket);
+  auto candidates = gen_candidates(_ice_trans->socket);
   return util::map(candidates, [](file::ip_addr_buf_t &ip) {
     ice_sess_cand_t cand {};
 
@@ -251,7 +335,10 @@ status_t ICECall::start_ice(const remote_t &remote) {
   _ice_trans->_state = ice_trans_state_t::CONNECTING;
 
   auto ip = file::ip_addr_buf_t::from_sockaddr((::sockaddr*)&candidate.addr);
-  _ice_trans->io_queue_p->task_pool.push(__start_ice, util::cmove(ip), _ice_trans);
+
+  file::udp_connect(_ice_trans->socket, ip);
+
+  _ice_trans->io_queue_p->task_pool.push(__attempt_connection, util::cmove(ip), _ice_trans, 10);
 
   return 0;
 }
@@ -262,7 +349,10 @@ status_t ICECall::start_ice(const remote_buf_t &remote) {
   _ice_trans->_state = ice_trans_state_t::CONNECTING;
 
   auto ip = file::ip_addr_buf_t::from_sockaddr((::sockaddr*)&candidate.addr);
-  _ice_trans->io_queue_p->task_pool.push(__start_ice, util::cmove(ip), _ice_trans);
+
+  file::udp_connect(_ice_trans->socket, ip);
+
+  _ice_trans->io_queue_p->task_pool.push(__attempt_connection, util::cmove(ip), _ice_trans, 10);
 
   return 0;
 }
@@ -278,7 +368,7 @@ ICEState ICECall::get_state() const {
 std::vector<ice_sess_cand_t> ICECall::get_candidates(unsigned int comp_cnt) {
   assert(_ice_trans->socket.is_open());
 
-  auto candidates = sockname(_ice_trans->socket);
+  auto candidates = gen_candidates(_ice_trans->socket);
   return util::map(candidates, [](file::ip_addr_buf_t &ip) {
     ice_sess_cand_t cand {};
 

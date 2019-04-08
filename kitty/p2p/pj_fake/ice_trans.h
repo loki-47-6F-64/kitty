@@ -125,6 +125,12 @@ private:
   ice_trans_state_t _state;
 };
 
+enum class __prepend_e : std::uint16_t {
+  CONNECTING,
+  CONFIRM,
+  DATA
+};
+
 class ICECall {
 public:
   ICECall() = default;
@@ -146,7 +152,7 @@ public:
 
   template<class T>
   status_t send(util::FakeContainer<T> data) {
-    return print(_ice_trans->socket, data);
+    return print(_ice_trans->socket, file::raw(util::endian::little(__prepend_e::DATA)), file::raw(util::endian::little<std::uint16_t>(data.size())), data);
   }
 
   ip_addr_t ip_addr;

@@ -49,9 +49,7 @@ public:
     task_id_t task_id;
     std::future<R> future;
 
-    timer_task_t(task_id_t _task_id, std::future<R> &future) : task_id(_task_id) {
-      this->future.swap(future);
-    }
+    timer_task_t(task_id_t task_id, std::future<R> &future) : task_id { task_id }, future { std::move(future) } {}
   };
 protected:
   std::deque<__task> _tasks;

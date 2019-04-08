@@ -238,13 +238,28 @@ TEST_F(bootstrap_t, peer_connect) {
 }
 
 void p2p_accept_client(server::peer_t &&client) {
+  print(debug, "p2p_accept_client");
   auto &fd = *client.socket;
   if(!fd.is_open()) {
     GTEST_FATAL_FAILURE_("client.socket->is_open() is False");
   }
 
   std::string in;
-  ASSERT_EQ(0, server::proxy::load(fd, in));
+
+  int err { 0 };
+
+  EXPECT_EQ(0, err = server::proxy::push(fd, "hello test!"sv));
+
+  if(err) {
+    print(error, "Couldn't push data: ", err::current());
+  }
+
+  EXPECT_EQ(0, err = server::proxy::load(fd, in));
+
+  if(err) {
+    print(error, "Couldn't load data: ", err::current());
+  }
+
   ASSERT_EQ("hello test!"sv, in);
 }
 
@@ -266,10 +281,18 @@ TEST_F(bootstrap_t, send_msg) {
     return peer_0.start([](auto) {}, { "127.0.0.1", port }, {}, {}, MAX_CONNECTIONS);
   });
 
+  auto g_0 = util::fail_guard([&]() {
+    peer_0.stop();
+  });
+
   auto f_ret_1 = std::async(std::launch::async, [&]() {
     auto t = p2p::pj::register_thread();
 
     return peer_1.start(&p2p_accept_client, { "127.0.0.1", port }, {}, {}, MAX_CONNECTIONS);
+  });
+
+  auto g_1 = util::fail_guard([&]() {
+    peer_1.stop();
   });
 
   while(!peer_1.isRunning()) {
@@ -289,9 +312,18 @@ TEST_F(bootstrap_t, send_msg) {
   // connect peer_0 --> peer_1
   auto p2p_fd = peer_0.get_member().invite(uuid[1]);
 
+  if(std::holds_alternative<p2p::answer_t>(p2p_fd)) {
+    auto answer = std::get<p2p::answer_t>(p2p_fd);
+
+    print(error, "answer: ", answer.to_string_view());
+  }
+
   ASSERT_TRUE(std::holds_alternative<file::p2p>(p2p_fd));
 
-  server::proxy::push(std::get<file::p2p>(p2p_fd), "hello test!"sv);
+  std::string str_in;
+  ASSERT_EQ(0, server::proxy::push(std::get<file::p2p>(p2p_fd), "hello test!"sv));
+  ASSERT_EQ(0, server::proxy::load(std::get<file::p2p>(p2p_fd), str_in));
+  ASSERT_EQ("hello test!"sv, str_in);
 
   peer_0.stop();
   peer_1.stop();

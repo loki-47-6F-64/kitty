@@ -2,6 +2,8 @@
 // Created by loki on 21-3-19.
 //
 
+#include <kitty/server/proxy.h>
+#include <kitty/log/log.h>
 #include "pool.h"
 
 namespace p2p::pj {
@@ -9,14 +11,23 @@ namespace p2p::pj {
 void on_data(file::io &fd, const connection_t&c) {
   ICECall call { c.ice_trans, c.ip_addr };
 
-  auto &cache = fd.get_read_cache();
-  auto bytes_read = fd.getStream().read(cache.cache.get(), cache.capacity);
+  __prepend_e type;
+  server::proxy::load(fd, type);
 
-  if(bytes_read > 0) {
-    c.ice_trans->on_data(call, std::string_view { (const char*)cache.cache.get(), (size_t)bytes_read });
+  switch(type) {
+    case __prepend_e::DATA: {
+      print(info, "received data");
+
+      std::vector<char> data;
+      server::proxy::load(fd, data);
+
+      c.ice_trans->on_data(call, std::string_view { data.data(), data.size() });
+      break;
+    }
+    case __prepend_e::CONNECTING:
+      print(info, c.ip_addr.ip, ':', c.ip_addr.port, " received connection attempt");
+      server::proxy::push(fd, __prepend_e::CONFIRM);
   }
-
-  // TODO: on error
 }
 
 void nothing(file::io &fd, const connection_t&) {}
@@ -52,11 +63,17 @@ ICETrans Pool::ice_trans(Pool::on_data_f &&on_data_recv, Pool::on_ice_create_f &
 }
 
 void Pool::iterate(std::chrono::milliseconds max_to) {
-  while(auto f = io_queue().task_pool.pop()) {
+  auto &task_pool = io_queue().task_pool;
+
+  auto now = std::chrono::steady_clock::now();
+  auto to = std::chrono::floor<std::chrono::milliseconds>(util::either(task_pool.next(), now + max_to) - now);
+
+  to = std::min(to, max_to);
+
+  io_queue().poll.poll(to);
+  if(auto f = io_queue().task_pool.pop()) {
     (*f)->run();
   }
-
-  io_queue().poll.poll();
 }
 
 caching_pool_t Pool::init_caching_pool() {

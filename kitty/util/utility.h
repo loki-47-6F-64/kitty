@@ -131,6 +131,7 @@ public:
     }
   }
 
+  void disable() { failure = false; }
   bool failure { true };
 private:
   T _func;
@@ -227,6 +228,16 @@ std::optional<T> from_hex(const std::string_view &hex) {
 }
 
 template<class T>
+auto enm(const T& val) -> const std::underlying_type_t<T>& {
+  return *reinterpret_cast<const std::underlying_type_t<T>*>(&val);
+}
+
+template<class T>
+auto enm(T& val) -> std::underlying_type_t<T>& {
+  return *reinterpret_cast<std::underlying_type_t<T>*>(&val);
+}
+
+template<class T>
 using Error = Optional<T>;
 
 template<class ReturnType, class ...Args>
@@ -272,6 +283,8 @@ public:
 
   pointer data() { return begin(); }
   const pointer data() const { return cbegin(); }
+
+  std::size_t size() const { return std::distance(begin(), end()); }
 };
 
 template<class T>
@@ -425,6 +438,15 @@ inline std::int64_t from_chars(const char *begin, const char *end) {
   }
 
   return *begin != '-' ? res + (std::int64_t)(*begin - '0') * mul : -res;
+}
+
+template<class T>
+T either(std::optional<T> &&l, T &&r) {
+  if(l) {
+    return std::move(*l);
+  }
+
+  return std::forward<T>(r);
 }
 
 } /* util */

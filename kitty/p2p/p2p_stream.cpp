@@ -75,6 +75,7 @@ std::int64_t p2p::read(std::uint8_t *in, std::size_t size) {
     _pipe->push_front(std::move(*data));
   }
 
+  KITTY_DEBUG_LOG("bytes [", bytes, ']');
   return bytes;
 }
 
@@ -122,7 +123,7 @@ std::optional<std::vector<uint8_t>> pipe_t::pop() {
       auto vec { std::move(_queue.front()) };
       _queue.erase(std::begin(_queue));
 
-      return vec;
+      return std::move(vec);
     }
 
     // wait until data is available
@@ -152,7 +153,7 @@ int pipe_t::select(std::chrono::milliseconds to) {
       return err::OK;
     }
 
-    err::code = err::FILE_CLOSED;
+    err::code = err::TIMEOUT;
     return -1;
   }
 }

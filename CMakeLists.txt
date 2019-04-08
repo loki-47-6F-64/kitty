@@ -39,7 +39,10 @@ if(KITTY_BENCHMARK OR KITTY_TEST)
   set(KITTY_BUILD_BLUETOOTH ON)
   set(KITTY_BUILD_SQLITE3   ON)
   set(KITTY_BUILD_TOPO      ON)
-  set(KITTY_BUILD_P2P       ON)
+
+  if(NOT KITTY_BUILD_P2P_SIM)
+    set(KITTY_BUILD_P2P     ON)
+  endif()
 endif()
 
 
