@@ -10,18 +10,24 @@
 #include <kitty/util/utility.h>
 
 namespace util {
+enum class run_state_e {
+  INIT,
+  RUNNING,
+  CANCEL
+};
+
 template<class T> 
 class AutoRun {
 public:
   typedef T thread;
 private:
-  std::atomic<bool> _is_running;
+  std::atomic<run_state_e> _state;
   thread _loop;
   thread _hangup;
   
   std::chrono::steady_clock::time_point _loop_start;
 public:
-  AutoRun() : _is_running(false), _loop_start() {}
+  AutoRun() : _state(run_state_e::INIT), _loop_start() {}
   
   template<class Start, class Middle, class End, class Hang>
   void run(Start &&start, Middle &&middle, End &&end, Hang &&hang) {
@@ -30,7 +36,7 @@ public:
       
       _loop_start = std::chrono::steady_clock::now();
       _hangup = thread([this](auto &&hangup) {
-        while(_is_running.load()) {
+        while(_state.load() != run_state_e::CANCEL) {
           if(_loop_start + std::chrono::seconds(1) < std::chrono::steady_clock::now()) {
             hangup();
           }
@@ -39,19 +45,26 @@ public:
         }
       }, std::forward<decltype(hang)>(hang));
       
-      _is_running.store(true);
-      while(_is_running.load()) {
+      if(_state.exchange(run_state_e::RUNNING) == run_state_e::CANCEL) {
+        _state.store(run_state_e::INIT);
+
+        return;
+      }
+
+      while(_state.load() != run_state_e::CANCEL) {
         _loop_start = std::chrono::steady_clock::now();
         middle();
       }
       end();
+
+      _state.store(run_state_e::INIT);
     }, std::forward<Start>(start),  std::forward<Middle>(middle),  std::forward<End>(end), std::forward<Hang>(hang));
   }
   
   ~AutoRun() { stop(); }
   
   void stop() {
-    _is_running.store(false);
+    _state.store(run_state_e::CANCEL);
   }
   
   void join() {
@@ -64,16 +77,16 @@ public:
     }
   }
   
-  bool isRunning() { return _is_running.load(); }
+  bool isRunning() const { return _state.load() == run_state_e::RUNNING; }
 };
 
 template<>
 class AutoRun<void> {
-  std::atomic<bool> _is_running;
+  std::atomic<run_state_e> _state;
   
   std::mutex _lock;
 public:
-  AutoRun() : _is_running(false) {}
+  AutoRun() : _state(run_state_e::INIT) {}
 
   
   template<class Start, class Middle, class End>
@@ -81,12 +94,19 @@ public:
     std::lock_guard<std::mutex> lg(_lock);
     
     start();
-    
-    _is_running.store(true);
-    while(_is_running.load()) {
+
+    if(_state.exchange(run_state_e::RUNNING) == run_state_e::CANCEL) {
+      _state.store(run_state_e::INIT);
+
+      return;
+    }
+
+    while(_state.load() != run_state_e::CANCEL) {
       middle();
     }
     end();
+
+    _state.store(run_state_e::INIT);
   }
   
   template<class Middle, class End>
@@ -98,14 +118,14 @@ public:
   ~AutoRun() { stop(); }
   
   void stop() {
-    _is_running.store(false);
+    _state.store(run_state_e::CANCEL);
   }
   
   void join() {
     std::lock_guard<std::mutex> lg(_lock);
   }
 
-  bool isRunning() const { return _is_running.load(); }
+  bool isRunning() const { return _state.load() == run_state_e::RUNNING; }
 };
 
 }
