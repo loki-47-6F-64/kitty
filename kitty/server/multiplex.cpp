@@ -108,12 +108,18 @@ std::variant<err::code_t, multiplex::client_t> multiplex::_accept() {
   auto &sock = _member.mux();
 
   //TODO: reduce timeout to 0
-  auto data = sock.next_batch();
-  auto ip_addr = std::move(sock.getStream().last_read());
+  sockaddr_in6 addr;
+  addr.sin6_family = file::INET6;
+
+  auto data = sock.next_batch((sockaddr*)&addr);
+  auto ip_addr = file::ip_addr_buf_t::from_sockaddr((sockaddr*)&addr);
+
   if(!data) {
     print(error, "Couldn't read multiplexed socket ", ip_addr.ip, ':', ip_addr.port, ": ", err::current());
     return err::code;
   }
+
+  print(info, "received [", data->size(), "] bytes from demultiplexed socket ", ip_addr.ip, ':', ip_addr.port);
 
   TUPLE_2D(pipe, new_item, _member.demux(ip_addr));
   pipe->push(*data);

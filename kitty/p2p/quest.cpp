@@ -86,9 +86,7 @@ void handle_quest(file::io &client) {
 
     if(quest == "invite" || quest == "accept") {
       /* ufrag, upasswd, candidates  */
-      auto raw = load_raw<
-        file::io::stream_t, data::remote_t
-        >(client);
+      auto raw = load_raw<data::remote_t>(client);
 
       if(!raw) {
         // The intended recipient is not on the list
@@ -105,7 +103,7 @@ void handle_quest(file::io &client) {
 
     else if(quest == "decline") {
       auto raw = load_raw<
-        file::io::stream_t, int
+        int
       >(client);
 
       if(!raw) {

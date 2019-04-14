@@ -88,6 +88,10 @@ TEST_F(bootstrap_t, start_stop) {
     return peer.start([](auto){}, { "127.0.0.1", port }, {}, {}, 128);
   });
 
+  auto g = util::fail_guard([&]() {
+    peer.stop();
+  });
+
   while(!peer.isRunning()) {
     auto f_stat = f_ret.wait_for(1ms);
     ASSERT_NE(std::future_status::ready, f_stat);

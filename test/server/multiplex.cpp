@@ -147,22 +147,22 @@ TEST(multiplex, demultiplex) {
   alarm_1.status()->timeout() = 50ms;
   alarm_2.status()->timeout() = 50ms;
 
-  server::proxy::push(sock_0, -1234);
+  ASSERT_EQ(0, server::proxy::push(sock_0, -1234));
   EXPECT_EQ(-1234, file::read_struct<int>(*alarm_0.status()));
   EXPECT_EQ(std::nullopt, file::read_struct<int>(*alarm_1.status()));
   EXPECT_EQ(std::nullopt, file::read_struct<int>(*alarm_2.status()));
 
-  server::proxy::push(sock_1, -1234);
+  ASSERT_EQ(0, server::proxy::push(sock_1, -1234));
   EXPECT_EQ(std::nullopt, file::read_struct<int>(*alarm_0.status()));
   EXPECT_EQ(-1234, file::read_struct<int>(*alarm_1.status()));
   EXPECT_EQ(std::nullopt, file::read_struct<int>(*alarm_2.status()));
 
-  server::proxy::push(*alarm_0.status(), -1234);
+  ASSERT_EQ(0, server::proxy::push(*alarm_0.status(), -1234));
   EXPECT_EQ(-1234, file::read_struct<int>(sock_0));
   EXPECT_EQ(std::nullopt, file::read_struct<int>(sock_1));
   EXPECT_EQ(std::nullopt, file::read_struct<int>(sock_2));
 
-  server::proxy::push(*alarm_1.status(), -1234);
+  ASSERT_EQ(0, server::proxy::push(*alarm_1.status(), -1234));
   EXPECT_EQ(std::nullopt, file::read_struct<int>(sock_0));
   EXPECT_EQ(-1234, file::read_struct<int>(sock_1));
   EXPECT_EQ(std::nullopt, file::read_struct<int>(sock_2));
@@ -205,7 +205,7 @@ TEST(multiplex, close) {
   EXPECT_EQ(0, server::proxy::push(sock_0, "hello test!"sv));
 
   // test for contact
-  EXPECT_TRUE(alarm.wait_for(1s));
+  ASSERT_TRUE(alarm.wait_for(1s));
 
   auto demux { *std::move(alarm.status()) };
   alarm.reset();
@@ -221,6 +221,6 @@ TEST(multiplex, close) {
   EXPECT_EQ(0, server::proxy::push(sock_0, "hello test!"sv));
 
   // test for contact
-  EXPECT_TRUE(alarm.wait_for(1s));
+  ASSERT_TRUE(alarm.wait_for(1s));
 }
 }

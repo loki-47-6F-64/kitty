@@ -31,7 +31,7 @@ bool mux::pipe_t::is_open() const {
 
 template<>
 int mux::pipe_t::send(const std::string_view &data) {
-  return server::__get_sock(*get_member()._multiplex).getStream().write(
+  return server::__get_sock(*get_member()._multiplex).write(
     (std::uint8_t*)data.data(), data.size(), (sockaddr*)&get_member()._sockaddr);
 }
 
@@ -82,13 +82,10 @@ void poll_traits<stream::demultiplex>::remove(const fd_t &fd) {
 }
 
 namespace file::stream {
-std::int64_t multiplex::read(std::uint8_t *data, std::size_t size) {
-  sockaddr_in6 addr;
-  socklen_t addr_size = sizeof(addr);
+std::int64_t multiplex::read(std::uint8_t *data, std::size_t size, sockaddr *peer) {
+  socklen_t addr_size = peer->sa_family == INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
 
-  if(ssize_t bytes_read; (bytes_read = ::recvfrom(fd(), data, size, 0, (sockaddr*)&addr, &addr_size)) > 0) {
-    _last_read_ip = file::ip_addr_buf_t::from_sockaddr((sockaddr*)&addr);
-
+  if(ssize_t bytes_read; (bytes_read = ::recvfrom(fd(), data, size, 0, peer, &addr_size)) > 0) {
     return bytes_read;
   } else if(!bytes_read) {
     seal();
@@ -103,6 +100,11 @@ std::int64_t multiplex::read(std::uint8_t *data, std::size_t size) {
 int multiplex::write(std::uint8_t *data, std::size_t size, sockaddr *dest) {
   socklen_t addr_size = dest->sa_family == file::INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
 
+  ON_DEBUG(
+    auto ip_addr = file::ip_addr_buf_t::from_sockaddr(dest);
+    KITTY_DEBUG_LOG("writing [", size, "] bytes to ", ip_addr.ip, ':', ip_addr.port);
+  )
+
   ssize_t bytes_written = ::sendto(fd(), data, size, 0, dest, addr_size);
   if(bytes_written < 0) {
     err::code = err::LIB_SYS;
@@ -111,10 +113,6 @@ int multiplex::write(std::uint8_t *data, std::size_t size, sockaddr *dest) {
   }
 
   return (int) bytes_written;
-}
-
-ip_addr_buf_t &multiplex::last_read() {
-  return _last_read_ip;
 }
 
 multiplex::multiplex(io &&other) noexcept: io(std::move(other)) {}
@@ -142,7 +140,11 @@ std::int64_t demultiplex::read(std::uint8_t *in, std::size_t size) {
 }
 
 int demultiplex::write(std::uint8_t *out, std::size_t size) {
-  return _pipe->send({(char*)out, size });
+  if(_pipe->send({(char*)out, size })) {
+    return -1;
+  }
+
+  return size;
 }
 
 bool demultiplex::is_open() const {

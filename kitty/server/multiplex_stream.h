@@ -28,21 +28,15 @@ class multiplex : public io {
 public:
   using io::io;
 
-  multiplex(io &&) noexcept;
+  explicit multiplex(io &&) noexcept;
 
-  std::int64_t read(std::uint8_t *data, std::size_t size);
-
+  std::int64_t read(std::uint8_t *data, std::size_t size, sockaddr *peer);
   int write(std::uint8_t *data, std::size_t size, sockaddr *dest);
-
-  ip_addr_buf_t &last_read();
-
-private:
-  ip_addr_buf_t _last_read_ip;
 };
 
 }
 
-using multiplex = FD<stream::multiplex>;
+using multiplex = FD<stream::multiplex, std::tuple<sockaddr*>, std::tuple<sockaddr*>>;
 
 namespace stream {
 namespace mux {

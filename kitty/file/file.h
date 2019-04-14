@@ -51,9 +51,12 @@ struct buffer_in_t {
   }
 };
 
+template<class Stream, class TupleRead = std::tuple<>, class TupleWrite = std::tuple<>>
+class FD;
+
 /* Represents file in memory, storage or socket */
-template <class Stream>
-class FD { /* File descriptor */
+template <class Stream, class... ReadArgs, class... WriteArgs>
+class FD<Stream, std::tuple<ReadArgs...>, std::tuple<WriteArgs...>> { /* File descriptor */
 public:
   using duration_t = std::chrono::milliseconds;
   using stream_t = Stream;
@@ -69,13 +72,15 @@ private:
   std::vector<std::uint8_t> _out;
 
 public:
-  template<class S>
-  FD(FD<S> && other) noexcept : _stream { std::move(other.getStream()) }, _in(std::move(other.get_read_cache())), _out(std::move(other.get_write_cache())) {
-    _timeout = other.timeout();
-  }
+  template<class S, class... R, class... W>
+  FD(FD<S, std::tuple<R...>, std::tuple<W...>> && other) noexcept :
+    _stream { std::move(other.getStream()) },
+    _timeout { other.timeout() },
+    _in(std::move(other.get_read_cache())),
+    _out(std::move(other.get_write_cache())) {}
 
-  template<class S>
-  FD& operator=(FD<S> && other) noexcept {
+  template<class S, class... R, class... W>
+  FD& operator=(FD<S, std::tuple<R...>, std::tuple<W...>> && other) noexcept {
     _stream = std::move(other.getStream());
     std::swap(_in, other.get_read_cache());
     std::swap(_out, other.get_write_cache());
@@ -95,19 +100,20 @@ public:
   stream_t &getStream() { return _stream; }
   const stream_t &getStream() const { return _stream; }
 
-  // Write to file
-  int out() {
+  /**
+   * Directly write to the stream
+   * @return
+   *    -- zero on success
+   *    -- non-zero on failure
+   */
+  int write(uint8_t *data_p, std::size_t data_size, WriteArgs ...args) {
     if(wait_for(WRITE)) {
       // Don't clear cache on timeout
       return -1;
     }
 
-    // On success clear
-    auto data_p    = _out.data();
-    auto data_size = _out.size();
-
     while(data_size) {
-      auto bytes_written = _stream.write(data_p, data_size);
+      auto bytes_written = _stream.write(data_p, data_size, std::forward<WriteArgs>(args)...);
 
       if(bytes_written < 0) {
         return -1;
@@ -122,12 +128,29 @@ public:
     return 0;
   }
 
+  /**
+   * Write cache to stream
+   * @return
+   *    -- zero on success
+   *    -- non-zero on failure
+   */
+  int out(WriteArgs ...args) {
+    auto data_p    = _out.data();
+    auto data_size = _out.size();
+
+    return write(data_p, data_size, std::forward<WriteArgs>(args)...);
+  }
+
   template<class Function>
-  int eachByte(Function &&f, std::uint64_t max = std::numeric_limits<std::uint64_t>::max()) {
+  int eachByte(Function &&f, ReadArgs... args, std::uint64_t max = std::numeric_limits<std::uint64_t>::max()) {
     while(max) {
       if(_end_of_buffer()) {
+        if(wait_for(READ)) {
+          return -1;
+        }
+
         _in.data_p = _in.cache.get();
-        auto bytes_read = _stream.read(_in.data_p, _in.capacity);
+        auto bytes_read = _stream.read(_in.data_p, _in.capacity, std::forward<ReadArgs>(args)...);
         if(bytes_read <= 0) {
           return -1;
         }
@@ -150,10 +173,14 @@ public:
    *  -- std::nullopt on error
    *  -- the view of the cache on success
    */
-  std::optional<std::string_view> next_batch() {
+  std::optional<std::string_view> next_batch(ReadArgs ...args) {
     if(_end_of_buffer()) {
+      if(wait_for(READ)) {
+        return std::nullopt;
+      }
+
       _in.data_p = _in.cache.get();
-      auto bytes_read = _stream.read(_in.data_p, _in.capacity);
+      auto bytes_read = _stream.read(_in.data_p, _in.capacity, std::forward<ReadArgs>(args)...);
       if(bytes_read <= 0) {
         return std::nullopt;
       }
@@ -174,7 +201,7 @@ public:
    * @param size
    * @return 0 on success
    */
-  int read_cached(std::uint8_t *in, std::size_t size) {
+  int read_cached(std::uint8_t *in, std::size_t size, ReadArgs... args) {
     while(size) {
       if(_end_of_buffer()) {
         if(wait_for(READ)) {
@@ -182,7 +209,7 @@ public:
         }
 
         _in.data_p = _in.cache.get();
-        auto bytes_read = _stream.read(_in.data_p, _in.capacity);
+        auto bytes_read = _stream.read(_in.data_p, _in.capacity, std::forward<ReadArgs>(args)...);
         if(bytes_read <= 0) {
           return -1;
         }
@@ -208,7 +235,7 @@ public:
    * @param size
    * @return 0 on success
    */
-  int read(std::uint8_t *in, std::size_t size) {
+  int read(std::uint8_t *in, std::size_t size, ReadArgs... args) {
     // eachByte could have been called --> some bytes might have been cached
     auto cached_bytes = std::min(size, _in.size());
     if(cached_bytes > 0) {
@@ -224,7 +251,7 @@ public:
         return -1;
       }
 
-      auto bytes_read = _stream.read(in, size);
+      auto bytes_read = _stream.read(in, size, std::forward<ReadArgs>(args)...);
 
       /**
        * On EOF --> eof() is true
@@ -371,12 +398,12 @@ private:
   };
 };
 
-template<class T, class Stream>
-std::optional<T> read_struct(FD<Stream> &io) {
+template<class T, class Stream, class...ReadArgs, class...WriteArgs>
+std::optional<T> read_struct(FD<Stream, std::tuple<ReadArgs...>, std::tuple<WriteArgs...>> &io, ReadArgs ...args) {
   constexpr size_t data_len = sizeof(T);
   uint8_t buf[data_len];
 
-  auto err = io.read_cached(buf, data_len);
+  auto err = io.read_cached(buf, std::forward<ReadArgs>(args)..., data_len);
   if(err) {
     return std::nullopt;
   }
@@ -385,11 +412,11 @@ std::optional<T> read_struct(FD<Stream> &io) {
   return *val;
 }
 
-template<class T>
-std::optional<std::string> read_string(FD<T> &io, std::size_t size) {
+template<class T, class...ReadArgs, class...WriteArgs>
+std::optional<std::string> read_string(FD<T, std::tuple<ReadArgs...>, std::tuple<WriteArgs...>> &io, ReadArgs ...args, std::size_t size) {
   std::string buf; buf.resize(size);
 
-  auto err = io.read_cached((std::uint8_t*)buf.data(), size);
+  auto err = io.read_cached((std::uint8_t*)buf.data(), std::forward<ReadArgs>(args)..., size);
 
   if(err) {
     return std::nullopt;
@@ -398,9 +425,9 @@ std::optional<std::string> read_string(FD<T> &io, std::size_t size) {
   return buf;
 }
 
-template<class T>
-std::optional<std::string> read_line(FD<T> &socket, std::string buf = std::string {}) {
-  auto err = socket.eachByte([&buf](std::uint8_t byte) {
+template<class T, class...ReadArgs, class...WriteArgs>
+std::optional<std::string> read_line(FD<T, std::tuple<ReadArgs...>, std::tuple<WriteArgs...>> &io, ReadArgs ...args, std::string buf = std::string {}) {
+  auto err = io.eachByte([&buf](std::uint8_t byte) {
     if(byte == '\r') {
       return err::OK;
     }
@@ -411,7 +438,7 @@ std::optional<std::string> read_line(FD<T> &socket, std::string buf = std::strin
     buf += byte;
 
     return err::OK;
-  });
+  }, std::forward<ReadArgs>(args)...);
 
   if(err) {
     return std::nullopt;
@@ -434,8 +461,8 @@ static constexpr bool __has_lock_v = std::decay_t<decltype(__test_stream_has_loc
 /*
  * First clear file, then recursively print all params
  */
-template<class Stream, class... Args>
-int print(file::FD<Stream> &file, Args && ... params) {
+template<class Stream, class... ReadArgs, class... WriteArgs, class... Args>
+int print(file::FD<Stream, std::tuple<ReadArgs...>, std::tuple<WriteArgs...>> &file, WriteArgs... write_args, Args && ... params) {
   assert(file.is_open());
 
   if constexpr (file::__has_lock_v<Stream>) {
@@ -444,14 +471,14 @@ int print(file::FD<Stream> &file, Args && ... params) {
 
     (file.append(std::forward<Args>(params)),...);
 
-    return file.out();
+    return file.out(std::forward<WriteArgs>(write_args)...);
   }
   else {
     file.write_clear();
 
     (file.append(std::forward<Args>(params)), ...);
 
-    return file.out();
+    return file.out(std::forward<WriteArgs>(write_args)...);
   }
 }
 #endif
