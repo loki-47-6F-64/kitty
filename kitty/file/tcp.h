@@ -8,6 +8,7 @@ namespace file {
 constexpr sa_family_t INET  = AF_INET;
 constexpr sa_family_t INET6 = AF_INET6;
 
+class ip_addr_buf_t;
 struct ip_addr_t {
   std::string_view ip;
   std::uint16_t port;
@@ -17,6 +18,12 @@ struct ip_addr_t {
 
   static ip_addr_t from_sockaddr(std::vector<char> &buf, const sockaddr *);
   std::optional<sockaddr_storage> to_sockaddr() const;
+
+  bool operator==(const file::ip_addr_t &r) const {
+    return ip == r.ip && port == r.port;
+  }
+
+  bool operator==(const file::ip_addr_buf_t &r);
 };
 
 struct ip_addr_buf_t {
@@ -28,6 +35,7 @@ struct ip_addr_buf_t {
     return ((ip_addr_t)*this).pack();
   }
 
+  static ip_addr_buf_t from_ip_addr(const ip_addr_t &ip_addr);
   static ip_addr_buf_t from_sockaddr(const sockaddr *);
   std::optional<sockaddr_storage> to_sockaddr() const;
 
@@ -37,11 +45,19 @@ struct ip_addr_buf_t {
       port
     };
   }
+
+  bool operator==(const file::ip_addr_t &r) const {
+    return ip == r.ip && port == r.port;
+  }
+
+  bool operator==(const file::ip_addr_buf_t &r) const {
+    return ip == r.ip && port == r.port;
+  }
 };
 
 std::uint16_t sockport(const file::io &sock);
 
-std::vector<file::ip_addr_buf_t> get_broadcast_ips(int family = 0);
+std::vector<file::ip_addr_buf_t> get_broadcast_ips(std::uint16_t port = 0, int family = 0);
 
 io connect(const char *hostname, const char *port);
 io connect(const ip_addr_t &ip_addr);
@@ -52,4 +68,29 @@ int udp_connect(io &sock, const ip_addr_t &ip_addr);
 io udp(const ip_addr_t &ip_addr, std::optional<std::uint16_t> port = std::nullopt);
 }
 
+namespace std {
+template<>
+struct hash<file::ip_addr_t> {
+  using is_transparent = std::true_type;
+
+  size_t operator()(const file::ip_addr_t &ip) const {
+    auto url = std::string { ip.ip.data(), ip.ip.size() } + to_string(ip.port);
+
+    return hash<decltype(url)>()(url);
+  }
+};
+
+template<>
+struct hash<file::ip_addr_buf_t> {
+  using is_transparent = std::true_type;
+
+  size_t operator()(const file::ip_addr_t &ip) const {
+    return hash<file::ip_addr_t>()(ip);
+  }
+
+  size_t operator()(const file::ip_addr_buf_t &ip) const {
+    return hash<file::ip_addr_t>()(ip);
+  }
+};
+}
 #endif

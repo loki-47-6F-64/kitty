@@ -18,8 +18,10 @@ ssl::ssl(Context &ctx, int fd) : _eof(false), _ssl(SSL_new(ctx.get())) {
   SSL_set_fd(_ssl.get(), fd);
 }
 
+ssl::ssl(ssl &&other) noexcept : _eof { other._eof }, _ssl { std::move(other._ssl) } {}
+
 ssl& ssl::operator=(ssl&& stream) noexcept {
-  std::swap(_eof,stream._eof);
+  std::swap(_eof, stream._eof);
   
   _ssl = std::move(stream._ssl);
 

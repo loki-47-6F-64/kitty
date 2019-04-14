@@ -63,7 +63,7 @@ endif()
 
 set(KITTY_LIBRARIES kitty)
 
-list(APPEND KITTY_COMPILE_OPTIONS -fPIC -Wall -Wno-missing-braces)
+list(APPEND KITTY_COMPILE_OPTIONS -fPIC -Wall -Wno-missing-braces -Wno-maybe-uninitialized)
 
 string(TOUPPER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
 if("x${BUILD_TYPE}" STREQUAL "xDEBUG")
@@ -96,6 +96,14 @@ if(KITTY_BUILD_P2P)
   list(APPEND KITTY_EXTERNAL_LIBRARIES ${PJSIP_LIBRARIES})
 endif()
 
+if(KITTY_BUILD_P2P OR KITTY_BUILD_P2P_SIM)
+  if(NOT DEFINED MINIUPNP_INCLUDE_DIRS OR NOT DEFINED MINIUPNP_LIBRARIES)
+    message(FATAL_ERROR "Please specify the root to miniupnp -- \${MINIUPNP_INCLUDE_DIRS} and \${MINIUPNP_LIBRARIES}")
+  endif()
+
+  list(APPEND KITTY_EXTERNAL_LIBRARIES ${MINIUPNP_LIBRARIES})
+endif()
+
 if(KITTY_BUILD_SQLITE3)
   if(NOT DEFINED SQLITE3_INCLUDE_DIRS OR NOT DEFINED SQLITE3_LIBRARIES)
     message(FATAL_ERROR "Please specify the root to sqlite3 -- \${SQLITE3_INCLUDE_DIRS} and \${SQLITE3_LIBRARIES}")
@@ -114,6 +122,7 @@ include_directories(
   ${BLUEZ_INCLUDE_DIRS}
   ${PJSIP_INCLUDE_DIRS}
   ${SQLITE3_INCLUDE_DIRS}
+  ${MINIUPNP_INCLUDE_DIRS}
 )
 
 macro(kitty_add dir)
@@ -149,6 +158,7 @@ endif()
 if(KITTY_BUILD_P2P)
   kitty_add(p2p/pj)
   kitty_add(p2p)
+  kitty_add(p2p/upnp)
 endif()
 
 if(KITTY_BUILD_P2P_SIM)
@@ -156,6 +166,7 @@ if(KITTY_BUILD_P2P_SIM)
 
   kitty_add(p2p/pj_fake)
   kitty_add(p2p)
+  kitty_add(p2p/upnp)
 endif()
 
 add_library(kitty STATIC ${KITTY_TARGET_FILES})

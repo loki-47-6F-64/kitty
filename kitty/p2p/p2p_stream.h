@@ -12,51 +12,27 @@
 #include <bitset>
 #include <kitty/file/file.h>
 #include <kitty/file/poll.h>
+#include <kitty/file/pipe.h>
 #include <kitty/p2p/config.h>
 #include <kitty/p2p/uuid.h>
 
 namespace file::stream {
 
-class pipe_t {
-public:
-  int select(std::chrono::milliseconds to);
+namespace pj {
 
-  /**
-   * blocking
-   * @return the next data buffer from the queue
-   */
-  std::optional<std::vector<uint8_t>> pop();
+struct __member_t {
+  KITTY_DEFAULT_CONSTR(__member_t)
 
-  bool empty();
-
-  void push_front(std::vector<std::uint8_t> &&buf);
-  void push(std::string_view data);
-
-  void set_call(::p2p::pj::ICECall call);
-  ::p2p::pj::ICECall &get_call();
-
-  void seal();
-  bool is_open() const;
-
-  bool polled = false;
-private:
-  bool _open   = false;
-
-  ::p2p::pj::ICECall _call;
-
-  std::vector<std::vector<uint8_t>> _queue;
-
-  std::condition_variable _cv;
-  std::mutex _queue_mutex;
-
-  static std::condition_variable _cv_poll;
-  static std::mutex _poll_mutex;
+  bool open = false;
+  ::p2p::pj::ICECall call;
 };
+using pipe_t = pipe_t<__member_t>;
+}
 
 class p2p {
 public:
   p2p() = default;
-  explicit p2p(std::shared_ptr<pipe_t> bridge);
+  explicit p2p(std::shared_ptr<pj::pipe_t> bridge);
 
   p2p(p2p &&) noexcept = default;
   p2p& operator =(p2p&& stream) noexcept = default;
@@ -71,9 +47,9 @@ public:
 
   void seal();
 
-  pipe_t *fd() const;
+  pj::pipe_t *fd() const;
 private:
-  std::shared_ptr<pipe_t> _pipe;
+  std::shared_ptr<pj::pipe_t> _pipe;
 };
 }
 namespace file {
@@ -89,23 +65,22 @@ template<>
 class poll_traits<stream::p2p> {
 public:
   using stream_t = stream::p2p;
-  using fd_t     = stream::pipe_t *;
-  using poll_t   = stream::pipe_t *;
+  using fd_t     = stream::pj::pipe_t *;
+  using poll_t   = stream::pj::pipe_t *;
 
-  static fd_t fd(const stream_t &stream);
-  static fd_t fd(const poll_t &p);
+  fd_t fd(const stream_t &stream);
+  fd_t fd(const poll_t &p);
 
-  static poll_t read(const stream_t &stream);
+  poll_t read(const stream_t &stream);
 
-  static void remove(const fd_t &);
+  void remove(const fd_t &);
 
-  static void poll(
+  int poll(
     std::vector<poll_t> &polls,
     std::chrono::milliseconds to,
     const std::function<void(fd_t, poll_result_t)> &f);
 
-  static std::condition_variable _cv;
-  static std::mutex _poll_mutex;
+  std::unique_ptr<util::Alarm<bool>> poll_alarm;
 };
 }
 

@@ -11,7 +11,7 @@
 using namespace std::literals;
 
 namespace kitty::test {
-static std::uint16_t port { 4345 };
+static std::uint16_t port { 1345 };
 
 struct bootstrap_t : testing::Test {
   util::AutoRun<void> auto_run;
@@ -34,8 +34,12 @@ struct bootstrap_t : testing::Test {
     };
 
     auto_run_thread = std::thread([&]() {
-      auto_run.run([]() {
-        p2p::bootstrap::poll().poll(500ms);
+      auto_run.run([&]() {
+        if(p2p::bootstrap::poll().poll(500ms)) {
+          print(error, "Couldn't poll: ", err::current());
+
+          auto_run.stop();
+        }
       });
     });
   }
@@ -86,9 +90,7 @@ TEST_F(bootstrap_t, start_stop) {
 
   while(!peer.isRunning()) {
     auto f_stat = f_ret.wait_for(1ms);
-    if(f_stat == std::future_status::ready) {
-      break;
-    }
+    ASSERT_NE(std::future_status::ready, f_stat);
   }
 
   peer.stop();
@@ -151,21 +153,24 @@ TEST_F(bootstrap_t, peer_connect) {
   while(!peer_2.isRunning()) {
     auto f_stat = f_ret_2.wait_for(1ms);
     if(f_stat == std::future_status::ready) {
-      break;
+      FAIL();
+      return;
     }
   }
 
   while(!peer_1.isRunning()) {
     auto f_stat = f_ret_1.wait_for(1ms);
     if(f_stat == std::future_status::ready) {
-      break;
+      FAIL();
+      return;
     }
   }
 
   while(!peer_0.isRunning()) {
     auto f_stat = f_ret_0.wait_for(1ms);
     if(f_stat == std::future_status::ready) {
-      break;
+      FAIL();
+      return;
     }
   }
 

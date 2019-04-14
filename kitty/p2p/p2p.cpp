@@ -196,7 +196,7 @@ std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Al
                                                std::function<void(pj::ICECall)> &&on_create) {
 
   if(_pending_peers.size() < max_peers && _pending_peers.find(peer_uuid) == std::end(_pending_peers)) {
-    auto pipe = std::make_shared<file::stream::pipe_t>();
+    auto pipe = std::make_shared<file::stream::pj::pipe_t>();
 
     auto on_data = [pipe](pj::ICECall call, std::string_view data) {
       pipe->push(data);
@@ -257,7 +257,11 @@ std::optional<file::p2p> quest_t::_peer_create(const uuid_t &peer_uuid, util::Al
         return;
       }
 
-      pipe->set_call(call);
+      pipe->mod_member([&call](auto &member) {
+        member.call = call;
+        member.open = true;
+      });
+
       alarm.ring(answer_t::ACCEPT);
     };
 
@@ -333,6 +337,14 @@ _ice_trans { std::move(ice_trans) }, _alarm { alarm } {}
 namespace server {
 
 template<>
+void p2p::_cleanup() {
+  if(_member.auto_run.isRunning()) {
+    _member.auto_run.stop();
+    _member.auto_run_thread.join();
+  }
+}
+
+template<>
 int p2p::_init_listen(const ::p2p::pj::ip_addr_t &bootstrap, const ::p2p::pj::ip_addr_t &stun, const std::vector<std::string_view> &dns, std::size_t max_peers) {
   _member.pool = ::p2p::pj::Pool { ::p2p::caching_pool, "Loki-ICE" };
 
@@ -358,11 +370,20 @@ int p2p::_init_listen(const ::p2p::pj::ip_addr_t &bootstrap, const ::p2p::pj::ip
     auto thread_ptr = ::p2p::pj::register_thread();
 
     _member.auto_run.run([this]() {
-      _member.pool.iterate(::p2p::pj::time(_member.poll_to));
+      if(_member.pool.iterate(::p2p::pj::time(_member.poll_to))) {
+        print(error, "Couldn't iterate pool: ", err::current());
+      }
     });
   });
 
-  return _member.send_register();
+  auto err = _member.send_register();
+  if(err) {
+    _cleanup();
+
+    return -1;
+  }
+
+  return 0;
 }
 
 template<>
@@ -399,13 +420,5 @@ std::variant<err::code_t, p2p::client_t> p2p::_accept() {
   }
 
   return err::OK;
-}
-
-template<>
-void p2p::_cleanup() {
-  if(_member.auto_run.isRunning()) {
-    _member.auto_run.stop();
-    _member.auto_run_thread.join();
-  }
 }
 }

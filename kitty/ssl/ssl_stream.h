@@ -18,6 +18,7 @@ public:
   _SSL _ssl;
 
   ssl();
+  ssl(ssl &&) noexcept;
   ssl(Context &ctx, int fd);
 
   ssl& operator=(ssl&& stream) noexcept;

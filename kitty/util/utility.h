@@ -1,6 +1,7 @@
 #ifndef UTILITY_H
 #define UTILITY_H
 
+#include <variant>
 #include <vector>
 #include <memory>
 #include <type_traits>
@@ -13,6 +14,21 @@
 #include <kitty/err/err.h>
 #include <kitty/util/literal.h>
 
+#define KITTY_DEFAULT_CONSTR(x)\
+  x(x&&) noexcept = default;\
+  x&operator=(x&&) noexcept = default;\
+  x() = default;
+
+#define KITTY_DEFAULT_CONSTR_THROW(x)\
+  x(x&&) = default;\
+  x&operator=(x&&) = default;\
+  x() = default;
+
+#define TUPLE_2D(a,b, expr)\
+  auto a##b { expr };\
+  auto &a = std::get<0>(a##b);\
+  auto &b = std::get<1>(a##b)
+
 namespace util {
 
 template<class T>
@@ -22,7 +38,7 @@ public:
   using status_t = either_t<std::is_same_v<T, bool>, bool, either_t<std::is_pointer_v<T>, T, std::optional<T>>>;
 
   template<class... Args>
-  Alarm() : _ul { _lock, std::defer_lock_t() }, _status { literal::false_v<status_t> } {}
+  Alarm() : _status { literal::false_v<status_t> } {}
 
   void ring(const status_t &status) {
     std::lock_guard lg(_lock);
@@ -40,59 +56,41 @@ public:
 
   template<class Rep, class Period>
   auto wait_for(const std::chrono::duration<Rep, Period>& rel_time) {
-    _ul.lock();
+    std::unique_lock ul(_lock);
 
-    auto ret = _cv.wait_for(_ul, rel_time, [this]() { return (bool)status(); });
-
-    _ul.unlock();
-
-    return ret;
+    return _cv.wait_for(ul, rel_time, [this]() { return (bool)status(); });
   }
 
   template<class Rep, class Period, class Pred>
   auto wait_for(const std::chrono::duration<Rep, Period>& rel_time, Pred &&pred) {
-    _ul.lock();
+    std::unique_lock ul(_lock);
 
-    auto ret = _cv.wait_for(_ul, rel_time, [this, &pred]() { return (bool)status() || pred(); });
-
-    _ul.unlock();
-
-    return ret;
+    return _cv.wait_for(ul, rel_time, [this, &pred]() { return (bool)status() || pred(); });
   }
 
   template<class Rep, class Period>
   auto wait_until(const std::chrono::duration<Rep, Period>& rel_time) {
-    _ul.lock();
+    std::unique_lock ul(_lock);
 
-    auto ret = _cv.wait_until(_ul, rel_time, [this]() { return (bool)status(); });
-
-    _ul.unlock();
-
-    return ret;
+    return _cv.wait_until(ul, rel_time, [this]() { return (bool)status(); });
   }
 
   template<class Rep, class Period, class Pred>
   auto wait_until(const std::chrono::duration<Rep, Period>& rel_time, Pred &&pred) {
-    _ul.lock();
+    std::unique_lock ul(_lock);
 
-    auto ret = _cv.wait_until(_ul, rel_time, [this, &pred]() { return (bool)status() || pred(); });
-
-    _ul.unlock();
-
-    return ret;
+    return _cv.wait_until(ul, rel_time, [this, &pred]() { return (bool)status() || pred(); });
   }
 
   auto wait() {
-    _ul.lock();
-    _cv.wait(_ul, [this]() { return (bool)status(); });
-    _ul.unlock();
+    std::unique_lock ul(_lock);
+    _cv.wait(ul, [this]() { return (bool)status(); });
   }
 
   template<class Pred>
   auto wait(Pred &&pred) {
-    _ul.lock();
-    _cv.wait(_ul, [this, &pred]() { return (bool)status() || pred(); });
-    _ul.unlock();
+    std::unique_lock ul(_lock);
+    _cv.wait(ul, [this, &pred]() { return (bool)status() || pred(); });
   }
 
   const status_t &status() const {
@@ -108,8 +106,6 @@ public:
   }
 private:
   std::mutex _lock;
-  std::unique_lock<std::mutex> _ul;
-
   std::condition_variable _cv;
 
   status_t _status;
@@ -445,6 +441,35 @@ inline std::int64_t from_chars(const char *begin, const char *end) {
 
   return *begin != '-' ? res + (std::int64_t)(*begin - '0') * mul : -res;
 }
+
+template<class X, class Y>
+class Either : public std::variant<X, Y> {
+public:
+  using std::variant<X, Y>::variant;
+
+  constexpr bool has_left() const {
+    return std::holds_alternative<X>(*this);
+  }
+  constexpr bool has_right() const {
+    return std::holds_alternative<Y>(*this);
+  }
+
+  X &left() {
+    return std::get<X>(*this);
+  }
+
+  Y &right() {
+    return std::get<Y>(*this);
+  }
+
+  const X &left() const {
+    return std::get<X>(*this);
+  }
+
+  const Y &right() const {
+    return std::get<Y>(*this);
+  }
+};
 
 template<class T>
 T either(std::optional<T> &&l, T &&r) {

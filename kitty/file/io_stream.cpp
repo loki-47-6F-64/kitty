@@ -89,8 +89,7 @@ bool io::eof() const {
   return _eof;
 }
 
-io::io(io &&other) noexcept {
-  _fd = other._fd;
+io::io(io &&other) noexcept : _eof { other._eof }, _fd { other._fd } {
   other._fd = -1;
 }
 

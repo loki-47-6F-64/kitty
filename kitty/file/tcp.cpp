@@ -132,6 +132,10 @@ std::optional<sockaddr_storage> ip_addr_t::to_sockaddr() const {
   return buf;
 }
 
+bool ip_addr_t::operator==(const file::ip_addr_buf_t &r) {
+  return ip == r.ip && port == r.port;
+}
+
 ip_addr_buf_t ip_addr_buf_t::unpack(std::tuple<std::uint32_t, std::uint16_t> ip_addr) {
   char data[INET_ADDRSTRLEN];
 
@@ -189,6 +193,10 @@ std::optional<sockaddr_storage> ip_addr_buf_t::to_sockaddr() const {
   return buf;
 }
 
+ip_addr_buf_t ip_addr_buf_t::from_ip_addr(const ip_addr_t &ip_addr) {
+  return ip_addr_buf_t { std::string { ip_addr.ip.data(), ip_addr.ip.size() }, ip_addr.port };
+}
+
 using ifaddr_t = util::safe_ptr<ifaddrs, freeifaddrs>;
 
 ifaddr_t get_ifaddrs() {
@@ -199,7 +207,7 @@ ifaddr_t get_ifaddrs() {
   return ifaddr_t { p };
 }
 
-std::vector<file::ip_addr_buf_t> get_broadcast_ips(int family) {
+std::vector<file::ip_addr_buf_t> get_broadcast_ips(std::uint16_t port, int family) {
   std::bitset<2> family_f {};
 
   if(family == 0) {
@@ -226,6 +234,7 @@ std::vector<file::ip_addr_buf_t> get_broadcast_ips(int family) {
         (family_f[1] && pos->ifa_addr->sa_family == AF_INET6)
         ){
 
+        ((sockaddr_in6*)pos->ifa_addr)->sin6_port = util::endian::big(port);
         ip_addrs.emplace_back(file::ip_addr_buf_t::from_sockaddr(pos->ifa_addr));
       }
     }
@@ -258,6 +267,13 @@ io udp_init(std::optional<uint16_t> port) {
 
   if(port) {
     in_addr.sin_port = util::endian::big(*port);
+  }
+
+  // Allow reuse of local addresses
+  if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &sock, sizeof(sock))) {
+    err::code = err::LIB_SYS;
+
+    return {};
   }
 
   if(bind(sock, (sockaddr*)&in_addr, sizeof(sockaddr)) < 0) {

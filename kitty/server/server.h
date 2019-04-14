@@ -26,7 +26,7 @@ util::ThreadPool &tasks();
 template<class T, class... InitArgs>
 class Server {
 public:
-  using client_t  = T;
+  using client_t = T;
   using member_t = typename client_t::member_t;
 
 private:

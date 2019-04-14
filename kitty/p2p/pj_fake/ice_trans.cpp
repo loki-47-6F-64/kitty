@@ -63,26 +63,6 @@ int __connect(file::io &socket, const ip_addr_t &ip) {
   return 0;
 }
 
-std::vector<ip_addr_buf_t> gen_candidates(const file::io &sock) {
-  auto sock_fd = sock.getStream().fd();
-
-  sockaddr_storage addr;
-
-  socklen_t size_addr = sizeof(addr);
-  if(getsockname(sock_fd, (::sockaddr*)&addr, &size_addr) < 0) {
-    return {};
-  }
-
-  auto ip_addrs = file::get_broadcast_ips(file::INET);
-
-  auto port = util::endian::big(((::sockaddr_in*)&addr)->sin_port);
-  for(auto &ip_addr : ip_addrs) {
-    ip_addr.port = port;
-  }
-
-  return ip_addrs;
-}
-
 void __attempt_connection(ip_addr_buf_t &&ip, __ice_trans_t *ice_trans, int tries) {
   assert(tries >= 0);
 
@@ -266,7 +246,7 @@ creds_t ICETrans::credentials() {
 std::vector<ice_sess_cand_t> ICETrans::get_candidates(unsigned int comp_cnt) {
   assert(_ice_trans->socket.is_open());
 
-  auto candidates = gen_candidates(_ice_trans->socket);
+  auto candidates = file::get_broadcast_ips(file::sockport(_ice_trans->socket));
   return util::map(candidates, [](file::ip_addr_buf_t &ip) {
     ice_sess_cand_t cand {};
 
@@ -368,7 +348,7 @@ ICEState ICECall::get_state() const {
 std::vector<ice_sess_cand_t> ICECall::get_candidates(unsigned int comp_cnt) {
   assert(_ice_trans->socket.is_open());
 
-  auto candidates = gen_candidates(_ice_trans->socket);
+  auto candidates = file::get_broadcast_ips(file::sockport(_ice_trans->socket));
   return util::map(candidates, [](file::ip_addr_buf_t &ip) {
     ice_sess_cand_t cand {};
 

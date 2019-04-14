@@ -62,7 +62,7 @@ ICETrans Pool::ice_trans(Pool::on_data_f &&on_data_recv, Pool::on_ice_create_f &
   };
 }
 
-void Pool::iterate(std::chrono::milliseconds max_to) {
+int Pool::iterate(std::chrono::milliseconds max_to) {
   auto &task_pool = io_queue().task_pool;
 
   auto now = std::chrono::steady_clock::now();
@@ -70,10 +70,15 @@ void Pool::iterate(std::chrono::milliseconds max_to) {
 
   to = std::min(to, max_to);
 
-  io_queue().poll.poll(to);
+  if(io_queue().poll.poll(to)) {
+    return -1;
+  }
+
   if(auto f = io_queue().task_pool.pop()) {
     (*f)->run();
   }
+
+  return 0;
 }
 
 caching_pool_t Pool::init_caching_pool() {

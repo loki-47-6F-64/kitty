@@ -43,9 +43,13 @@ void handle_register(file::io &client, const uuid_t &sender) {
 
     poll().read(it.first->second, sender);
 
-    push(it.first->second, "register"sv, util::map(peers(), [](auto &el) {
+    auto err = push(it.first->second, "register"sv, util::map(peers(), [](auto &el) {
       return el.first;
     }));
+
+    if(err) {
+      print(error, "Couldn't push [register]: ", err::current());
+    }
   }
 }
 
@@ -94,7 +98,9 @@ void handle_quest(file::io &client) {
         return;
       }
 
-      push(peer->second, to, from, quest, file::raw(*raw));
+      if(push(peer->second, to, from, quest, file::raw(*raw))) {
+        print(error, "Couldn't push [", quest, "]: ", err::current());
+      }
     }
 
     else if(quest == "decline") {
@@ -110,7 +116,9 @@ void handle_quest(file::io &client) {
         return;
       }
 
-      push(peer->second, to, from, quest, file::raw(*raw));
+      if(push(peer->second, to, from, quest, file::raw(*raw))) {
+        print(error, "Couldn't push [", quest, "]: ", err::current());
+      }
     }
   }
 

@@ -36,27 +36,27 @@ public:
   using fd_t     = int;
   using poll_t   = pollfd;
 
-  static fd_t fd(const stream_t &t) {
+  fd_t fd(const stream_t &t) {
     return t.fd();
   }
 
-  static fd_t fd(const poll_t &p) {
+  fd_t fd(const poll_t &p) {
     return p.fd;
   }
 
-  static poll_t read(const stream_t &stream) {
+  poll_t read(const stream_t &stream) {
     return { stream.fd(), KITTY_POLLIN, 0 };
   }
 
-  static poll_t write(const stream_t &stream) {
+  poll_t write(const stream_t &stream) {
     return { stream.fd(), KITTY_POLLOUT, 0 };
   }
 
-  static poll_t read_write(const stream_t &stream) {
+  poll_t read_write(const stream_t &stream) {
     return { stream.fd(), KITTY_POLLIN | KITTY_POLLOUT, 0 };
   }
 
-  static void poll(
+  int poll(
     std::vector<poll_t> &polls,
     std::chrono::milliseconds to,
     const std::function<void(fd_t, poll_result_t)> &f) {
@@ -65,7 +65,7 @@ public:
     if(polls.empty()) {
       std::this_thread::sleep_for(to);
 
-      return;
+      return 0;
     }
 
     auto res = ::poll(polls.data(), polls.size(), to.count());
@@ -84,7 +84,15 @@ public:
           f(poll.fd, poll_result_t::OUT);
         }
       }
+
+      return 0;
     }
+
+    if(res == 0) {
+      return 0;
+    }
+
+    return -1;
   }
 };
 
@@ -117,7 +125,7 @@ private:
 
   template<bool V>
   inline std::enable_if_t<V> __poll_traits_remove_helper(__fd_t fd) {
-    poll_traits<__stream_t>::remove(fd);
+    _poll_traits.remove(fd);
   }
 
   template<bool V>
@@ -129,7 +137,7 @@ private:
 public:
   using func_t = util::either_t<std::is_same_v<std::monostate, user_t>,
     std::function<void(file_t &file)>,
-    std::function<void(file_t &file, user_t)>
+    std::function<void(file_t &file, user_t&)>
     >;
 
   template<class FR, class FW, class FH>
@@ -169,21 +177,21 @@ public:
 
   void read(file_t &fd, user_t user_val) {
     std::lock_guard<std::mutex> lg(_mutex_add);
-    _queue_add.emplace_back(user_val, &fd, poll_traits<__stream_t>::read(fd.getStream()));
+    _queue_add.emplace_back(std::move(user_val), &fd, _poll_traits.read(fd.getStream()));
   }
 
   void write(file_t &fd, user_t user_val) {
     static_assert(__has_write_v, "poll_traits::write(stream_t&) is not defined.");
 
     std::lock_guard<std::mutex> lg(_mutex_add);
-    _queue_add.emplace_back(user_val, &fd, poll_traits<__stream_t>::write(fd.getStream()));
+    _queue_add.emplace_back(std::move(user_val), &fd, _poll_traits.write(fd.getStream()));
   }
 
   void read_write(file_t &fd, user_t user_val) {
     static_assert(__has_write_v, "poll_traits::write(stream_t&) is not defined.");
 
     std::lock_guard<std::mutex> lg(_mutex_add);
-    _queue_add.emplace_back(user_val, &fd, poll_traits<__stream_t>::read_write(fd.getStream()));
+    _queue_add.emplace_back(std::move(user_val), &fd, _poll_traits.read_write(fd.getStream()));
   }
 
   void remove(file_t &fd) {
@@ -191,10 +199,10 @@ public:
     _queue_remove.emplace_back(&fd);
   }
 
-  void poll(std::chrono::milliseconds milli = std::chrono::milliseconds(50)) {
+  int poll(std::chrono::milliseconds milli = std::chrono::milliseconds(50)) {
     _apply_changes();
 
-    poll_traits<__stream_t>::poll(_pollfd, milli, [this](__fd_t fd, poll_result_t result) {
+    return _poll_traits.poll(_pollfd, milli, [this](__fd_t fd, poll_result_t result) {
       auto it = _fd_to_file.find(fd);
 
       if constexpr (std::is_same_v<std::monostate, user_t>) {
@@ -239,16 +247,16 @@ private:
     for(auto &el : _queue_add) {
       _pollfd.emplace_back(std::get<2>(el));
 
-      _fd_to_file.emplace(poll_traits<__stream_t>::fd(std::get<1>(el)->getStream()), std::pair<user_t, file_t*> { std::get<0>(el), std::get<1>(el) });
+      _fd_to_file.emplace(_poll_traits.fd(std::get<1>(el)->getStream()), std::pair<user_t, file_t*> { std::move(std::get<0>(el)), std::get<1>(el) });
     }
 
     for(auto &el : _queue_remove) {
-      auto it = _fd_to_file.find(poll_traits<__stream_t>::fd(el->getStream()));
+      auto it = _fd_to_file.find(_poll_traits.fd(el->getStream()));
       auto cp = *it;
 
       _fd_to_file.erase(it);
-      _pollfd.erase(std::remove_if(std::begin(_pollfd), std::end(_pollfd), [&el](const auto &l) {
-        return poll_traits<__stream_t>::fd(l) == poll_traits<__stream_t>::fd(el->getStream());
+      _pollfd.erase(std::remove_if(std::begin(_pollfd), std::end(_pollfd), [&](const auto &l) {
+        return _poll_traits.fd(l) == _poll_traits.fd(el->getStream());
       }), std::end(_pollfd));
 
       if constexpr (std::is_same_v<user_t, std::monostate>) {
@@ -275,6 +283,8 @@ private:
   std::vector<__poll_t> _pollfd;
 
   std::mutex _mutex_add;
+
+  poll_traits<__stream_t> _poll_traits;
 };
 }
 

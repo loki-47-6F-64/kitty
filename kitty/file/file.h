@@ -69,16 +69,17 @@ private:
   std::vector<std::uint8_t> _out;
 
 public:
-  FD(FD && other) noexcept : _in(std::move(other._in)), _out(std::move(other._out)) {
-    _stream = std::move(other._stream);
-    _timeout = other._timeout;
+  template<class S>
+  FD(FD<S> && other) noexcept : _stream { std::move(other.getStream()) }, _in(std::move(other.get_read_cache())), _out(std::move(other.get_write_cache())) {
+    _timeout = other.timeout();
   }
 
-  FD& operator=(FD && other) noexcept {
-    std::swap(_stream, other._stream);
-    std::swap(_in, other._in);
-    std::swap(_out, other._out);
-    std::swap(_timeout, other._timeout);
+  template<class S>
+  FD& operator=(FD<S> && other) noexcept {
+    _stream = std::move(other.getStream());
+    std::swap(_in, other.get_read_cache());
+    std::swap(_out, other.get_write_cache());
+    std::swap(_timeout, other.timeout());
     
     return *this;
   }
@@ -140,6 +141,31 @@ public:
     }
 
     return err::OK;
+  }
+
+  /**
+   * read the next batch of data
+   * the view is invalidated on next read
+   * @return
+   *  -- std::nullopt on error
+   *  -- the view of the cache on success
+   */
+  std::optional<std::string_view> next_batch() {
+    if(_end_of_buffer()) {
+      _in.data_p = _in.cache.get();
+      auto bytes_read = _stream.read(_in.data_p, _in.capacity);
+      if(bytes_read <= 0) {
+        return std::nullopt;
+      }
+
+      _in.data_end = _in.data_p + bytes_read;
+    }
+
+    std::string_view data { (char*)_in.data_p, _in.size() };
+
+    read_clear();
+
+    return data;
   }
 
   /**
@@ -237,15 +263,31 @@ public:
     return _in;
   }
 
+  const buffer_in_t &get_read_cache() const {
+    return _in;
+  }
+
   std::vector<std::uint8_t> &get_write_cache() {
     return _out;
   }
 
-  bool eof() {
+  const std::vector<std::uint8_t> &get_write_cache() const {
+    return _out;
+  }
+
+  std::chrono::milliseconds &timeout() {
+    return _timeout;
+  }
+
+  const std::chrono::milliseconds &timeout() const {
+    return _timeout;
+  }
+
+  bool eof() const {
     return _stream.eof();
   }
 
-  bool is_open() {
+  bool is_open() const {
     return _stream.is_open();
   }
 
