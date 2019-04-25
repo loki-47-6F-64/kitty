@@ -132,8 +132,12 @@ std::optional<sockaddr_storage> ip_addr_t::to_sockaddr() const {
   return buf;
 }
 
-bool ip_addr_t::operator==(const file::ip_addr_buf_t &r) {
+bool ip_addr_t::operator==(const file::ip_addr_buf_t &r) const {
   return ip == r.ip && port == r.port;
+}
+
+bool ip_addr_t::operator<(const file::ip_addr_buf_t &r) const {
+  return port < r.port || (port == r.port && ip < r.ip);
 }
 
 ip_addr_buf_t ip_addr_buf_t::unpack(std::tuple<std::uint32_t, std::uint16_t> ip_addr) {
@@ -298,17 +302,30 @@ int udp_connect(io &sock, const ip_addr_t &ip_addr) {
   return 0;
 }
 
-std::uint16_t sockport(const file::io &sock) {
+std::uint16_t sockport(const io &sock) {
   auto sock_fd = sock.getStream().fd();
 
   sockaddr_storage addr;
 
   socklen_t size_addr = sizeof(addr);
   if(getsockname(sock_fd, (::sockaddr*)&addr, &size_addr) < 0) {
-    return {};
+    return 0;
   }
 
   auto port = util::endian::big(((::sockaddr_in*)&addr)->sin_port);
   return port;
+}
+
+ip_addr_buf_t peername(const io &sock) {
+  auto sock_fd = sock.getStream().fd();
+
+  sockaddr_storage addr;
+
+  socklen_t size_addr = sizeof(addr);
+  if(getpeername(sock_fd, (::sockaddr*)&addr, &size_addr) < 0) {
+    return {};
+  }
+
+  return ip_addr_buf_t::from_sockaddr((::sockaddr*)&addr);
 }
 }

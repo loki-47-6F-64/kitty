@@ -13,12 +13,10 @@
 #include <kitty/file/file.h>
 #include <kitty/file/poll.h>
 #include <kitty/file/pipe.h>
-#include <kitty/file/tcp.h>
 #include <kitty/file/io_stream.h>
-#include <kitty/server/server.h>
 
 namespace server {
-struct __multiplex;
+struct __multiplex_shared;
 }
 
 namespace file {
@@ -38,14 +36,16 @@ public:
 
 using multiplex = FD<stream::multiplex, std::tuple<sockaddr*>, std::tuple<sockaddr*>>;
 
+std::uint16_t sockport(const multiplex &sock);
+
 namespace stream {
 namespace mux {
 
 struct __member_t {
   KITTY_DEFAULT_CONSTR(__member_t)
 
-  __member_t(std::shared_ptr<server::__multiplex> mux, const ip_addr_t &ip_addr) : _multiplex { std::move(mux) }, _sockaddr { *ip_addr.to_sockaddr() } {}
-  std::shared_ptr<server::__multiplex> _multiplex;
+  __member_t(std::shared_ptr<server::__multiplex_shared> mux, const ip_addr_t &ip_addr) : _multiplex { std::move(mux) }, _sockaddr { *ip_addr.to_sockaddr() } {}
+  std::shared_ptr<server::__multiplex_shared> _multiplex;
   sockaddr_storage _sockaddr;
 };
 
@@ -80,6 +80,8 @@ private:
 
 using demultiplex = FD<stream::demultiplex>;
 
+ip_addr_buf_t peername(const demultiplex &sock);
+
 template<>
 class poll_traits<stream::demultiplex> {
 public:
@@ -99,7 +101,7 @@ public:
     std::chrono::milliseconds to,
     const std::function<void(fd_t, poll_result_t)> &f);
 
-  std::unique_ptr<util::Alarm<bool>> poll_alarm;
+  std::unique_ptr<util::Alarm<bool>> poll_alarm = std::make_unique<util::Alarm<bool>>();
 };
 
 }

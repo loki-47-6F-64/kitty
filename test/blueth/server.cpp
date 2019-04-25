@@ -14,7 +14,7 @@ TEST(blueth_server, start_stop) {
 
   bt::HCI hci;
 
-  auto f_ret = std::async(std::launch::async, &server::bluetooth::start, &blueth, [](auto) {}, std::cref(hci));
+  auto f_ret = std::async(std::launch::async, &server::bluetooth::start, &blueth, [](auto) {}, std::cref(hci), 1);
 
   while(!blueth.isRunning()) {
     std::this_thread::sleep_for(1ms);

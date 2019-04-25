@@ -8,7 +8,7 @@ namespace file {
 constexpr sa_family_t INET  = AF_INET;
 constexpr sa_family_t INET6 = AF_INET6;
 
-class ip_addr_buf_t;
+struct ip_addr_buf_t;
 struct ip_addr_t {
   std::string_view ip;
   std::uint16_t port;
@@ -23,7 +23,13 @@ struct ip_addr_t {
     return ip == r.ip && port == r.port;
   }
 
-  bool operator==(const file::ip_addr_buf_t &r);
+  bool operator==(const file::ip_addr_buf_t &r) const;
+
+  bool operator<(const file::ip_addr_t &r) const {
+    return port < r.port || (port == r.port && ip < r.ip);
+  }
+
+  bool operator<(const file::ip_addr_buf_t &r) const;
 };
 
 struct ip_addr_buf_t {
@@ -53,9 +59,18 @@ struct ip_addr_buf_t {
   bool operator==(const file::ip_addr_buf_t &r) const {
     return ip == r.ip && port == r.port;
   }
+
+  bool operator<(const file::ip_addr_buf_t &r) const {
+    return port < r.port || (port == r.port && ip < r.ip);
+  }
+
+  bool operator<(const file::ip_addr_t &r) const {
+    return port < r.port || (port == r.port && ip < r.ip);
+  }
 };
 
-std::uint16_t sockport(const file::io &sock);
+std::uint16_t sockport(const io &sock);
+ip_addr_buf_t peername(const io &sock);
 
 std::vector<file::ip_addr_buf_t> get_broadcast_ips(std::uint16_t port = 0, int family = 0);
 

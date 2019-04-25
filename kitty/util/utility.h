@@ -9,6 +9,7 @@
 #include <optional>
 #include <mutex>
 #include <condition_variable>
+#include <string_view>
 
 #include <kitty/util/optional.h>
 #include <kitty/err/err.h>
@@ -25,9 +26,14 @@
   x() = default;
 
 #define TUPLE_2D(a,b, expr)\
-  auto a##b { expr };\
-  auto &a = std::get<0>(a##b);\
-  auto &b = std::get<1>(a##b)
+  decltype(expr) a##_##b = expr;\
+  auto &a = std::get<0>(a##_##b);\
+  auto &b = std::get<1>(a##_##b)
+
+#define TUPLE_2D_REF(a,b, expr)\
+  auto &a##_##b = expr;\
+  auto &a = std::get<0>(a##_##b);\
+  auto &b = std::get<1>(a##_##b)
 
 namespace util {
 
@@ -110,6 +116,12 @@ private:
 
   status_t _status;
 };
+
+template<class T>
+using alarm_ptr = std::unique_ptr<Alarm<T>>;
+
+template<class T>
+using alarm_shared = std::shared_ptr<Alarm<T>>;
 
 template<class T>
 class FailGuard {
@@ -228,6 +240,17 @@ std::optional<T> from_hex(const std::string_view &hex) {
 
   return *reinterpret_cast<T *>(buf);
 }
+
+template<class T>
+class hash {
+public:
+  using value_type = T;
+  std::size_t operator()(const value_type &value) const {
+    const auto *p = reinterpret_cast<const char *>(&value);
+
+    return std::hash<std::string_view>{}(std::string_view { p, sizeof(value_type) });
+  }
+};
 
 template<class T>
 auto enm(const T& val) -> const std::underlying_type_t<T>& {

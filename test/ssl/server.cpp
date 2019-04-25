@@ -86,7 +86,7 @@ TEST_F(ssl_server_t, start_stop) {
   sockaddr_in addr { };
   addr.sin_family = file::INET;
 
-  auto f_ret = std::async(std::launch::async, &server::ssl::start, &ssl, [](auto) { }, (sockaddr *) &addr);
+  auto f_ret = std::async(std::launch::async, &server::ssl::start, &ssl, [](auto) { }, (sockaddr *) &addr, 1);
 
   while(!ssl.isRunning()) {
     auto f_stat = f_ret.wait_for(1ms);
@@ -116,7 +116,7 @@ TEST_F(ssl_server_t, accept_client_inet4) {
     has_connected.ring(true);
   };
 
-  f_ret = std::async(std::launch::async, &server::ssl::start, &ssl, client_accept, (sockaddr *) &addr);
+  f_ret = std::async(std::launch::async, &server::ssl::start, &ssl, client_accept, (sockaddr *) &addr, 1);
 
   while(!ssl.isRunning()) {
     auto f_stat = f_ret.wait_for(1ms);
@@ -149,7 +149,7 @@ TEST_F(ssl_server_t, accept_client_inet6) {
     has_connected.ring(true);
   };
 
-  f_ret = std::async(std::launch::async, &server::ssl::start, &ssl, client_accept, (sockaddr *) &addr);
+  f_ret = std::async(std::launch::async, &server::ssl::start, &ssl, client_accept, (sockaddr *) &addr, 1);
 
   while(!ssl.isRunning()) {
     auto f_stat = f_ret.wait_for(1ms);
@@ -182,7 +182,7 @@ TEST_F(ssl_verify_t, client_verify) {
     has_connected.ring(true);
   };
 
-  f_ret = std::async(std::launch::async, &server::ssl::start, &ssl, client_accept, (sockaddr *) &addr);
+  f_ret = std::async(std::launch::async, &server::ssl::start, &ssl, client_accept, (sockaddr *) &addr, 1);
 
   while(!ssl.isRunning()) {
     auto f_stat = f_ret.wait_for(1ms);
@@ -219,7 +219,7 @@ TEST_F(ssl_server_t, accept_client_nohang) {
   addr.sin6_family = file::INET6;
   addr.sin6_port = util::endian::big<std::uint16_t>(2345);
 
-  auto f_ret = std::async(std::launch::async, &server::ssl::start, &ssl, [](auto){}, (sockaddr *) &addr);
+  auto f_ret = std::async(std::launch::async, &server::ssl::start, &ssl, [](auto){}, (sockaddr *) &addr, 1);
 
   while(!ssl.isRunning()) {
     auto f_stat = f_ret.wait_for(1ms);

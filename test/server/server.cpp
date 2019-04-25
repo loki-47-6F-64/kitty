@@ -16,7 +16,7 @@ TEST(tcp_server, start_stop) {
 
   sockaddr_in addr {};
   addr.sin_family = file::INET;
-  auto f_ret = std::async(std::launch::async, &server::tcp::start, &tcp, [](auto) {}, (sockaddr*)&addr);
+  auto f_ret = std::async(std::launch::async, &server::tcp::start, &tcp, [](auto) {}, (sockaddr*)&addr, 1);
 
   while(!tcp.isRunning()) {
     auto f_stat = f_ret.wait_for(1ms);
@@ -48,7 +48,7 @@ TEST(tcp_server, accept_client_inet4) {
     has_connected.ring(true);
   };
 
-  auto f_ret = std::async(std::launch::async, &server::tcp::start, &tcp, client_accept, (sockaddr*)&addr);
+  auto f_ret = std::async(std::launch::async, &server::tcp::start, &tcp, client_accept, (sockaddr*)&addr, 1);
 
   while(!tcp.isRunning()) {
     auto f_stat = f_ret.wait_for(1ms);
@@ -85,7 +85,7 @@ TEST(tcp_server, accept_client_inet6) {
     has_connected.ring(true);
   };
 
-  auto f_ret = std::async(std::launch::async, &server::tcp::start, &tcp, client_accept, (sockaddr*)&addr);
+  auto f_ret = std::async(std::launch::async, &server::tcp::start, &tcp, client_accept, (sockaddr*)&addr, 1);
 
   while(!tcp.isRunning()) {
     auto f_stat = f_ret.wait_for(1ms);

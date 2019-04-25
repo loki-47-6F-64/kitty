@@ -55,6 +55,25 @@ public:
       }
     }
   }
+
+  bool operator<(const map_key_t &r) const {
+    if(payload.has_left()) {
+      if(r.payload.has_left()) {
+        return payload.left() < r.payload.left();
+      }
+      else {
+        return payload.left() < r.payload.right();
+      }
+    }
+    else {
+      if(r.payload.has_left()) {
+        return payload.right() < r.payload.left();
+      }
+      else {
+        return payload.right() < r.payload.right();
+      }
+    }
+  }
 };
 
 }

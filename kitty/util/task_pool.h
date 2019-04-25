@@ -8,6 +8,7 @@
 #include <utility>
 #include <functional>
 #include <mutex>
+#include <type_traits>
 
 #include <kitty/util/optional.h>
 #include <kitty/util/utility.h>
@@ -30,7 +31,7 @@ public:
 
   _Impl(Function&& f) : _func(std::forward<Function>(f)) { }
 
-  void run() {
+  void run() override {
     _func();
   }
 };
@@ -69,8 +70,10 @@ public:
 
   template<class Function, class... Args>
   auto push(Function && newTask, Args &&... args) {
-    typedef decltype(newTask(std::forward<Args>(args)...)) __return;
-    typedef std::packaged_task<__return()> task_t;
+    static_assert(std::is_invocable_v<Function, Args&&...>, "arguments don't match the function");
+
+    using __return = std::invoke_result_t<Function, Args &&...>;
+    using task_t   = std::packaged_task<__return()>;
     
     task_t task(std::bind(
       std::forward<Function>(newTask),
@@ -90,8 +93,10 @@ public:
    */
   template<class Function, class X, class Y, class... Args>
   auto pushDelayed(Function &&newTask, std::chrono::duration<X, Y> duration, Args &&... args) {
-    typedef decltype(newTask(std::forward<Args>(args)...)) __return;
-    typedef std::packaged_task<__return()> task_t;
+    static_assert(std::is_invocable_v<Function, Args&&...>, "arguments don't match the function");
+
+    using __return = std::invoke_result_t<Function, Args &&...>;
+    using task_t   = std::packaged_task<__return()>;
     
     __time_point time_point = std::chrono::steady_clock::now() + duration;
 
@@ -152,7 +157,7 @@ public:
     }
   }
 
-  void cancel(task_id_t task_id) {
+  bool cancel(task_id_t task_id) {
     std::lock_guard<std::mutex> lg(_task_mutex);
 
     auto it = _timer_tasks.begin();
@@ -161,8 +166,12 @@ public:
 
       if(&*task == task_id) {
         _timer_tasks.erase(it);
+
+        return true;
       }
     }
+
+    return false;
   }
     
   std::optional<__task> pop() {

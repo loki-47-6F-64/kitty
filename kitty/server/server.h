@@ -20,9 +20,9 @@
 #include <kitty/log/log.h>
 #include <kitty/err/err.h>
 
-namespace server {
-util::ThreadPool &tasks();
+#include <kitty/server/multiplex.h>
 
+namespace server {
 template<class T, class... InitArgs>
 class Server {
 public:
@@ -30,6 +30,7 @@ public:
   using member_t = typename client_t::member_t;
 
 private:
+  util::ThreadPool thread_pool;
   util::AutoRun<void> _autoRun;
 
   member_t _member;
@@ -39,7 +40,16 @@ public:
 
   ~Server() { stop(); }
 
+
+  util::ThreadPool &tasks() {
+    return thread_pool;
+  }
+
   member_t &get_member() {
+    return _member;
+  }
+
+  const member_t &get_member() const {
     return _member;
   }
 
@@ -51,12 +61,16 @@ public:
    */
 
   // Returns -1 on failure
-  int start(std::function<void(client_t &&)> f, InitArgs ...args) {
+  int start(std::function<void(client_t &&)> f, InitArgs ...args, int threads = 1) {
+    assert(threads > 0);
+
     if(_init_listen(std::forward<InitArgs>(args)...)) {
       print(error, "Couldn't set listener: ", err::current());
 
       return -1;
     }
+
+    tasks().start(threads);
 
     return _listen(f);
   }
@@ -79,7 +93,7 @@ private:
         if(std::holds_alternative<client_t>(client)) {
           auto c = util::cmove(std::get<client_t>(client));
 
-          tasks().push([_action, c]() mutable {
+          thread_pool.push([_action, c]() mutable {
             _action(c);
           });
         }
@@ -147,6 +161,15 @@ struct tcp_client_t {
   std::string ip_addr;
 };
 
-typedef Server<tcp_client_t, const sockaddr *const> tcp;
+struct udp_client_t {
+  using member_t = Multiplex;
+
+  file::demultiplex socket;
+};
+
+using tcp = Server<tcp_client_t, const sockaddr *const>;
+using udp = Server<udp_client_t, std::uint16_t>;
+
+Multiplex &get_multiplex(udp &server);
 }
 #endif

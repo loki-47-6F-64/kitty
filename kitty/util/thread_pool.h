@@ -21,9 +21,10 @@ private:
   
   bool _continue;
 public:
+  ThreadPool() : _continue { false } {}
 
-  ThreadPool(int threads) : _thread(threads), _continue { true } {
-    for (auto & t : _thread) {
+  explicit ThreadPool(int threads) : _thread(threads), _continue { true } {
+    for (auto &t : _thread) {
       t = std::thread(&ThreadPool::_main, this);
     }
   }
@@ -52,6 +53,16 @@ public:
     // Update all timers for wait_until
     _cv.notify_all();
     return future;
+  }
+
+  void start(int threads) {
+    _continue = true;
+
+    _thread.resize(threads);
+
+    for(auto &t : _thread) {
+      t = std::thread(&ThreadPool::_main, this);
+    }
   }
 
   void stop() {

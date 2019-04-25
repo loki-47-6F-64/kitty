@@ -10,8 +10,8 @@
 #include <kitty/server/multiplex_stream.h>
 
 namespace server {
-void __seal_multiplex(__multiplex &multiplex, file::ip_addr_t);
-file::multiplex &__get_sock(__multiplex &multiplex);
+void __seal_multiplex(__multiplex_shared &multiplex, file::ip_addr_t);
+file::multiplex &__get_sock(__multiplex_shared &multiplex);
 }
 
 namespace file::stream {
@@ -38,6 +38,24 @@ int mux::pipe_t::send(const std::string_view &data) {
 }
 
 namespace file {
+
+ip_addr_buf_t peername(const demultiplex &sock) {
+  return file::ip_addr_buf_t::from_sockaddr((sockaddr*)&sock.getStream().fd()->get_member()._sockaddr);
+}
+
+std::uint16_t sockport(const multiplex &sock) {
+  auto sock_fd = sock.getStream().fd();
+
+  sockaddr_storage addr;
+
+  socklen_t size_addr = sizeof(addr);
+  if(getsockname(sock_fd, (::sockaddr *) &addr, &size_addr) < 0) {
+    return 0;
+  }
+
+  auto port = util::endian::big(((::sockaddr_in*)&addr)->sin_port);
+  return port;
+}
 
 poll_traits<stream::demultiplex>::fd_t poll_traits<stream::demultiplex>::fd(const stream_t &stream) {
   return stream.fd();

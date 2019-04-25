@@ -37,11 +37,11 @@ union uuid_t {
     return generate(engine);
   }
 
-  const bool operator==(const uuid_t &other) const {
+  constexpr bool operator==(const uuid_t &other) const {
     return b64[0] == other.b64[0] && b64[1] == other.b64[1];
   }
 
-  const bool operator<(const uuid_t &other) const {
+  constexpr bool operator<(const uuid_t &other) const {
     return (b64[0] < other.b64[0] || (b64[0] == other.b64[0] && b64[1] < other.b64[1]));
   }
 };

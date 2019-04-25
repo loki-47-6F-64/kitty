@@ -17,8 +17,8 @@ namespace server::proxy {
  * On failure a non-zero value is returned and err_msg is set.
  */
 
-template<class Stream, class... R, class... W>
-int load(file::FD<Stream, std::tuple<R...>, std::tuple<W...>> &fd, R... read_args) {
+template<class Stream, class... R, class W>
+int load(file::FD<Stream, std::tuple<R...>, W> &fd, R... read_args) {
   assert(fd.is_open());
   if(fd.eof()) {
     err::code = err::FILE_CLOSED;
@@ -28,8 +28,8 @@ int load(file::FD<Stream, std::tuple<R...>, std::tuple<W...>> &fd, R... read_arg
   return 0;
 }
 
-template<class Stream, class... R, class... W, class T, class... Args>
-int load(file::FD<Stream, std::tuple<R...>, std::tuple<W...>> &fd, R... read_args, T &param, Args&... args) {
+template<class Stream, class... R, class W, class T, class... Args>
+int load(file::FD<Stream, std::tuple<R...>, W> &fd, R... read_args, T &param, Args&... args) {
   if constexpr (util::instantiation_of_v<std::tuple, T>) {
     auto err = std::apply([&fd, &read_args...](auto &&...args) {
       return load(fd, std::forward<R...>(read_args)..., std::forward<decltype(args)>(args)...);
@@ -105,8 +105,8 @@ int load(file::FD<Stream, std::tuple<R...>, std::tuple<W...>> &fd, R... read_arg
   }
 }
 
-template<class T, class... Args, class Stream, class... R, class... W>
-int _load_raw(file::FD<Stream, std::tuple<R...>, std::tuple<W...>> &fd, R... read_args, std::vector<std::uint8_t> &vec);
+template<class T, class... Args, class Stream, class... R, class W>
+int _load_raw(file::FD<Stream, std::tuple<R...>, W> &fd, R... read_args, std::vector<std::uint8_t> &vec);
 
 
 /*
@@ -115,19 +115,19 @@ int _load_raw(file::FD<Stream, std::tuple<R...>, std::tuple<W...>> &fd, R... rea
 template<class... Args>
 struct _load_raw_helper {
 public:
-  template<class Stream, class... R, class... W>
-  static int run(file::FD<Stream, std::tuple<R...>, std::tuple<W...>> &fd, R... read_args, std::vector<std::uint8_t> &vec) {
+  template<class Stream, class... R, class W>
+  static int run(file::FD<Stream, std::tuple<R...>, W> &fd, R... read_args, std::vector<std::uint8_t> &vec) {
     return _load_raw<Args...>(fd, std::forward<R>(read_args)..., vec);
   }
 };
 
-template<class Stream, class...R, class... W>
-int _load_raw(file::FD<Stream, std::tuple<R...>, std::tuple<W...>> &fd, R... read_args, std::vector<std::uint8_t>&) {
+template<class Stream, class...R, class W>
+int _load_raw(file::FD<Stream, std::tuple<R...>, W> &fd, R... read_args, std::vector<std::uint8_t>&) {
   return load(fd, std::forward<R>(read_args)...);
 }
 
-template<class T, class... Args, class Stream, class...R, class... W>
-int _load_raw(file::FD<Stream, std::tuple<R...>, std::tuple<W...>> &fd, R... read_args, std::vector<std::uint8_t> &vec) {
+template<class T, class... Args, class Stream, class...R, class W>
+int _load_raw(file::FD<Stream, std::tuple<R...>, W> &fd, R... read_args, std::vector<std::uint8_t> &vec) {
   std::size_t size;
 
   if constexpr (util::instantiation_of_v<std::tuple, T>) {
@@ -200,8 +200,8 @@ int _load_raw(file::FD<Stream, std::tuple<R...>, std::tuple<W...>> &fd, R... rea
   return _load_raw<Args...>(fd, std::forward<R>(read_args)..., vec);
 }
 
-template<class... Args, class Stream, class...R, class... W>
-std::optional<std::vector<uint8_t>> load_raw(file::FD<Stream, std::tuple<R...>, std::tuple<W...>> &fd, R... read_args) {
+template<class... Args, class Stream, class...R, class W>
+std::optional<std::vector<uint8_t>> load_raw(file::FD<Stream, std::tuple<R...>, W> &fd, R... read_args) {
   std::vector<uint8_t> vec;
 
   auto err = _load_raw<Args...>(fd, std::forward<R>(read_args)..., vec);
@@ -245,14 +245,26 @@ void __push_parameter(file::FD<Stream, std::tuple<R...>, std::tuple<W...>> &fd, 
   }
 }
 
-template<class Stream, class... R, class... W, class... Args>
-int push(file::FD<Stream, std::tuple<R...>, std::tuple<W...>> &fd, W... write_args, const Args&... args) {
+template<class Stream, class R, class... W, class... Args>
+int push(file::FD<Stream, R, std::tuple<W...>> &fd, const Args&... args) {
   assert(fd.is_open());
 
   fd.write_clear();
   (__push_parameter(fd, args), ...);
 
-  return fd.out(std::forward<W>(write_args)...);
+//  return fd.out(std::forward<W>(write_args)...);
+  return fd.out();
+}
+
+template<class Stream, class R, class... W, class... Args>
+int push(file::FD<Stream, R, std::tuple<W...>> &fd, std::tuple<W...> &&write_args, const Args&... args) {
+  assert(fd.is_open());
+
+  fd.write_clear();
+  (__push_parameter(fd, args), ...);
+
+  auto all_args = std::tuple_cat(std::make_tuple(&fd), std::move(write_args));
+  return std::apply(&file::FD<Stream, R, std::tuple<W...>>::out, std::move(all_args));
 }
 
 }

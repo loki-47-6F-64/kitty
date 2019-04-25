@@ -4,25 +4,25 @@
 
 #include <gtest/gtest.h>
 #include <kitty/server/proxy.h>
-#include <kitty/server/multiplex.h>
+#include <kitty/server/server.h>
 
 namespace kitty::test {
 using namespace std::literals;
 
 
 TEST(multiplex, start_stop) {
-  server::multiplex multiplex;
+  server::udp multiplex;
 
   util::Alarm<bool> alarm;
   std::string hello_world;
 
-  auto f = std::async(std::launch::async, &server::multiplex::start, &multiplex, [&](server::demux_client_t &&client) {
+  auto f = std::async(std::launch::async, &server::udp::start, &multiplex, [&](server::udp_client_t &&client) {
     EXPECT_TRUE(client.socket.is_open());
 
     server::proxy::load(client.socket, hello_world);
 
     alarm.ring(true);
-  }, 0);
+  }, 0, 1);
 
   auto g = util::fail_guard([&]() {
     multiplex.stop();
@@ -41,18 +41,18 @@ TEST(multiplex, start_stop) {
 }
 
 TEST(multiplex, accept) {
-  server::multiplex multiplex;
+  server::udp multiplex;
 
   util::Alarm<bool> alarm;
   std::string hello_world;
 
-  auto f = std::async(std::launch::async, &server::multiplex::start, &multiplex, [&](server::demux_client_t &&client) {
+  auto f = std::async(std::launch::async, &server::udp::start, &multiplex, [&](server::udp_client_t &&client) {
     EXPECT_TRUE(client.socket.is_open());
 
     server::proxy::load(client.socket, hello_world);
 
     alarm.ring(true);
-  }, 0);
+  }, 0, 1);
 
   auto g = util::fail_guard([&]() {
     multiplex.stop();
@@ -82,13 +82,13 @@ TEST(multiplex, accept) {
 }
 
 TEST(multiplex, demultiplex) {
-  server::multiplex multiplex;
+  server::udp multiplex;
 
   util::Alarm<file::demultiplex> alarm_0;
   util::Alarm<file::demultiplex> alarm_1;
   util::Alarm<file::demultiplex> alarm_2;
 
-  auto f = std::async(std::launch::async, &server::multiplex::start, &multiplex, [&](server::demux_client_t &&client) {
+  auto f = std::async(std::launch::async, &server::udp::start, &multiplex, [&](server::udp_client_t &&client) {
     EXPECT_TRUE(client.socket.is_open());
 
     if(!alarm_0.status()) {
@@ -102,7 +102,7 @@ TEST(multiplex, demultiplex) {
     else if(!alarm_2.status()) {
       alarm_2.ring(std::move(client.socket));
     }
-  }, 0);
+  }, 0, 1);
 
   auto g = util::fail_guard([&]() {
     multiplex.stop();
@@ -169,18 +169,18 @@ TEST(multiplex, demultiplex) {
 }
 
 TEST(multiplex, close) {
-  server::multiplex multiplex;
+  server::udp multiplex;
 
   util::Alarm<file::demultiplex> alarm;
 
-  auto f = std::async(std::launch::async, &server::multiplex::start, &multiplex, [&](server::demux_client_t &&client) {
+  auto f = std::async(std::launch::async, &server::udp::start, &multiplex, [&](server::udp_client_t &&client) {
     EXPECT_TRUE(client.socket.is_open());
 
     std::string hello_world;
     server::proxy::load(client.socket, hello_world);
 
     alarm.ring(std::move(client.socket));
-  }, 0);
+  }, 0, 1);
 
   auto g = util::fail_guard([&]() {
     multiplex.stop();

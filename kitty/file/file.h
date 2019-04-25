@@ -403,7 +403,7 @@ std::optional<T> read_struct(FD<Stream, std::tuple<ReadArgs...>, std::tuple<Writ
   constexpr size_t data_len = sizeof(T);
   uint8_t buf[data_len];
 
-  auto err = io.read_cached(buf, std::forward<ReadArgs>(args)..., data_len);
+  auto err = io.read_cached(buf, data_len, std::forward<ReadArgs>(args)...);
   if(err) {
     return std::nullopt;
   }
@@ -416,7 +416,7 @@ template<class T, class...ReadArgs, class...WriteArgs>
 std::optional<std::string> read_string(FD<T, std::tuple<ReadArgs...>, std::tuple<WriteArgs...>> &io, ReadArgs ...args, std::size_t size) {
   std::string buf; buf.resize(size);
 
-  auto err = io.read_cached((std::uint8_t*)buf.data(), std::forward<ReadArgs>(args)..., size);
+  auto err = io.read_cached((std::uint8_t*)buf.data(), size, std::forward<ReadArgs>(args)...);
 
   if(err) {
     return std::nullopt;
