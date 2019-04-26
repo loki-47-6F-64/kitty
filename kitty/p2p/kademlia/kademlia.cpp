@@ -514,6 +514,6 @@ void Kademlia::_poll() {
 
   poll.poll();
 
-  server.tasks().push(&Kademlia::poll, this);
+  server.tasks().pushDelayed(&Kademlia::_poll, 0ms, this);
 }
 }

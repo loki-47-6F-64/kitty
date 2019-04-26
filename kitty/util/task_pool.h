@@ -74,11 +74,12 @@ public:
 
     using __return = std::invoke_result_t<Function, Args &&...>;
     using task_t   = std::packaged_task<__return()>;
-    
-    task_t task(std::bind(
-      std::forward<Function>(newTask),
-      std::forward<Args>(args)...
-    ));
+
+    auto bind = [task = std::forward<Function>(newTask), tuple_args = std::make_tuple(std::forward<Args>(args)...)]() mutable {
+      return std::apply(task, std::move(tuple_args));
+    };
+
+    task_t task(std::move(bind));
     
     auto future = task.get_future();
     
@@ -100,10 +101,11 @@ public:
     
     __time_point time_point = std::chrono::steady_clock::now() + duration;
 
-    task_t task(std::bind(
-      std::forward<Function>(newTask),
-      std::forward<Args>(args)...
-    ));
+    auto bind = [task = std::forward<Function>(newTask), tuple_args = std::make_tuple(std::forward<Args>(args)...)]() mutable {
+      return std::apply(task, std::move(tuple_args));
+    };
+
+    task_t task(std::move(bind));
 
     auto future = task.get_future();
     
@@ -209,7 +211,7 @@ public:
     return std::get<0>(_timer_tasks.back());
   }
 private:
-  
+
   template<class Function>
   std::unique_ptr<_ImplBase> toRunnable(Function &&f) {
     return std::make_unique<_Impl<Function>>(std::forward<Function&&>(f));
