@@ -193,7 +193,7 @@ void __insert_closest_node(std::vector<node_t> &closest_nodes, const uuid_t &key
   }
 }
 
-std::vector<node_t> __closest_nodes(const uuid_t &key, std::map<uuid_t, std::vector<std::pair<node_t, bool>>> &vec_nodes, std::size_t max_nodes) {
+std::vector<node_t> __closest_nodes(const uuid_t &key, const std::map<uuid_t, std::vector<std::pair<node_t, bool>>> &vec_nodes, std::size_t max_nodes) {
   std::vector<node_t> closest_nodes;
   closest_nodes.reserve(max_nodes);
 
@@ -206,7 +206,114 @@ std::vector<node_t> __closest_nodes(const uuid_t &key, std::map<uuid_t, std::vec
   return closest_nodes;
 }
 
-void Kademlia::_join_network(std::size_t x, std::vector<p2p::node_t> &&stable_nodes, util::Alarm<err::code_t> *alarm) {
+std::vector<node_t> __closest_nodes(const uuid_t &key, const std::vector<node_t> &vec_nodes, std::size_t max_nodes) {
+  std::vector<node_t> closest_nodes;
+  closest_nodes.reserve(max_nodes);
+
+  for(auto &node : vec_nodes) {
+    __insert_closest_node(closest_nodes, key, node, max_nodes);
+  }
+
+  return closest_nodes;
+}
+
+void Kademlia::_on_lookup_timeout(p2p::uuid_t peer_key, peer_alarm_t &alarm) {
+  alarm->ring(err::TIMEOUT);
+}
+
+void Kademlia::_on_lookup_response(uuid_t peer_key, peer_alarm_t &alarm, Kademlia::shared_sock_t &sock_in) {
+  std::vector<data::node_t> nodes_packed;
+
+  if(__load(sock_in, nodes_packed)) {
+    alarm->ring(err::code);
+
+    return;
+  }
+
+  auto pos = std::find_if(std::begin(nodes_packed), std::end(nodes_packed), [&peer_key](const data::node_t &node) {
+    return std::get<1>(node) == peer_key;
+  });
+
+  if(pos != std::end(nodes_packed)) {
+    alarm->ring(data::unpack(*pos));
+
+    return;
+  }
+
+  auto nodes = __closest_nodes(peer_key, util::map(nodes_packed, &data::unpack), parallel_lookups);
+
+
+  int ret = -1;
+
+  auto msg_id = msg_id_t::generate();
+  for(auto &node : nodes) {
+    auto sock_out = __get_socket(sockets, node.addr);
+
+    if(!__push(sock_out, msg_id, uuid, __kademlia_e::LOOKUP, peer_key)) {
+      ret = 0;
+    }
+    else {
+      auto ip = file::peername(sock_out->raw);
+
+      print(error, "Couldn't push to ", ip.ip, ':', ip.port, ": ", err::current());
+    }
+  }
+
+  if(ret) {
+    alarm->ring(err::INPUT_OUTPUT);
+
+    return;
+  }
+
+  mailbox.pending(server.tasks(),
+    &Kademlia::_on_lookup_response, &Kademlia::_on_lookup_timeout, response_timeout,
+    msg_id,
+    this, peer_key, alarm);
+}
+
+Kademlia::peer_alarm_t Kademlia::get_peer(const uuid_t &key) {
+  peer_alarm_t alarm = std::make_shared<peer_alarm_t::element_type>();
+
+  std::vector<node_t> nodes;
+  {
+    auto lock = buckets.lock();
+
+    nodes = __closest_nodes(key, buckets.raw, 3);
+  }
+
+  auto msg_id = msg_id_t::generate();
+
+  // if all pushes fail --> ret is still -1
+  int ret = -1;
+  for(auto &node : nodes) {
+    auto sock = __get_socket(sockets, node.addr);
+
+    if(!__push(sock, msg_id, uuid, __kademlia_e::LOOKUP, key)) {
+      ret = 0;
+    }
+    else {
+      auto ip = file::peername(sock->raw);
+
+      print(error, "Couldn't push to ", ip.ip, ':', ip.port, ": ", err::current());
+    }
+  }
+
+
+  if(ret) {
+    alarm->ring(err::code);
+  }
+
+  mailbox.pending(server.tasks(),
+    &Kademlia::_on_lookup_response, &Kademlia::_on_lookup_timeout, response_timeout,
+    msg_id,
+    this, key, alarm);
+
+  return alarm;
+}
+
+void Kademlia::_join_network(std::size_t x, std::vector<p2p::node_t> &&stable_nodes,
+                             util::alarm_shared<err::code_t> alarm) {
+
   if(x >= stable_nodes.size()) {
     alarm->ring(err::TIMEOUT);
 
@@ -227,7 +334,7 @@ void Kademlia::_join_network(std::size_t x, std::vector<p2p::node_t> &&stable_no
     bucket = &(buckets->emplace(bucket_key, std::vector<std::pair<node_t, bool>> { }).first->second);
   }
 
-  auto on_response = [](Kademlia *, std::size_t, std::vector<p2p::node_t>&&, util::Alarm<err::code_t> *alarm) {
+  auto on_response = [](Kademlia *, std::size_t, auto&&, auto &alarm, const auto&) {
     alarm->ring(err::OK);
   };
 
@@ -257,7 +364,7 @@ void Kademlia::_join_network(std::size_t x, std::vector<p2p::node_t> &&stable_no
     response_timeout, msg_id,
     this,
     x + 1,
-    util::cmove(stable_nodes),
+    std::move(stable_nodes),
     alarm);
 }
 
@@ -287,7 +394,7 @@ void Kademlia::_on_pending_timeout(p2p::uuid_t bucket_key, const p2p::node_t &ol
   std::rotate(pos_bucket, pos_bucket +1, std::end(*bucket));
 }
 
-void Kademlia::_on_pending_response(p2p::uuid_t bucket_key, const p2p::node_t &old, p2p::node_t &_new) {
+void Kademlia::_on_pending_response(p2p::uuid_t bucket_key, const p2p::node_t &old, p2p::node_t &_new, const shared_sock_t&) {
   auto lock = buckets.lock();
 
   auto pos_pending = std::find_if(std::begin(pending), std::end(pending), [&](auto &pending_node) {
@@ -297,10 +404,10 @@ void Kademlia::_on_pending_response(p2p::uuid_t bucket_key, const p2p::node_t &o
   pending.erase(pos_pending);
 }
 
-int Kademlia::start(std::vector<node_t> &&stable_nodes, std::uint16_t port, util::Alarm<err::code_t> *alarm) {
+int Kademlia::start(std::vector<node_t> &&stable_nodes, std::uint16_t port, util::alarm_shared<err::code_t> alarm) {
   server.tasks().push(
     &Kademlia::_join_network,
-    this, 0, util::cmove(stable_nodes), alarm
+    this, 0, std::move(stable_nodes), alarm
   );
 
   server.tasks().push(&Kademlia::_poll, this);
@@ -399,7 +506,7 @@ void Kademlia::_on_read(file::demultiplex &sock, Kademlia *kad) {
       }
     }
     case __kademlia_e::RESPONSE:
-      kad->mailbox.recv(kad->server.tasks(), msg_id);
+      kad->mailbox.recv(kad->server.tasks(), msg_id, sock_p);
       break;
   }
 }

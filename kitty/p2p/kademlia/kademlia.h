@@ -14,13 +14,16 @@
 
 namespace server {
 
-template<class T>
+template<class T, class... RecvArgs>
 class MailBox {
 public:
   using code_t   = T;
-  using letter_t = std::pair<std::function<void()>, util::TaskPool::task_id_t>;
+  using letter_t = std::pair<std::function<void(RecvArgs...)>, util::TaskPool::task_id_t>;
 
-  void recv(util::TaskPool &task_pool, const code_t &key) {
+  template<class ...Args>
+  void recv(util::TaskPool &task_pool, const code_t &key, Args&&... args) {
+    static_assert(std::is_invocable_v<std::function<void(RecvArgs...)>, decltype(args)...>, "the receive function must be invocable with given arguments");
+
     letter_t letter;
 
     {
@@ -37,7 +40,7 @@ public:
     TUPLE_2D_REF(func, task_id, letter);
     bool canceled = task_pool.cancel(task_id);
     if(canceled) {
-      func();
+      func(args...);
     }
   }
 
@@ -52,8 +55,12 @@ public:
 
     auto shared_args = std::make_shared<std::tuple<std::decay_t<Args>...>>(std::forward<Args>(args)...);
 
-    auto on_recv = [shared_args, func = std::forward<F1>(func)]() mutable {
-      std::apply(std::move(func), *shared_args);
+    auto on_recv = [shared_args, func = std::forward<F1>(func)](RecvArgs... recv_args) mutable {
+      auto on_recv_helper = [&](auto&&... tuple_args) {
+        std::invoke(func, std::forward<Args>(tuple_args)..., recv_args...);
+      };
+
+      std::apply(on_recv_helper, std::move(*shared_args));
     };
 
     auto on_timeout = [this, code, shared_args, func = std::forward<F2>(func_to)]() mutable {
@@ -63,7 +70,11 @@ public:
         _letterbox->erase(code);
       }
 
-      std::apply(std::move(func), *shared_args);
+      auto on_timeout_helper = [&](auto&&... tuple_args) {
+        std::invoke(func, std::forward<Args>(tuple_args)...);
+      };
+
+      std::apply(on_timeout_helper, std::move(*shared_args));
     };
 
     auto task_id = task_pool.pushDelayed(std::move(on_timeout), timeout).task_id;
@@ -80,12 +91,6 @@ private:
 
 namespace p2p {
 
-using alarm_shared = util::alarm_shared<std::variant<
-  err::code_t,
-  std::vector<std::uint8_t>,
-  file::ip_addr_buf_t
->>;
-
 constexpr auto __max_buckets { sizeof(uuid_t) * 8 };
 
 struct node_t {
@@ -95,6 +100,9 @@ struct node_t {
 
 class Kademlia {
 public:
+  using data_alarm_t = util::alarm_shared<util::Either<err::code_t, std::vector<std::uint8_t>>>;
+  using peer_alarm_t = util::alarm_shared<util::Either<err::code_t, node_t>>;
+
   using msg_id_t = uuid_t;
   using poll_t = file::poll_t<file::demultiplex, Kademlia*>;
 
@@ -121,27 +129,21 @@ public:
    * @param key the unique identifier of the value
    * @param data the data to be indexed
    */
-  alarm_shared publish(const uuid_t &key, const std::string_view &data);
-
-  /**
-   * Ensure connection to the peer still exists
-   * @param peer the peer
-   */
-  int ping(const node_t &peer);
+  util::alarm_shared<err::code_t> publish(const uuid_t &key, const std::string_view &data);
 
   /**
    * @param key the unique identifier of the published value
    */
-  alarm_shared get_value(const uuid_t &key);
+  data_alarm_t get_value(const uuid_t &key);
 
   /**
    * @param key the unique identifier of the published value
    */
-  alarm_shared get_peer(const uuid_t &key);
+  peer_alarm_t get_peer(const uuid_t &key);
 
   std::pair<file::ip_addr_t, uuid_t> addr();
 
-  int start(std::vector<node_t> &&stable_nodes, std::uint16_t port, util::Alarm<err::code_t> *alarm);
+  int start(std::vector<node_t> &&stable_nodes, std::uint16_t port, util::alarm_shared<err::code_t> alarm);
   void stop() {
     server.stop();
   }
@@ -156,16 +158,15 @@ private:
 
   void _update_buckets(node_t &peer);
   void _erase_node(const node_t &peer);
-  void _join_network(std::size_t x, std::vector<node_t> &&stable_nodes, util::Alarm<err::code_t> *alarm);
+  void _join_network(std::size_t x, std::vector<node_t> &&stable_nodes, util::alarm_shared<err::code_t> alarm);
 
   void _poll();
-  /**
-   * replace old node in the routing table with the new node
-   * @param old
-   * @param _new
-   */
+
   void _on_pending_timeout(uuid_t bucket_key, const node_t &old, node_t &_new);
-  void _on_pending_response(uuid_t bucket_key, const node_t &old, node_t &_new);
+  void _on_pending_response(uuid_t bucket_key, const node_t &old, node_t &_new, const shared_sock_t&);
+
+  void _on_lookup_timeout(uuid_t peer_key, peer_alarm_t &alarm);
+  void _on_lookup_response(uuid_t peer_key, peer_alarm_t &alarm, shared_sock_t &sock_in);
 
   uuid_t uuid;
 
@@ -177,7 +178,7 @@ private:
 
   std::chrono::milliseconds response_timeout;
 
-  server::MailBox<uuid_t> mailbox;
+  server::MailBox<uuid_t, shared_sock_t> mailbox;
 public:
   server::udp server;
 
