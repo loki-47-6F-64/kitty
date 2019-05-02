@@ -50,5 +50,9 @@ file::multiplex &Multiplex::mux() {
   return _mux->sock;
 }
 
+file::demultiplex Multiplex::open(const file::ip_addr_t &ip_addr) {
+  return file::demultiplex { 0ms, demux(ip_addr).first };
+}
+
 }
 

@@ -9,6 +9,7 @@
 
 
 namespace file {
+using namespace std::literals;
 io ioRead(const char *file_path) {
   return file::io { std::chrono::seconds(0), ::open(file_path, O_RDONLY, 0) };
 }
@@ -19,7 +20,7 @@ io ioWrite(const char *file_path) {
     S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
   );
 
-  return file::io { std::chrono::seconds(0), _fd };
+  return file::io { -1s, _fd };
 }
 
 io ioWriteAppend(const char *file_path) {
@@ -28,7 +29,7 @@ io ioWriteAppend(const char *file_path) {
     S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
   );
 
-  return io { std::chrono::seconds(0), _fd };
+  return io { -1s, _fd };
 }
 
 namespace stream {

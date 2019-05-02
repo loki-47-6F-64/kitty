@@ -115,6 +115,7 @@ int udp::_init_listen(std::uint16_t port) {
     return -1;
   }
 
+  sock.timeout() = 50ms;
   if(!port) {
     port = file::sockport(sock);
   }
@@ -171,7 +172,7 @@ std::variant<err::code_t, udp::client_t> udp::_accept() {
     return err::OK;
   }
 
-  return client_t { file::demultiplex { 3s, pipe } };
+  return client_t { file::demultiplex { 0ms, pipe } };
 }
 
 Multiplex &get_multiplex(udp &server) {

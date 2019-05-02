@@ -72,15 +72,15 @@ private:
   std::vector<std::uint8_t> _out;
 
 public:
-  template<class S, class... R, class... W>
-  FD(FD<S, std::tuple<R...>, std::tuple<W...>> && other) noexcept :
+  template<class S, class R, class W>
+  FD(FD<S, R, W> && other) noexcept :
     _stream { std::move(other.getStream()) },
     _timeout { other.timeout() },
     _in(std::move(other.get_read_cache())),
     _out(std::move(other.get_write_cache())) {}
 
-  template<class S, class... R, class... W>
-  FD& operator=(FD<S, std::tuple<R...>, std::tuple<W...>> && other) noexcept {
+  template<class S, class R, class W>
+  FD& operator=(FD<S, R, W> && other) noexcept {
     _stream = std::move(other.getStream());
     std::swap(_in, other.get_read_cache());
     std::swap(_out, other.get_write_cache());
@@ -330,7 +330,7 @@ public:
    * @return non-zero on timeout or error
    */
   int wait_for(const int mode) {
-    if(_timeout <= 0ms) {
+    if(_timeout < 0ms) {
       return 0;
     }
 

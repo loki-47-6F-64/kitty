@@ -34,16 +34,16 @@ TEST(kademlia, join_network) {
     3,
     3600s,
     4000s,
-    100ms
+    300ms
   };
 
   std::vector stable_nodes {
     p2p::node_t { uuid, file::ip_addr_buf_t { "127.0.0.1"s, port } }
   };
 
-  auto result = std::make_shared<util::Alarm<err::code_t>>();
+  p2p::Kademlia::peer_alarm_t result;
   auto f_ret = std::async(std::launch::async,
-    &p2p::Kademlia::start, &kad, util::cmove(stable_nodes), 0, result);
+    &p2p::Kademlia::start, &kad, util::const_cmove(std::vector { stable_nodes }), 0, std::ref(result));
 
   auto g = util::fail_guard([&] () {
     kad.stop();
@@ -68,10 +68,11 @@ TEST(kademlia, join_network) {
   ASSERT_EQ(p2p::__kademlia_e::LOOKUP, file::read_struct<p2p::__kademlia_e>(sock, addr_p));
   ASSERT_EQ(uuid_peer, file::read_struct<p2p::uuid_t>(sock, addr_p));
 
-  ASSERT_EQ(0, server::proxy::push(sock, std::make_tuple(addr_p), *msg_id, uuid, p2p::__kademlia_e::RESPONSE));
+  ASSERT_EQ(0, server::proxy::push(sock, std::make_tuple(addr_p), *msg_id, uuid, p2p::__kademlia_e::RESPONSE,
+    std::vector<data::node_t>{ data::pack(stable_nodes[0]) }));
 
   ASSERT_TRUE(result->wait_for(500ms));
-  ASSERT_EQ(0, result->status());
+  ASSERT_EQ(err::OUT_OF_BOUNDS, result->status()->left());
 }
 
 TEST(kademlia, join_network_timeout) {
@@ -93,9 +94,9 @@ TEST(kademlia, join_network_timeout) {
     p2p::node_t { uuid, file::ip_addr_buf_t { "127.0.0.1"s, port } }
   };
 
-  auto result = std::make_shared<util::Alarm<err::code_t>>();
+  p2p::Kademlia::peer_alarm_t result;
   auto f_ret = std::async(std::launch::async,
-                          &p2p::Kademlia::start, &kad, util::cmove(stable_nodes), 0, std::move(result));
+    &p2p::Kademlia::start, &kad, util::cmove(stable_nodes), 0, std::ref(result));
 
   auto g = util::fail_guard([&] () {
     kad.stop();
@@ -121,7 +122,7 @@ TEST(kademlia, join_network_timeout) {
   ASSERT_EQ(uuid_peer, file::read_struct<p2p::uuid_t>(sock, addr_p));
 
   ASSERT_TRUE(result->wait_for(500ms));
-  ASSERT_EQ(err::TIMEOUT, result->status());
+  ASSERT_EQ(err::TIMEOUT, result->status()->left());
 }
 
 

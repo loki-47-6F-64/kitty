@@ -44,6 +44,10 @@ union uuid_t {
   constexpr bool operator<(const uuid_t &other) const {
     return (b64[0] < other.b64[0] || (b64[0] == other.b64[0] && b64[1] < other.b64[1]));
   }
+
+  constexpr bool operator>(const uuid_t &other) const {
+    return (b64[0] > other.b64[0] || (b64[0] == other.b64[0] && b64[1] > other.b64[1]));
+  }
 };
 
 }

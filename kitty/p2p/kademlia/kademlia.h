@@ -14,6 +14,7 @@
 
 namespace server {
 
+//TODO: modify recv letters to make sure other responses are accepted if the first response fails
 template<class T, class... RecvArgs>
 class MailBox {
 public:
@@ -21,20 +22,22 @@ public:
   using letter_t = std::pair<std::function<void(RecvArgs...)>, util::TaskPool::task_id_t>;
 
   template<class ...Args>
-  void recv(util::TaskPool &task_pool, const code_t &key, Args&&... args) {
+  void recv(util::TaskPool &task_pool, const code_t &code, Args&&... args) {
     static_assert(std::is_invocable_v<std::function<void(RecvArgs...)>, decltype(args)...>, "the receive function must be invocable with given arguments");
 
     letter_t letter;
 
     {
       auto lock = _letterbox.lock();
-      auto it = _letterbox->find(key);
+      auto it = _letterbox->find(code);
 
       if(it == std::end(_letterbox.raw)) {
         return;
       }
 
       letter = std::move(it->second);
+
+      _letterbox->erase(it);
     }
 
     TUPLE_2D_REF(func, task_id, letter);
@@ -63,6 +66,7 @@ public:
       std::apply(on_recv_helper, std::move(*shared_args));
     };
 
+    //TODO: add the abillity to suspend a timeout
     auto on_timeout = [this, code, shared_args, func = std::forward<F2>(func_to)]() mutable {
       {
         auto lock = _letterbox.lock();
@@ -98,6 +102,10 @@ struct node_t {
   file::ip_addr_buf_t addr;
 };
 
+class Kademlia;
+void _on_read(file::demultiplex &, Kademlia*);
+void _on_remove(file::demultiplex &, Kademlia*);
+
 class Kademlia {
 public:
   using data_alarm_t = util::alarm_shared<util::Either<err::code_t, std::vector<std::uint8_t>>>;
@@ -122,9 +130,8 @@ public:
   refresh { refresh },
   ttl { ttl },
   response_timeout { response_timeout },
-  poll { &Kademlia::_on_read, [](auto&, auto&) {} } {};
+  poll { &_on_read, &_on_remove } {};
 
-public:
   /**
    * @param key the unique identifier of the value
    * @param data the data to be indexed
@@ -143,7 +150,7 @@ public:
 
   std::pair<file::ip_addr_t, uuid_t> addr();
 
-  int start(std::vector<node_t> &&stable_nodes, std::uint16_t port, util::alarm_shared<err::code_t> alarm);
+  int start(std::vector<node_t> &&stable_nodes, std::uint16_t port, peer_alarm_t &alarm);
   void stop() {
     server.stop();
   }
@@ -153,21 +160,7 @@ public:
   }
 
   // TODO: create mechanism to unregister from the network
-private:
-  static void _on_read(file::demultiplex &, Kademlia *kad);
-
-  void _update_buckets(node_t &peer);
-  void _erase_node(const node_t &peer);
-  void _join_network(std::size_t x, std::vector<node_t> &&stable_nodes, util::alarm_shared<err::code_t> alarm);
-
-  void _poll();
-
-  void _on_pending_timeout(uuid_t bucket_key, const node_t &old, node_t &_new);
-  void _on_pending_response(uuid_t bucket_key, const node_t &old, node_t &_new, const shared_sock_t&);
-
-  void _on_lookup_timeout(uuid_t peer_key, peer_alarm_t &alarm);
-  void _on_lookup_response(uuid_t peer_key, peer_alarm_t &alarm, shared_sock_t &sock_in);
-
+// private:
   uuid_t uuid;
 
   std::size_t max_bucket_size;
@@ -177,13 +170,7 @@ private:
   std::chrono::seconds ttl;
 
   std::chrono::milliseconds response_timeout;
-
-  server::MailBox<uuid_t, shared_sock_t> mailbox;
 public:
-  server::udp server;
-
-  poll_t poll;
-
   /**
    * routing table
    */
@@ -195,6 +182,12 @@ public:
   util::Sync<std::unordered_map<server::ip_addr_key, shared_sock_t>> sockets;
 
   std::vector<node_t> pending;
+
+  server::udp server;
+
+  poll_t poll;
+
+  server::MailBox<uuid_t, const node_t &, shared_sock_t> mailbox;
 };
 
 }

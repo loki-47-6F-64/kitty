@@ -33,6 +33,8 @@ public:
    */
   std::pair<std::shared_ptr<file::stream::mux::pipe_t>, bool> demux(const file::ip_addr_t &ip_addr);
 
+  file::demultiplex open(const file::ip_addr_t &ip_addr);
+
   /**
    * @return the socket used for multiplexing
    */
